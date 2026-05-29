@@ -549,13 +549,39 @@ export default function AdminPanel({
                           className="w-full h-full object-cover" 
                           referrerPolicy="no-referrer"
                         />
-                        {movie.vhsTapeColor && (
-                          <div 
-                            className="absolute top-1.5 left-1.5 w-3 h-3 rounded-full border border-zinc-950" 
-                            style={{ backgroundColor: movie.vhsTapeColor }}
-                            title={`Cor do VHS: ${movie.vhsTapeColor}`}
-                          />
-                        )}
+                        {(() => {
+                          const COLOR_MAP: { [key: string]: string } = {
+                            'Ação': '#dc2626',
+                            'Aventura': '#059669',
+                            'Terror': '#7c3aed',
+                            'Suspense': '#ea580c',
+                            'Drama': '#db2777',
+                            'Comédia': '#eab308',
+                            'Ficção Científica': '#06b6d4',
+                            'Cristão': '#0ea5e9',
+                            'Séries': '#10b981',
+                            'Reality': '#f43f5e',
+                            'Documentário': '#71717a',
+                            'Animação': '#fbbf24',
+                            'Família': '#22c55e',
+                            'Fantasia': '#a855f7',
+                            'Crime': '#334155',
+                            'Musical': '#ec4899',
+                            'Guerra': '#78350f',
+                            'Faroeste': '#b45309',
+                            'Romance': '#e11d48',
+                            'História': '#854d0e',
+                            'Biografia': '#0d9488'
+                          };
+                          const finalTapeColor = COLOR_MAP[movie.category] || movie.vhsTapeColor || '#dc2626';
+                          return (
+                            <div 
+                              className="absolute top-1.5 left-1.5 w-3 h-3 rounded-full border border-zinc-950" 
+                              style={{ backgroundColor: finalTapeColor }}
+                              title={`Cor do VHS / Categoria: ${movie.category}`}
+                            />
+                          );
+                        })()}
                       </div>
 
                       <div className="flex-1 p-4 flex flex-col justify-between">

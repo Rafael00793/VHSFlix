@@ -20,24 +20,50 @@ interface MovieDetailModalProps {
 
 const CATEGORY_COLORS: { [key: string]: string } = {
   'Ação': '#dc2626', // Vermelho
+  'Aventura': '#059669', // Verde Esmeralda
   'Terror': '#7c3aed', // Roxo
-  'Suspense': '#f97316', // Laranja
+  'Suspense': '#ea580c', // Laranja Escuro
   'Drama': '#db2777', // Rosa
-  'Comédia': '#ca8a04', // Amarelo
+  'Comédia': '#eab308', // Amarelo
   'Ficção Científica': '#06b6d4', // Ciano
   'Cristão': '#0ea5e9', // Azul Céu
   'Séries': '#10b981', // Verde Esmeralda
+  'Reality': '#f43f5e', // Rosa Intenso
+  'Documentário': '#71717a', // Cinza
+  'Animação': '#fbbf24', // Amarelo Dourado
+  'Família': '#22c55e', // Verde Claro
+  'Fantasia': '#a855f7', // Roxo Claro
+  'Crime': '#334155', // Chumbo Noir
+  'Musical': '#ec4899', // Magenta
+  'Guerra': '#78350f', // Castanho Cáqui
+  'Faroeste': '#b45309', // Marrom Deserto
+  'Romance': '#e11d48', // Vermelho Paixão
+  'História': '#854d0e', // Bronze Histórico
+  'Biografia': '#0d9488' // Teal Literário
 };
 
 const CATEGORY_TAPE_LABELS: { [key: string]: string } = {
   'Ação': 'Vermelho Vintage',
+  'Aventura': 'Verde Selva Retro',
   'Terror': 'Roxo Sombrio',
   'Suspense': 'Laranja Tensão',
   'Drama': 'Rosa Clássico',
-  'Comédia': 'Amarelo Retrô',
-  'Ficção Científica': 'Ciano Espacial',
+  'Comédia': 'Amarelo Radiante',
+  'Ficção Científica': 'Ciano Galáctico',
   'Cristão': 'Azul Celestial',
-  'Séries': 'Verde Brilhante'
+  'Séries': 'Verde Brilhante',
+  'Reality': 'Rosa Shocking',
+  'Documentário': 'Chumbo Magnético',
+  'Animação': 'Dourado Cartum',
+  'Família': 'Neon Fraterno',
+  'Fantasia': 'Místico Púrpura',
+  'Crime': 'Rachadura Grafite',
+  'Musical': 'Magenta Melodia',
+  'Guerra': 'Verde Oliva Combate',
+  'Faroeste': 'Marrom Areia',
+  'Romance': 'Carmesim Paixão',
+  'História': 'Cobre Antigo',
+  'Biografia': 'Teal Documental'
 };
 
 export default function MovieDetailModal({

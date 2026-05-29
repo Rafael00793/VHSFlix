@@ -417,7 +417,7 @@ export default function App() {
                         id="btn-hero-play"
                       >
                         <Play className="w-4 h-4 sm:w-5 sm:h-5 fill-white" />
-                        <span>FAZER PLAY</span>
+                        <span>PLAY</span>
                       </button>
 
                       <button
@@ -606,16 +606,50 @@ export default function App() {
             </div>
           )}
 
-          {/* RODAPÉ DO FOOTER */}
-          <footer className="border-t border-zinc-900/60 bg-zinc-950/80 backdrop-blur-md py-8 px-4 sm:px-8 text-center text-xs text-zinc-650 font-mono space-y-2 mt-auto">
-            <div className="flex justify-center items-center gap-3">
-              <span className="text-rose-600 font-black tracking-wider text-sm">VHSFLIX © 2026</span>
-              <span>•</span>
-              <span>Todos os Direitos Reservados</span>
+          {/* RODAPÉ DO FOOTER - ESTILO PROFISSIONAL NETFLIX */}
+          <footer className="border-t border-zinc-900/40 bg-zinc-950 py-12 px-6 sm:px-12 text-zinc-500 font-sans mt-auto">
+            <div className="max-w-6xl mx-auto space-y-8">
+              {/* Grid de Links Netflix Style */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-[11px] sm:text-xs">
+                <div className="flex flex-col gap-2.5">
+                  <a href="#help-center" className="hover:underline transition-colors text-zinc-400">Central de Ajuda</a>
+                  <a href="#vouchers" className="hover:underline transition-colors">Resgatar Fitas</a>
+                  <a href="#privacy" className="hover:underline transition-colors">Privacidade</a>
+                  <a href="#cookies" className="hover:underline transition-colors">Termos de Uso</a>
+                </div>
+                <div className="flex flex-col gap-2.5">
+                  <a href="#media-center" className="hover:underline transition-colors">Imprensa</a>
+                  <a href="#jobs" className="hover:underline transition-colors">Carreiras</a>
+                  <a href="#corporate" className="hover:underline transition-colors">Informações Corporativas</a>
+                  <a href="#contact" className="hover:underline transition-colors">Fale Conosco</a>
+                </div>
+                <div className="flex flex-col gap-2.5">
+                  <a href="#account" className="hover:underline transition-colors">Conta de Colecionador</a>
+                  <a href="#vhs-specs" className="hover:underline transition-colors font-mono">Especificações CRT</a>
+                  <a href="#terms" className="hover:underline transition-colors">Preferências de Cookies</a>
+                  <a href="#legal" className="hover:underline transition-colors">Avisos Legais</a>
+                </div>
+                <div className="flex flex-col gap-2.5 text-zinc-400">
+                  <p className="font-black tracking-widest text-rose-600 text-xs uppercase text-left">VHSFLIX ENTERACTIVE</p>
+                  <p className="text-[10px] leading-relaxed text-zinc-600 mt-1 text-left">
+                    O maior acervo retrodigital da internet. Assista a clássicos cinematográficos e raridades com codificação analógica em alta definição (Full HD 1080p).
+                  </p>
+                </div>
+              </div>
+
+              {/* Linha Inferior com os Direitos Autorais e Estilo Profissional */}
+              <div className="pt-6 border-t border-zinc-910 flex flex-col sm:flex-row items-center justify-between text-[11px] text-zinc-650 gap-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-zinc-400 font-bold tracking-wider">VHSFLIX Brasil</span>
+                  <span>© 2026</span>
+                  <span className="hidden sm:inline">•</span>
+                  <span>Todos os direitos reservados.</span>
+                </div>
+                <div className="font-mono text-[9px] tracking-wider uppercase text-zinc-600 text-center sm:text-right">
+                  PLATAFORMA RETRÔ DIGITAL • CURADORIA DE ALTO PADRÃO COM INTEGRAÇÃO DE API TMDB
+                </div>
+              </div>
             </div>
-            <p className="text-[10px] max-w-md mx-auto text-zinc-600 leading-relaxed uppercase tracking-wider">
-              Desenvolvido com estética Vaporwave, tubo CRT 80s e curadoria inteligente alimentada por TMDB API.
-            </p>
           </footer>
 
           {/* --- MODAL DE DETALHE COMPACTO --- */}

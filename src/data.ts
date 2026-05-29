@@ -267,13 +267,26 @@ export const DEFAULT_PROFILES: { [userId: string]: Profile[] } = {
 export const GENRE_CATEGORIES = [
   'Todos',
   'Ação',
+  'Aventura',
   'Terror',
   'Suspense',
   'Drama',
   'Comédia',
   'Ficção Científica',
   'Cristão',
-  'Séries'
+  'Séries',
+  'Reality',
+  'Documentário',
+  'Animação',
+  'Família',
+  'Fantasia',
+  'Crime',
+  'Musical',
+  'Guerra',
+  'Faroeste',
+  'Romance',
+  'História',
+  'Biografia'
 ];
 
 /**
@@ -455,6 +468,84 @@ export async function getMovieDetailsTMDB(id: number, type: 'movie' | 'tv', apiK
       }
     }
 
+    // Encontrar ou mapear categoria com base nos gêneros do TMDB de forma inteligente
+    const TMDB_GENRE_MAP: { [key: number]: string } = {
+      28: 'Ação',
+      12: 'Aventura',
+      16: 'Animação',
+      35: 'Comédia',
+      80: 'Crime',
+      99: 'Documentário',
+      18: 'Drama',
+      10751: 'Família',
+      14: 'Fantasia',
+      36: 'História',
+      27: 'Terror',
+      10402: 'Musical',
+      9648: 'Suspense',
+      53: 'Suspense',
+      10749: 'Romance',
+      878: 'Ficção Científica',
+      10752: 'Guerra',
+      37: 'Faroeste',
+      10759: 'Ação',
+      10762: 'Família',
+      10764: 'Reality',
+      10765: 'Ficção Científica',
+      10766: 'Drama',
+      10767: 'Reality',
+      10768: 'Guerra'
+    };
+
+    let resolvedCategory = mediaType === 'tv' ? 'Séries' : 'Ação';
+    if (data.genres && data.genres.length > 0) {
+      const tmdbGenreId = data.genres[0].id;
+      if (TMDB_GENRE_MAP[tmdbGenreId]) {
+        resolvedCategory = TMDB_GENRE_MAP[tmdbGenreId];
+      } else {
+        const firstGenreName = data.genres[0].name ? data.genres[0].name.toLowerCase() : '';
+        if (firstGenreName.includes('reality') || firstGenreName.includes('television') || firstGenreName.includes('tv show')) {
+          resolvedCategory = 'Reality';
+        } else if (firstGenreName.includes('document')) {
+          resolvedCategory = 'Documentário';
+        } else if (firstGenreName.includes('anima')) {
+          resolvedCategory = 'Animação';
+        } else if (firstGenreName.includes('fam')) {
+          resolvedCategory = 'Família';
+        } else if (firstGenreName.includes('fantas')) {
+          resolvedCategory = 'Fantasia';
+        } else if (firstGenreName.includes('crim')) {
+          resolvedCategory = 'Crime';
+        } else if (firstGenreName.includes('mus')) {
+          resolvedCategory = 'Musical';
+        } else if (firstGenreName.includes('war') || firstGenreName.includes('guer')) {
+          resolvedCategory = 'Guerra';
+        } else if (firstGenreName.includes('west') || firstGenreName.includes('faro')) {
+          resolvedCategory = 'Faroeste';
+        } else if (firstGenreName.includes('rom')) {
+          resolvedCategory = 'Romance';
+        } else if (firstGenreName.includes('hist')) {
+          resolvedCategory = 'História';
+        } else if (firstGenreName.includes('biog')) {
+          resolvedCategory = 'Biografia';
+        } else if (firstGenreName.includes('christ') || firstGenreName.includes('crist')) {
+          resolvedCategory = 'Cristão';
+        } else if (firstGenreName.includes('science') || firstGenreName.includes('ficç')) {
+          resolvedCategory = 'Ficção Científica';
+        } else if (firstGenreName.includes('com')) {
+          resolvedCategory = 'Comédia';
+        } else if (firstGenreName.includes('dr')) {
+          resolvedCategory = 'Drama';
+        } else if (firstGenreName.includes('thrill') || firstGenreName.includes('susp') || firstGenreName.includes('myst')) {
+          resolvedCategory = 'Suspense';
+        } else if (firstGenreName.includes('horr') || firstGenreName.includes('terr')) {
+          resolvedCategory = 'Terror';
+        } else if (firstGenreName.includes('adv') || firstGenreName.includes('aven')) {
+          resolvedCategory = 'Aventura';
+        }
+      }
+    }
+
     return {
       title,
       description,
@@ -463,7 +554,7 @@ export async function getMovieDetailsTMDB(id: number, type: 'movie' | 'tv', apiK
       year,
       duration,
       type: mediaType === 'tv' ? 'series' : 'movie',
-      category: mediaType === 'tv' ? 'Séries' : 'Ação',
+      category: resolvedCategory,
       rating: Number((data.vote_average || 7.5).toFixed(1)),
       trailerUrl: `https://www.youtube.com/embed/${trailerKey}`,
       tmdbId: id

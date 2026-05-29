@@ -118,15 +118,41 @@ export default function MovieRow({
                 id={`movie-card-${movie.id}`}
               >
                 {/* Visual VHS estético: adesivo no poster */}
-                {movie.vhsTapeColor && (
-                  <div 
-                    className="absolute top-1.5 right-1.5 px-1 py-0.5 rounded text-[8px] font-mono font-black uppercase text-zinc-950 z-20 flex items-center gap-0.5 select-none"
-                    style={{ backgroundColor: movie.vhsTapeColor }}
-                    title="Etiqueta VHS"
-                  >
-                    VHS
-                  </div>
-                )}
+                {(() => {
+                  const COLOR_MAP: { [key: string]: string } = {
+                    'Ação': '#dc2626',
+                    'Aventura': '#059669',
+                    'Terror': '#7c3aed',
+                    'Suspense': '#ea580c',
+                    'Drama': '#db2777',
+                    'Comédia': '#eab308',
+                    'Ficção Científica': '#06b6d4',
+                    'Cristão': '#0ea5e9',
+                    'Séries': '#10b981',
+                    'Reality': '#f43f5e',
+                    'Documentário': '#71717a',
+                    'Animação': '#fbbf24',
+                    'Família': '#22c55e',
+                    'Fantasia': '#a855f7',
+                    'Crime': '#334155',
+                    'Musical': '#ec4899',
+                    'Guerra': '#78350f',
+                    'Faroeste': '#b45309',
+                    'Romance': '#e11d48',
+                    'História': '#854d0e',
+                    'Biografia': '#0d9488'
+                  };
+                  const finalTapeColor = COLOR_MAP[movie.category] || movie.vhsTapeColor || '#dc2626';
+                  return (
+                    <div 
+                      className="absolute top-1.5 right-1.5 px-1 py-0.5 rounded text-[8px] font-mono font-black uppercase text-zinc-950 z-20 flex items-center gap-0.5 select-none"
+                      style={{ backgroundColor: finalTapeColor }}
+                      title={`Etiqueta VHS: ${movie.category}`}
+                    >
+                      VHS
+                    </div>
+                  );
+                })()}
 
                 {/* Imagem do Poster */}
                 <div className="relative aspect-[2/3] w-full overflow-hidden bg-zinc-950">
