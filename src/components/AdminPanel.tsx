@@ -1,0 +1,1099 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React, { useState } from 'react';
+import { Movie, User, Profile } from '../types';
+import { GENRE_CATEGORIES, searchMoviesTMDB, getMovieDetailsTMDB } from '../data';
+import { Trash, Edit, Plus, Users, Library, Settings, Search, Import, Download, Star, Shield, Film, Tv, Play, AlertTriangle, ShieldAlert, RefreshCw, Check, LayoutDashboard, Activity, Clock, TrendingUp } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+
+interface AdminPanelProps {
+  movies: any[]; // para maior flexibilidade se houver types
+  users: User[];
+  allProfiles: { [userId: string]: Profile[] };
+  tmdbApiKey: string;
+  onUpdateTmdbApiKey: (key: string) => void;
+  onAddMovie: (movie: Omit<Movie, 'id'>) => void;
+  onEditMovie: (movie: Movie) => void;
+  onDeleteMovie: (movieId: string) => void;
+  onResetCatalog: () => void;
+}
+
+export default function AdminPanel({
+  movies,
+  users,
+  allProfiles,
+  tmdbApiKey,
+  onUpdateTmdbApiKey,
+  onAddMovie,
+  onEditMovie,
+  onDeleteMovie,
+  onResetCatalog
+}: AdminPanelProps) {
+  const [activeAdminTab, setActiveAdminTab] = useState<'dashboard' | 'catalog' | 'users' | 'settings'>('dashboard');
+  
+  // Estados para Gerenciamento de Filme (Inclusão e Edição)
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingMovie, setEditingMovie] = useState<Movie | null>(null);
+  
+  // Form fields
+  const [formTitle, setFormTitle] = useState('');
+  const [formDescription, setFormDescription] = useState('');
+  const [formPosterUrl, setFormPosterUrl] = useState('');
+  const [formBackdropUrl, setFormBackdropUrl] = useState('');
+  const [formCategory, setFormCategory] = useState('Ação');
+  const [formYear, setFormYear] = useState(1990);
+  const [formDuration, setFormDuration] = useState('1h 50m');
+  const [formType, setFormType] = useState<'movie' | 'series'>('movie');
+  const [formRating, setFormRating] = useState(8.0);
+  const [formTrailerUrl, setFormTrailerUrl] = useState('https://www.youtube.com/embed/qvsgGtIvCBY');
+  const [formVhsTapeColor, setFormVhsTapeColor] = useState('#2563eb');
+  const [formTmdbId, setFormTmdbId] = useState<number | undefined>(undefined);
+
+  // Estados de busca do TMDB para Importação de Dados
+  const [tmdbSearchQuery, setTmdbSearchQuery] = useState('');
+  const [tmdbSearchResults, setTmdbSearchResults] = useState<any[]>([]);
+  const [isSearchingTMDB, setIsSearchingTMDB] = useState(false);
+  const [tmdbError, setTmdbError] = useState('');
+
+  // Limpa formulário
+  const resetForm = () => {
+    setFormTitle('');
+    setFormDescription('');
+    setFormPosterUrl('');
+    setFormBackdropUrl('');
+    setFormCategory('Ação');
+    setFormYear(1990);
+    setFormDuration('1h 50m');
+    setFormType('movie');
+    setFormRating(8.0);
+    setFormTrailerUrl('https://www.youtube.com/embed/qvsgGtIvCBY');
+    setFormVhsTapeColor('#2563eb');
+    setFormTmdbId(undefined);
+    setEditingMovie(null);
+  };
+
+  const handleOpenCreateForm = () => {
+    resetForm();
+    setIsFormOpen(true);
+  };
+
+  const handleOpenEditForm = (movie: Movie) => {
+    setEditingMovie(movie);
+    setFormTitle(movie.title);
+    setFormDescription(movie.description);
+    setFormPosterUrl(movie.posterUrl);
+    setFormBackdropUrl(movie.backdropUrl);
+    setFormCategory(movie.category);
+    setFormYear(movie.year);
+    setFormDuration(movie.duration);
+    setFormType(movie.type);
+    setFormRating(movie.rating);
+    setFormTrailerUrl(movie.trailerUrl);
+    setFormVhsTapeColor(movie.vhsTapeColor || '#2563eb');
+    setFormTmdbId(movie.tmdbId);
+    setIsFormOpen(true);
+  };
+
+  const handleSubmitForm = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formTitle.trim() || !formDescription.trim()) return;
+
+    const movieData = {
+      title: formTitle,
+      description: formDescription,
+      posterUrl: formPosterUrl || 'https://image.tmdb.org/t/p/w780/8uO0gUMYrj5BNZ6Z9ZgWaS9Stj3.jpg',
+      backdropUrl: formBackdropUrl || 'https://image.tmdb.org/t/p/original/vKof7jZ50vS2pYgO569ofCidG9y.jpg',
+      category: formCategory,
+      year: formYear,
+      duration: formDuration,
+      type: formType,
+      rating: formRating,
+      trailerUrl: formTrailerUrl,
+      vhsTapeColor: formVhsTapeColor,
+      tmdbId: formTmdbId
+    };
+
+    if (editingMovie) {
+      onEditMovie({ ...movieData, id: editingMovie.id });
+    } else {
+      onAddMovie(movieData);
+    }
+    setIsFormOpen(false);
+    resetForm();
+  };
+
+  // Manipulador de busca do TMDB
+  const handleTMDBSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!tmdbSearchQuery.trim()) return;
+    setIsSearchingTMDB(true);
+    setTmdbError('');
+    try {
+      const results = await searchMoviesTMDB(tmdbSearchQuery, tmdbApiKey);
+      setTmdbSearchResults(results);
+      if (results.length === 0) {
+        setTmdbError('Nenhum resultado encontrado.');
+      }
+    } catch (err) {
+      setTmdbError('Erro ao buscar do TMDB.');
+    } finally {
+      setIsSearchingTMDB(false);
+    }
+  };
+
+  // Importar o título selecionado do TMDB
+  const handleImportTMDBMovie = async (id: number, mediaType: 'movie' | 'tv') => {
+    setIsSearchingTMDB(true);
+    setTmdbError('Importando informações detalhadas...');
+    try {
+      const imported = await getMovieDetailsTMDB(id, mediaType, tmdbApiKey);
+      if (imported) {
+        setFormTitle(imported.title || '');
+        setFormDescription(imported.description || '');
+        setFormPosterUrl(imported.posterUrl || '');
+        setFormBackdropUrl(imported.backdropUrl || '');
+        setFormYear(imported.year || 1990);
+        setFormDuration(imported.duration || '2h');
+        setFormType(imported.type || 'movie');
+        setFormCategory(imported.category || 'Ação');
+        setFormRating(imported.rating || 8.0);
+        setFormTrailerUrl(imported.trailerUrl || 'https://www.youtube.com/embed/qvsgGtIvCBY');
+        setFormTmdbId(imported.tmdbId);
+        setTmdbSearchResults([]);
+        setTmdbSearchQuery('');
+        setTmdbError('');
+      } else {
+        setTmdbError('Erro ao obter detalhes específicos.');
+      }
+    } catch (err) {
+      setTmdbError('Erro ao importar título.');
+    } finally {
+      setIsSearchingTMDB(false);
+    }
+  };
+
+  // --- CÁLCULO DE ESTATÍSTICAS E MÉTRICAS RETRÔ PARA O DASHBOARD ---
+  const countMovies = movies.filter(m => m.type === 'movie').length;
+  const countSeries = movies.filter(m => m.type === 'series').length;
+  const totalSubProfiles = Object.values(allProfiles).reduce((acc, pList) => acc + pList.length, 0);
+  
+  // Total de itens favoritados (nas listas de interesses de todos os perfis)
+  const totalMyListSoma = Object.values(allProfiles).reduce((acc, pList) => {
+    return acc + pList.reduce((sum, p) => sum + (p.myList ? p.myList.length : 0), 0);
+  }, 0);
+
+  // Média Geral de Avaliações
+  const totalRatingSoma = movies.reduce((acc, m) => acc + (m.rating || 0), 0);
+  const mediaRating = movies.length > 0 ? (totalRatingSoma / movies.length).toFixed(1) : "0.0";
+
+  // Fitas Magnéticas em Progresso vs Finalizadas
+  const allHistoryProgressList = Object.values(allProfiles).flatMap(pList => pList.flatMap(p => p.watchHistory ? Object.values(p.watchHistory) : [])) as any[];
+  const emProgresso = allHistoryProgressList.filter(ph => ph.progress > 0 && ph.progress < 100).length;
+  const fitasConcluidas = allHistoryProgressList.filter(ph => ph.progress >= 100 || ph.isFinished).length;
+  const totalSomaSegundos = allHistoryProgressList.reduce((acc, ph) => acc + (ph.currentTime || 0), 0);
+  const totalMinutosReproduzidos = Math.round(totalSomaSegundos / 60);
+
+  // Fita VHS Mais Popular (Que mais vezes aparece em myList)
+  const myListCounts: { [movieId: string]: number } = {};
+  Object.values(allProfiles).forEach(pList => {
+    pList.forEach(p => {
+      if (p.myList) {
+        p.myList.forEach(mId => {
+          myListCounts[mId] = (myListCounts[mId] || 0) + 1;
+        });
+      }
+    });
+  });
+
+  let popularMovieId = '';
+  let popularMovieCount = 0;
+  Object.entries(myListCounts).forEach(([mId, count]) => {
+    if (count > popularMovieCount) {
+      popularMovieCount = count;
+      popularMovieId = mId;
+    }
+  });
+  const popularMovie = movies.find(m => m.id === popularMovieId) || (movies.length > 0 ? movies[0] : null);
+
+  // Stats por categoria
+  const categoryStats = GENRE_CATEGORIES.filter(c => c !== 'Todos').map(category => {
+    const count = movies.filter(m => m.category === category).length;
+    const percentage = movies.length > 0 ? (count / movies.length) * 100 : 0;
+    return { category, count, percentage };
+  });
+
+  return (
+    <div className="min-h-screen bg-zinc-950 font-sans text-zinc-100 pt-28 pb-16 px-4 sm:px-8 vhs-grid-pattern">
+      <div className="max-w-[1400px] mx-auto">
+        
+        {/* Cabeçalho do Painel */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 border-b border-zinc-900 pb-6">
+          <div>
+            <h1 className="text-3xl sm:text-4.5xl font-black font-display tracking-tight text-white flex items-center gap-3">
+              <Shield className="w-8 h-8 text-rose-600 drop-shadow-[0_0_10px_rgba(225,29,72,0.5)]" /> 
+              VHSFLIX <span className="text-rose-500 font-mono italic text-xl sm:text-2xl font-light">ADMIN PANEL</span>
+            </h1>
+            <p className="text-xs text-zinc-500 font-mono mt-1 uppercase tracking-wider">
+              Gerencie títulos, importe do TMDB, monitore usuários e personalize as fitas VHS
+            </p>
+          </div>
+        </div>
+
+        {/* Estrutura Lateral Principal (Sidebar + Conteúdo das Abas) */}
+        <div className="flex flex-col lg:flex-row gap-8 mt-2">
+          
+          {/* COLUNA DA ESQUERDA: SIDEBAR PROFISSIONAL */}
+          <div className="w-full lg:w-64 flex-shrink-0">
+            <div className="bg-zinc-900/60 border border-zinc-850/85 rounded-2xl p-4 sticky top-28 space-y-4 backdrop-blur-md">
+              <div className="px-2 py-0.5 border-b border-zinc-800/60 pb-3">
+                <span className="text-[9px] text-rose-500 font-mono font-bold tracking-widest uppercase">Console de Controle</span>
+                <p className="text-[11px] text-zinc-400 mt-1 font-sans">Locadora Vintage</p>
+              </div>
+
+              {/* Menu de Abas na Sidebar */}
+              <nav className="flex flex-row lg:flex-col overflow-x-auto lg:overflow-x-visible pb-2 lg:pb-0 gap-1.5 scrollbar-none">
+                <button
+                  onClick={() => { setActiveAdminTab('dashboard'); setIsFormOpen(false); }}
+                  className={`w-full px-3.5 py-3 rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-start gap-3 transition-all truncate whitespace-nowrap cursor-pointer ${
+                    activeAdminTab === 'dashboard'
+                      ? 'bg-rose-600 text-white shadow-md shadow-rose-600/10 font-bold'
+                      : 'text-zinc-400 hover:text-white hover:bg-zinc-800/40'
+                  }`}
+                >
+                  <LayoutDashboard className="w-4.5 h-4.5" />
+                  <span>Dashboard Principal</span>
+                </button>
+
+                <button
+                  onClick={() => { setActiveAdminTab('catalog'); setIsFormOpen(false); }}
+                  className={`w-full px-3.5 py-3 rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-start gap-3 transition-all truncate whitespace-nowrap cursor-pointer ${
+                    activeAdminTab === 'catalog'
+                      ? 'bg-rose-600 text-white shadow-md shadow-rose-600/10 font-bold'
+                      : 'text-zinc-400 hover:text-white hover:bg-zinc-800/40'
+                  }`}
+                  id="sidebar-btn-catalog"
+                >
+                  <Library className="w-4.5 h-4.5" />
+                  <span>Catálogo de Mídias</span>
+                </button>
+
+                <button
+                  onClick={() => { setActiveAdminTab('users'); setIsFormOpen(false); }}
+                  className={`w-full px-3.5 py-3 rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-start gap-3 transition-all truncate whitespace-nowrap cursor-pointer ${
+                    activeAdminTab === 'users'
+                      ? 'bg-rose-600 text-white shadow-md shadow-rose-600/10 font-bold'
+                      : 'text-zinc-400 hover:text-white hover:bg-zinc-800/40'
+                  }`}
+                  id="sidebar-btn-users"
+                >
+                  <Users className="w-4.5 h-4.5" />
+                  <span>Usuários ({users.length})</span>
+                </button>
+
+                <button
+                  onClick={() => { setActiveAdminTab('settings'); setIsFormOpen(false); }}
+                  className={`w-full px-3.5 py-3 rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-start gap-3 transition-all truncate whitespace-nowrap cursor-pointer ${
+                    activeAdminTab === 'settings'
+                      ? 'bg-rose-600 text-white shadow-md shadow-rose-600/10 font-bold'
+                      : 'text-zinc-400 hover:text-white hover:bg-zinc-800/40'
+                  }`}
+                  id="sidebar-btn-settings"
+                >
+                  <Settings className="w-4.5 h-4.5" />
+                  <span>Configurações</span>
+                </button>
+              </nav>
+
+              {/* Informações Técnicas Retro */}
+              <div className="hidden lg:block border-t border-zinc-850 pt-3 px-2 space-y-2 text-[10px] text-zinc-500 font-mono leading-none">
+                <div className="flex justify-between">
+                  <span>SISTEMA:</span>
+                  <span className="text-rose-500 font-bold uppercase">ATIVO</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>TMDB LIVE:</span>
+                  <span>{tmdbApiKey ? 'OPERANTE' : 'ESTÁTICO'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>GRAVAÇÃO CRT:</span>
+                  <span className="text-amber-500">LINE IN 1</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* COLUNA DA DIREITA: CONTEÚDO PRINCIPAL DINÂMICO */}
+          <div className="flex-1 space-y-6">
+
+            {/* --- ABA 0: DASHBOARD STATS GERAIS --- */}
+            {activeAdminTab === 'dashboard' && (
+              <div className="space-y-6">
+                
+                {/* Grid de Bento-Cards para Estatísticas de Uso */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                  
+                  {/* Card 1: Filmes & Séries */}
+                  <div className="bg-zinc-900 border border-zinc-900 p-5 rounded-2xl flex flex-col justify-between shadow-lg relative overflow-hidden group hover:border-rose-500/30 transition-all">
+                    <div className="absolute top-0 right-0 w-28 h-28 bg-rose-600/5 rounded-full blur-2xl pointer-events-none group-hover:bg-rose-600/10 transition-colors" />
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <span className="text-[10px] text-zinc-500 font-mono uppercase font-black">Catálogo Geral</span>
+                        <p className="text-3xl font-black font-display text-white mt-1.5">{movies.length}</p>
+                        <p className="text-xs text-zinc-400 mt-1">Mídias cadastradas</p>
+                      </div>
+                      <div className="p-2 bg-zinc-950 border border-zinc-800 text-rose-500 rounded-lg">
+                        <Film className="w-5 h-5" />
+                      </div>
+                    </div>
+                    <div className="mt-4 pt-3 border-t border-zinc-850 flex justify-between gap-4 font-mono text-[10px] text-zinc-500">
+                      <span className="flex items-center gap-1"><Play className="w-3 h-3 text-emerald-500 fill-emerald-500" /> {countMovies} Filmes</span>
+                      <span className="flex items-center gap-1"><Tv className="w-3 h-3 text-blue-500" /> {countSeries} Séries</span>
+                    </div>
+                  </div>
+
+                  {/* Card 2: Espectadores */}
+                  <div className="bg-zinc-900 border border-zinc-900 p-5 rounded-2xl flex flex-col justify-between shadow-lg relative overflow-hidden group hover:border-rose-500/30 transition-all">
+                    <div className="absolute top-0 right-0 w-28 h-28 bg-emerald-600/5 rounded-full blur-2xl pointer-events-none group-hover:bg-emerald-600/10 transition-colors" />
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <span className="text-[10px] text-zinc-500 font-mono uppercase font-black">Visualizadores</span>
+                        <p className="text-3xl font-black font-display text-emerald-500 mt-1.5">{users.length}</p>
+                        <p className="text-xs text-zinc-400 mt-1">Usuários ativos</p>
+                      </div>
+                      <div className="p-2 bg-zinc-950 border border-zinc-800 text-emerald-500 rounded-lg">
+                        <Users className="w-5 h-5" />
+                      </div>
+                    </div>
+                    <div className="mt-4 pt-3 border-t border-zinc-850 flex justify-between gap-4 font-mono text-[10px] text-zinc-500">
+                      <span>👥 {totalSubProfiles} Subperfis de Família</span>
+                      <span className="text-emerald-400">Ativos online</span>
+                    </div>
+                  </div>
+
+                  {/* Card 3: Saved List */}
+                  <div className="bg-zinc-900 border border-zinc-900 p-5 rounded-2xl flex flex-col justify-between shadow-lg relative overflow-hidden group hover:border-rose-500/30 transition-all">
+                    <div className="absolute top-0 right-0 w-28 h-28 bg-amber-600/5 rounded-full blur-2xl pointer-events-none group-hover:bg-amber-600/10 transition-colors" />
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <span className="text-[10px] text-zinc-500 font-mono uppercase font-black">Preferidos</span>
+                        <p className="text-3xl font-black font-display text-amber-500 mt-1.5">{totalMyListSoma}</p>
+                        <p className="text-xs text-zinc-400 mt-1">Saves em Lista</p>
+                      </div>
+                      <div className="p-2 bg-zinc-950 border border-zinc-800 text-amber-500 rounded-lg">
+                        <Star className="w-5 h-5" />
+                      </div>
+                    </div>
+                    <div className="mt-4 pt-3 border-t border-zinc-850 flex justify-between gap-4 font-mono text-[10px] text-zinc-500">
+                      <span>Média Notas:</span>
+                      <span className="text-yellow-400 font-bold flex items-center gap-0.5"><Star className="w-3 h-3 fill-yellow-400 text-yellow-450" /> {mediaRating} de 10</span>
+                    </div>
+                  </div>
+
+                  {/* Card 4: Minutos Assistidos */}
+                  <div className="bg-zinc-900 border border-zinc-900 p-5 rounded-2xl flex flex-col justify-between shadow-lg relative overflow-hidden group hover:border-rose-500/30 transition-all">
+                    <div className="absolute top-0 right-0 w-28 h-28 bg-cyan-600/5 rounded-full blur-2xl pointer-events-none group-hover:bg-cyan-600/10 transition-colors" />
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <span className="text-[10px] text-zinc-500 font-mono uppercase font-black">Execuções de Fitas</span>
+                        <p className="text-3xl font-black font-display text-cyan-400 mt-1.5">{totalMinutosReproduzidos}</p>
+                        <p className="text-xs text-zinc-400 mt-1">Minutos Assistidos</p>
+                      </div>
+                      <div className="p-2 bg-zinc-950 border border-zinc-800 text-cyan-400 rounded-lg">
+                        <Clock className="w-5 h-5" />
+                      </div>
+                    </div>
+                    <div className="mt-4 pt-3 border-t border-zinc-850 flex justify-between gap-4 font-mono text-[10px] text-zinc-500">
+                      <span className="text-cyan-400">📼 {emProgresso} em Andamento</span>
+                      <span>🎬 {fitasConcluidas} Concluídas</span>
+                    </div>
+                  </div>
+
+                  {/* Card Destaque: Filme Mais Popular de Todos */}
+                  {popularMovie && (
+                    <div className="bg-zinc-900 border border-zinc-950 p-5 rounded-2xl sm:col-span-2 shadow-lg flex flex-col sm:flex-row justify-between gap-4 hover:border-rose-500/15 transition-all">
+                      <div className="flex-1 flex flex-col justify-between">
+                        <div>
+                          <span className="text-[10px] text-zinc-500 font-mono uppercase font-black">🔥 Fita VHS Mais Desejada</span>
+                          <h4 className="font-extrabold text-base text-white font-display mt-2 line-clamp-1 uppercase">{popularMovie.title}</h4>
+                          <p className="text-[10px] text-rose-500 font-mono mt-1 font-bold">{popularMovie.category} • {popularMovie.year}</p>
+                          <p className="text-zinc-400 font-sans text-xs mt-2.5 line-clamp-2 leading-relaxed">
+                            {popularMovie.description}
+                          </p>
+                        </div>
+                        <div className="mt-4 pt-3 border-t border-zinc-850 flex items-center gap-1.5 font-mono text-[10px] text-zinc-500">
+                          <TrendingUp className="w-3.5 h-3.5 text-rose-500 animate-pulse" />
+                          <span>Salvo nas estantes de <strong>{popularMovieCount}</strong> perfis do VHSFLIX</span>
+                        </div>
+                      </div>
+                      <div className="w-20 bg-zinc-950 rounded-lg overflow-hidden border border-zinc-850 self-start sm:self-auto aspect-[2/3] shrink-0 sm:h-28">
+                        <img
+                          src={popularMovie.posterUrl}
+                          alt={popularMovie.title}
+                          className="w-full h-full object-cover"
+                          referrerPolicy="no-referrer"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Grid Segunda Fileira: Grápico Categoria & Diagnósticos */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  
+                  {/* Categorias - Gráfico Falso e Lindo em CSS */}
+                  <div className="bg-zinc-900 border border-zinc-900 p-5 md:p-6 rounded-2xl shadow-xl">
+                    <div className="flex justify-between items-center border-b border-zinc-850 pb-3 mb-4.5">
+                      <h3 className="font-black text-sm text-white font-display tracking-tight uppercase flex items-center gap-2">
+                        <Activity className="w-4.5 h-4.5 text-rose-500" /> Distribuição de Prateleiras Retro
+                      </h3>
+                      <span className="text-[9px] text-zinc-500 font-mono uppercase font-bold">Volume</span>
+                    </div>
+
+                    <div className="space-y-4">
+                      {categoryStats.map(stat => (
+                        <div key={stat.category} className="space-y-1.5">
+                          <div className="flex justify-between font-mono text-[10px] text-zinc-350">
+                            <span className="font-semibold">{stat.category}</span>
+                            <span>{stat.count} {stat.count === 1 ? 'Volume' : 'Volumes'} ({Math.round(stat.percentage)}%)</span>
+                          </div>
+                          <div className="w-full bg-zinc-950 rounded-full h-2 border border-zinc-900/60 overflow-hidden">
+                            <div 
+                              className="h-full rounded-full transition-all duration-500" 
+                              style={{ 
+                                width: `${stat.percentage}%`,
+                                background: `linear-gradient(90deg, #e11d48, #f43f5e)`
+                              }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Status Geral de Conectividade do Servidor */}
+                  <div className="bg-zinc-900 border border-zinc-900 p-5 md:p-6 rounded-2xl shadow-xl flex flex-col justify-between">
+                    <div>
+                      <div className="flex justify-between items-center border-b border-zinc-850 pb-3 mb-4.5">
+                        <h3 className="font-black text-sm text-white font-display tracking-tight uppercase flex items-center gap-2">
+                          <Shield className="w-4.5 h-4.5 text-rose-500" /> Estado de Conectividade Interna
+                        </h3>
+                        <span className="bg-zinc-950 font-mono text-[8px] text-emerald-400 font-bold border border-emerald-500/20 px-1.5 py-0.5 rounded leading-none">VCR: OK</span>
+                      </div>
+
+                      <div className="space-y-3 font-mono text-[10px] text-zinc-400">
+                        <div className="p-2.5 bg-zinc-950 border border-zinc-850 rounded flex justify-between">
+                          <span className="text-zinc-500">MÉTODO DE INTEGRAÇÃO:</span>
+                          <span className="font-bold text-zinc-200">TMDB API INTELLIGENCE</span>
+                        </div>
+                        <div className="p-2.5 bg-zinc-950 border border-zinc-850 rounded flex justify-between">
+                          <span className="text-zinc-500">API CHAVE DO DESENVOLVEDOR:</span>
+                          <span className={tmdbApiKey ? "text-emerald-400 font-bold" : "text-amber-500 font-semibold"}>
+                            {tmdbApiKey ? "LICENCIADA (BANCO ONLINE)" : "MOCK DE SOBREVIVÊNCIA"}
+                          </span>
+                        </div>
+                        <div className="p-2.5 bg-zinc-950 border border-zinc-850 rounded flex justify-between">
+                          <span className="text-zinc-500">PERSISTÊNCIA OPERACIONAL:</span>
+                          <span className="text-rose-400 font-bold">LOCALSTORAGE ENGINE</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="pt-5 border-t border-zinc-850 mt-5 flex justify-between items-center text-[10px] text-zinc-500 font-mono">
+                      <span>ÚLTIMO BACKUP: AGORA</span>
+                      <button 
+                        onClick={() => alert('Plataforma recarregada e sincronizada.')}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-950 border border-zinc-800 rounded text-zinc-400 hover:text-white transition-colors cursor-pointer"
+                      >
+                        <RefreshCw className="w-3 h-3 text-rose-500" /> Sincronizar Fitas
+                      </button>
+                    </div>
+                  </div>
+
+                </div>
+
+              </div>
+            )}
+        {activeAdminTab === 'catalog' && (
+          <div className="space-y-6">
+            {!isFormOpen ? (
+              <>
+                {/* HUD de Operações do Catálogo */}
+                <div className="flex flex-col sm:flex-row justify-between items-center bg-zinc-900 border border-zinc-900 shadow-lg px-6 py-4 rounded-xl gap-4">
+                  <div>
+                    <h3 className="font-bold text-lg text-white font-display">Títulos Cadastrados</h3>
+                    <p className="text-xs text-zinc-500">Exibindo {movies.length} mídias cadastradas na plataforma local.</p>
+                  </div>
+                  <button
+                    onClick={handleOpenCreateForm}
+                    className="bg-rose-600 hover:bg-rose-700 text-white text-xs sm:text-sm font-bold px-5 py-2.5 rounded-lg flex items-center gap-1.5 transition-all shadow-lg active:scale-95"
+                    id="btn-admin-add-movie"
+                  >
+                    <Plus className="w-4.5 h-4.5" /> Adicionar Filme ou Série
+                  </button>
+                </div>
+
+                {/* Grid Compacto de Filmes do Admin */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                  {movies.map(movie => (
+                    <div 
+                      key={movie.id}
+                      className="bg-zinc-950 rounded-xl border border-zinc-900 overflow-hidden flex shadow-md hover:border-zinc-800 transition-colors"
+                    >
+                      <div className="w-24 flex-shrink-0 bg-zinc-900 relative">
+                        <img 
+                          src={movie.posterUrl} 
+                          alt={movie.title} 
+                          className="w-full h-full object-cover" 
+                          referrerPolicy="no-referrer"
+                        />
+                        {movie.vhsTapeColor && (
+                          <div 
+                            className="absolute top-1.5 left-1.5 w-3 h-3 rounded-full border border-zinc-950" 
+                            style={{ backgroundColor: movie.vhsTapeColor }}
+                            title={`Cor do VHS: ${movie.vhsTapeColor}`}
+                          />
+                        )}
+                      </div>
+
+                      <div className="flex-1 p-4 flex flex-col justify-between">
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="bg-zinc-900 text-[9px] font-mono border border-zinc-800 px-1 py-0.5 rounded text-zinc-400 capitalize">
+                              {movie.type === 'movie' ? 'Filme' : 'Série'}
+                            </span>
+                            <span className="text-[10px] text-rose-500 font-semibold uppercase">{movie.category}</span>
+                          </div>
+                          <h4 className="font-bold text-sm text-zinc-150 mt-1.5 line-clamp-1">{movie.title}</h4>
+                          <p className="text-zinc-500 text-[11px] font-mono mt-0.5">{movie.year} • {movie.duration}</p>
+                          <p className="text-zinc-400 text-xs mt-1.5 line-clamp-2 leading-relaxed">{movie.description}</p>
+                        </div>
+
+                        {/* Ações Rápidas */}
+                        <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-zinc-900/60 font-mono text-[11px]">
+                          <span className="text-yellow-400 font-bold flex items-center gap-0.5">
+                            <Star className="w-3 h-3 fill-yellow-400" /> {movie.rating}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleOpenEditForm(movie)}
+                              className="text-zinc-400 hover:text-white p-1 rounded hover:bg-zinc-900 transition-colors"
+                              title="Editar mídias"
+                              id={`btn-edit-movie-${movie.id}`}
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => onDeleteMovie(movie.id)}
+                              className="text-zinc-500 hover:text-rose-500 p-1 rounded hover:bg-zinc-900 transition-colors"
+                              title="Excluir do catálogo"
+                              id={`btn-delete-movie-${movie.id}`}
+                            >
+                              <Trash className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              /* FORMULÁRIO DE EDIÇÃO / ADIÇÃO ESTILO ESTUDIO RETRO */
+              <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
+                
+                {/* Lado Esquerdo: Buscador e Importador de Metadados do TMDB */}
+                <div className="lg:col-span-2 bg-zinc-900 border border-zinc-800 rounded-xl p-5 md:p-6 space-y-5">
+                  <div className="border-b border-zinc-800 pb-4">
+                    <h3 className="font-bold text-md text-rose-500 font-display flex items-center gap-2 uppercase tracking-tight">
+                      <Download className="w-4.5 h-4.5" /> Importar do TMDB API
+                    </h3>
+                    <p className="text-xs text-zinc-500 mt-1">
+                      Pesquise qualquer filme ou anime do mundo e importe todos os campos da ficha de forma automática.
+                    </p>
+                  </div>
+
+                  {/* Input de Busca TMDB */}
+                  <form onSubmit={handleTMDBSearch} className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Ex: Matrix, Jurassic Park, Batman..."
+                      value={tmdbSearchQuery}
+                      onChange={e => setTmdbSearchQuery(e.target.value)}
+                      className="flex-1 bg-zinc-950 border border-zinc-800 px-3.5 py-2 rounded text-xs focus:ring-1 focus:ring-rose-500 focus:outline-none"
+                    />
+                    <button
+                      type="submit"
+                      disabled={isSearchingTMDB}
+                      className="bg-rose-600 hover:bg-rose-700 font-semibold text-xs text-white px-3.5 py-2 rounded transition-colors flex items-center gap-1"
+                    >
+                      <Search className="w-3.5 h-3.5" /> Buscar
+                    </button>
+                  </form>
+
+                  {/* Status do TMDB API */}
+                  {!tmdbApiKey && (
+                    <div className="p-3 bg-rose-500/5 rounded border border-rose-500/20 text-[10px] text-zinc-400 font-mono flex items-start gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 text-rose-500 flex-shrink-0" />
+                      <span>
+                        Sem chave TMDB definida. Utilizaremos o <strong>banco de importação simulado</strong>. Adicione uma chave real na aba "Configurações" se desejar acesso ao acervo live mundial!
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Lista de Resultados da Busca para Importar */}
+                  <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+                    {tmdbError && <p className="text-rose-500 text-xs font-semibold text-center font-mono py-2">{tmdbError}</p>}
+                    {isSearchingTMDB && (
+                      <div className="flex justify-center items-center py-6 font-mono text-xs">
+                        <RefreshCw className="w-4 h-4 text-rose-500 animate-spin mr-2" />
+                        <span>Carregando dados...</span>
+                      </div>
+                    )}
+                    
+                    {tmdbSearchResults.map((result, idx) => {
+                      const name = result.title || result.name || 'Título Sem Nome';
+                      const year = result.release_date ? result.release_date.split('-')[0] : (result.first_air_date ? result.first_air_date.split('-')[0] : '????');
+                      
+                      return (
+                        <div 
+                          key={result.id || idx}
+                          className="p-2 bg-zinc-950 rounded-lg border border-zinc-805 flex justify-between items-center gap-3 hover:border-rose-500 transition-colors"
+                        >
+                          <div className="flex items-center gap-2.5 truncate">
+                            {result.poster_path ? (
+                              <img 
+                                src={`https://image.tmdb.org/t/p/w185${result.poster_path}`} 
+                                alt={name} 
+                                className="w-8 h-11 object-cover rounded"
+                                referrerPolicy="no-referrer"
+                              />
+                            ) : (
+                              <div className="w-8 h-11 bg-zinc-900 rounded flex items-center justify-center text-[8px] font-mono">NO PIC</div>
+                            )}
+                            <div className="truncate text-[11px] leading-tight">
+                              <span className="font-semibold block truncate text-zinc-200">{name}</span>
+                              <span className="text-zinc-500 font-mono block mt-0.5">{year} • Rating: {result.vote_average ? result.vote_average.toFixed(1) : 'N/D'}</span>
+                            </div>
+                          </div>
+                          
+                          <button
+                            type="button"
+                            onClick={() => handleImportTMDBMovie(result.id, result.media_type || 'movie')}
+                            className="bg-zinc-900 hover:bg-rose-600 hover:text-white text-[10px] font-bold px-3 py-1.5 rounded text-rose-500 border border-rose-500/20 transition-all font-mono uppercase flex items-center gap-1.5"
+                          >
+                            <Import className="w-3 h-3" /> AutoFill
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Lado Direito: Formulário Principal de Edição */}
+                <div className="lg:col-span-3 bg-zinc-900 border border-zinc-800 rounded-xl p-5 md:p-6">
+                  <div className="border-b border-zinc-800 pb-4 mb-5 flex justify-between items-center">
+                    <div>
+                      <h3 className="font-bold text-md text-white font-display uppercase tracking-tight">
+                        {editingMovie ? 'Editar Dados da Fita' : 'Cadastrar Registro Manual'}
+                      </h3>
+                      <p className="text-xs text-zinc-500">Insira as informações do título que irá para a estante digital.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsFormOpen(false)}
+                      className="text-xs font-mono text-zinc-400 hover:text-white border border-zinc-800 px-3 py-1 rounded"
+                    >
+                      Voltar ao catálogo
+                    </button>
+                  </div>
+
+                  <form onSubmit={handleSubmitForm} className="space-y-4 text-xs font-mono">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Título */}
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-zinc-400 font-bold uppercase tracking-wider text-[10px]">Título do Filme ou Série</label>
+                        <input
+                          type="text"
+                          required
+                          value={formTitle}
+                          onChange={e => setFormTitle(e.target.value)}
+                          placeholder="Ex: De Volta Para o Futuro 4"
+                          className="w-full bg-zinc-950 border border-zinc-850 px-3.5 py-2 rounded focus:outline-none focus:border-rose-500"
+                        />
+                      </div>
+
+                      {/* Categoria do VHSFLIX */}
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-zinc-400 font-bold uppercase tracking-wider text-[10px]">Categoria / Prateleira</label>
+                        <select
+                          value={formCategory}
+                          onChange={e => setFormCategory(e.target.value)}
+                          className="w-full bg-zinc-950 border border-zinc-850 px-3.5 py-2 rounded focus:outline-none focus:border-rose-500"
+                        >
+                          {GENRE_CATEGORIES.filter(c => c !== 'Todos').map(c => (
+                            <option key={c} value={c}>{c}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Descrição Sinopse */}
+                    <div className="flex flex-col gap-1.5 font-sans">
+                      <label className="text-zinc-400 font-mono font-bold uppercase tracking-wider text-[10px]">Sinopse / Descrição Completa</label>
+                      <textarea
+                        required
+                        rows={3}
+                        value={formDescription}
+                        onChange={e => setFormDescription(e.target.value)}
+                        placeholder="Narre a incrível trama histórica do filme..."
+                        className="w-full bg-zinc-950 border border-zinc-850 px-3.5 py-2 rounded focus:outline-none focus:border-rose-500 text-sm font-sans"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      {/* Tipo */}
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-zinc-400 font-bold uppercase tracking-wider text-[10px]">Tipo de Mídia</label>
+                        <div className="flex bg-zinc-950 p-1.5 rounded border border-zinc-850 items-center justify-around">
+                          <label className="flex items-center gap-1.5 cursor-pointer select-none font-sans font-medium text-xs text-zinc-300">
+                            <input
+                              type="radio"
+                              name="media_type"
+                              checked={formType === 'movie'}
+                              onChange={() => setFormType('movie')}
+                              className="accent-rose-600"
+                            />
+                            Filme (VHS)
+                          </label>
+                          <label className="flex items-center gap-1.5 cursor-pointer select-none font-sans font-medium text-xs text-zinc-300">
+                            <input
+                              type="radio"
+                              name="media_type"
+                              checked={formType === 'series'}
+                              onChange={() => setFormType('series')}
+                              className="accent-rose-600"
+                            />
+                            Série (VCR)
+                          </label>
+                        </div>
+                      </div>
+
+                      {/* Ano */}
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-zinc-400 font-bold uppercase tracking-wider text-[10px]">Ano de Lançamento</label>
+                        <input
+                          type="number"
+                          required
+                          value={formYear}
+                          onChange={e => setFormYear(parseInt(e.target.value) || 1990)}
+                          className="w-full bg-zinc-950 border border-zinc-850 px-3.5 py-2 rounded text-center focus:outline-none focus:border-rose-500"
+                        />
+                      </div>
+
+                      {/* Duração */}
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-zinc-400 font-bold uppercase tracking-wider text-[10px]">Duração / Extensão</label>
+                        <input
+                          type="text"
+                          required
+                          value={formDuration}
+                          onChange={e => setFormDuration(e.target.value)}
+                          placeholder="Ex: 1h 50m ou 3 Temporadas"
+                          className="w-full bg-zinc-950 border border-zinc-850 px-3.5 py-2 rounded text-center focus:outline-none focus:border-rose-500"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Capas e Backdrops */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* URL Poster */}
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-zinc-400 font-bold uppercase tracking-wider text-[10px]">URL Capa Poster (Retrato 2:3)</label>
+                        <input
+                          type="text"
+                          value={formPosterUrl}
+                          onChange={e => setFormPosterUrl(e.target.value)}
+                          placeholder="https://image.tmdb.org/..."
+                          className="w-full bg-zinc-950 border border-zinc-850 px-3.5 py-2 rounded focus:outline-none focus:border-rose-500"
+                        />
+                      </div>
+
+                      {/* URL Backdrop */}
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-zinc-400 font-bold uppercase tracking-wider text-[10px]">URL Fundo Backdrop (Widescreen 16:9)</label>
+                        <input
+                          type="text"
+                          value={formBackdropUrl}
+                          onChange={e => setFormBackdropUrl(e.target.value)}
+                          placeholder="https://image.tmdb.org/..."
+                          className="w-full bg-zinc-950 border border-zinc-850 px-3.5 py-2 rounded focus:outline-none focus:border-rose-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      {/* Nota Rating */}
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-zinc-400 font-bold uppercase tracking-wider text-[10px]">Nota de Avaliação (0 a 10)</label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          required
+                          value={formRating}
+                          onChange={e => setFormRating(parseFloat(e.target.value) || 7.0)}
+                          className="w-full bg-zinc-950 border border-zinc-850 px-3.5 py-2 rounded text-center focus:outline-none focus:border-rose-500"
+                        />
+                      </div>
+
+                      {/* Link Trailer Youtube */}
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-zinc-400 font-bold uppercase tracking-wider text-[10px]">Embed YouTube Trailer URL</label>
+                        <input
+                          type="text"
+                          required
+                          value={formTrailerUrl}
+                          onChange={e => setFormTrailerUrl(e.target.value)}
+                          placeholder="https://www.youtube.com/embed/..."
+                          className="w-full bg-zinc-950 border border-zinc-850 px-3.5 py-2 rounded focus:outline-none focus:border-rose-500"
+                        />
+                      </div>
+
+                      {/* Cor da Carcaça do VHS */}
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-zinc-400 font-bold uppercase tracking-wider text-[10px]">Cor Física VHS (Tape Case)</label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="color"
+                            value={formVhsTapeColor}
+                            onChange={e => setFormVhsTapeColor(e.target.value)}
+                            className="bg-transparent border-0 w-11 h-9 rounded cursor-pointer flex-shrink-0"
+                          />
+                          <input
+                            type="text"
+                            value={formVhsTapeColor}
+                            onChange={e => setFormVhsTapeColor(e.target.value)}
+                            className="bg-zinc-950 border border-zinc-850 px-2 py-2 rounded text-center w-full focus:outline-none focus:border-rose-500 uppercase font-mono text-xs"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Botões de Ação do Forms */}
+                    <div className="flex gap-3 justify-end pt-5 border-t border-zinc-800">
+                      <button
+                        type="button"
+                        onClick={resetForm}
+                        className="px-4 py-2.5 rounded hover:bg-zinc-800 transition-colors"
+                      >
+                        Limpar Campos
+                      </button>
+                      <button
+                        type="submit"
+                        className="bg-rose-600 hover:bg-rose-700 text-white font-bold px-6 py-2.5 rounded transition-all shadow-lg shadow-rose-600/10 active:scale-95"
+                        id="btn-admin-submit"
+                      >
+                        {editingMovie ? 'Salvar Fita VHS' : 'Inserir Novo VHS'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* --- ABA 2: USUÁRIOS REGISTRADOS --- */}
+        {activeAdminTab === 'users' && (
+          <div className="space-y-6">
+            
+            {/* Lista Completa de Usuários e Estatísticas Gerais */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+              <div className="bg-zinc-900 border border-zinc-900 p-5 rounded-xl shadow">
+                <p className="text-[10px] text-zinc-500 font-mono uppercase font-bold">Total de Contas Principais</p>
+                <p className="text-3xl font-black font-display text-white mt-1">{users.length}</p>
+                <p className="text-[10px] text-rose-500 font-mono mt-1">Registrados em LocalStorage</p>
+              </div>
+
+              <div className="bg-zinc-900 border border-zinc-900 p-5 rounded-xl shadow">
+                <p className="text-[10px] text-zinc-500 font-mono uppercase font-bold">Subperfis Criados</p>
+                <p className="text-3xl font-black font-display text-emerald-500 mt-1">
+                  {Object.values(allProfiles).reduce((acc, pList) => acc + pList.length, 0)}
+                </p>
+                <p className="text-[10px] text-zinc-500 font-mono mt-1">Navegando independentemente</p>
+              </div>
+
+              <div className="bg-zinc-900 border border-zinc-900 p-5 rounded-xl shadow">
+                <p className="text-[10px] text-zinc-500 font-mono uppercase font-bold">Lista de Interesses Geral</p>
+                <p className="text-3xl font-black font-display text-amber-500 mt-1">
+                  {Object.values(allProfiles).reduce((acc, pList) => acc + pList.reduce((accP, p) => accP + p.myList.length, 0), 0)}
+                </p>
+                <p className="text-[10px] text-zinc-500 font-mono mt-1">Total de filmes favoritos salvos</p>
+              </div>
+            </div>
+
+            {/* Tabela de Contas Registradas e Perfis Internos */}
+            <div className="bg-zinc-900 border border-zinc-900 rounded-xl overflow-hidden shadow-xl">
+              <div className="px-6 py-4.5 border-b border-zinc-950 font-display">
+                <h3 className="font-bold text-lg text-white">Banco de Contas Cadastradas</h3>
+                <p className="text-xs text-zinc-500">Cada usuário pode possuir múltiplos perfis estilo família Netflix.</p>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-zinc-950/60 text-zinc-450 text-[10px] uppercase font-mono tracking-wider border-b border-zinc-900">
+                      <th className="py-4.5 px-6 font-semibold">Conta / Titular</th>
+                      <th className="py-4.5 px-6 font-semibold">ID Único</th>
+                      <th className="py-4.5 px-6 font-semibold">Privilégios</th>
+                      <th className="py-4.5 px-6 font-semibold">Subperfis Criados</th>
+                      <th className="py-4.5 px-6 font-semibold">Data Registro</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-900 text-sm">
+                    {users.map(u => {
+                      const listProfiles = allProfiles[u.id] || [];
+                      
+                      return (
+                        <tr key={u.id} className="hover:bg-zinc-950/40 transition-colors">
+                          <td className="py-4 px-6">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-full bg-rose-600/10 border border-rose-500/20 text-rose-500 flex items-center justify-center font-bold font-display uppercase font-mono">
+                                {u.name.substring(0, 2)}
+                              </div>
+                              <div>
+                                <span className="font-semibold block text-zinc-200">{u.name}</span>
+                                <span className="text-xs text-zinc-500 font-mono block">{u.email}</span>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-4 px-6 font-mono text-xs text-zinc-500">{u.id}</td>
+                          <td className="py-4 px-6.5">
+                            {u.isAdmin ? (
+                              <span className="bg-red-600/10 text-rose-500 border border-red-500/30 px-2 py-0.5 rounded font-mono text-[10px] font-bold uppercase inline-flex items-center gap-1">
+                                <Shield className="w-2.5 h-2.5" /> Administrador
+                              </span>
+                            ) : (
+                              <span className="bg-zinc-800 text-zinc-450 px-2 py-0.5 rounded font-mono text-[10px] uppercase">
+                                Padrão
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-4 px-6">
+                            <div className="flex items-center -space-x-1.5 overflow-hidden">
+                              {listProfiles.map(p => (
+                                <img
+                                  key={p.id}
+                                  src={p.avatarUrl}
+                                  alt={p.name}
+                                  title={`${p.name} (${p.myList.length} salvos, ${Object.keys(p.watchHistory).length} assistidos)`}
+                                  className="w-6 h-6 rounded-md object-cover border border-zinc-900 group inline-block hover:scale-115 hover:z-30 transition-transform cursor-help"
+                                  referrerPolicy="no-referrer"
+                                />
+                              ))}
+                              {listProfiles.length === 0 && <span className="text-xs text-zinc-600 italic">Sem perfis</span>}
+                            </div>
+                          </td>
+                          <td className="py-4 px-6 text-xs text-zinc-500 font-mono">
+                            {new Date(u.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* --- ABA 3: CONFIGURAÇÕES E CREDENCIAIS TMDB --- */}
+        {activeAdminTab === 'settings' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            
+            {/* Bloco TMDB Config */}
+            <div className="bg-zinc-900 border border-zinc-850 rounded-xl p-5 md:p-6 space-y-5">
+              <div className="border-b border-zinc-800 pb-4">
+                <h3 className="font-bold text-md text-white font-display uppercase tracking-tight flex items-center gap-2">
+                  <Settings className="w-4.5 h-4.5 text-rose-500" /> API de Busca do TMDB
+                </h3>
+                <p className="text-xs text-zinc-500 mt-1">Insira suas chaves de API do The Movie Database para habilitar buscas ilimitadas mundiais.</p>
+              </div>
+
+              <div className="space-y-4 text-xs font-mono">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-zinc-400 font-bold uppercase tracking-wider text-[10px]">TMDB API KEY v3</label>
+                  <input
+                    type="password"
+                    placeholder="Cole aqui sua api_key do TMDB v3"
+                    value={tmdbApiKey}
+                    onChange={e => onUpdateTmdbApiKey(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 px-3.5 py-2.5 rounded text-xs text-white focus:outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500"
+                    id="input-tmdb-key-entry"
+                  />
+                  <p className="text-[10px] text-zinc-500 mt-1 leading-relaxed">
+                    Você pode obter esta chave gratuitamente fazendo cadastro rápido em <a href="https://www.themoviedb.org/" target="_blank" rel="noreferrer" className="text-rose-500 underline hover:text-rose-400">themoviedb.org</a> sob a seção de Desenvolvedores em Configurações de Conta.
+                  </p>
+                </div>
+
+                <div className="p-4 bg-zinc-950 rounded border border-zinc-800 flex items-start gap-2">
+                  <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+                  <div>
+                    <span className="text-[11px] font-bold text-zinc-300 block font-sans">Status da Conexão</span>
+                    <span className="text-[10px] text-zinc-500 mt-0.5 block leading-relaxed font-mono">
+                      {tmdbApiKey ? 'Chave personalizada inserida. Buscas live mundiais ativas!' : 'Utilizando banco de dados local retro de contingência.'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Bloco Configurações de Fábrica e Reset GERAL */}
+            <div className="bg-zinc-900 border border-zinc-850 rounded-xl p-5 md:p-6 space-y-5">
+              <div className="border-b border-zinc-800 pb-4">
+                <h3 className="font-bold text-md text-red-500 font-display uppercase tracking-tight flex items-center gap-2">
+                  <ShieldAlert className="w-4.5 h-4.5" /> Zona de Risco Administrativa
+                </h3>
+                <p className="text-xs text-zinc-500 mt-1">Efetue modificações críticas, limpezas estéticas ou resete a plataforma por completo.</p>
+              </div>
+
+              <div className="space-y-4">
+                <div className="bg-red-500/5 p-4.5 rounded-lg border border-red-500/20 flex flex-col justify-between gap-4">
+                  <div className="flex gap-2.5 items-start">
+                    <AlertTriangle className="w-5 h-5 text-rose-500 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-bold text-zinc-300 font-sans leading-none">Restaurar Catálogo Padrão</p>
+                      <p className="text-xs text-zinc-500 font-sans mt-1.5 leading-relaxed">
+                        Esta operação deletará TODOS os filmes e séries modificados ou importados manualmente e re-estabelecerá o catálogo inicial premium retro do VHSFLIX (como *De Volta para o Futuro*, *Alien*, *Stranger Things*, etc.).
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <button
+                    onClick={() => {
+                      if (confirm('Tem certeza absoluta que deseja restaurar o catálogo de filmes original? Todos os filmes inseridos manualmente serão removidos.')) {
+                        onResetCatalog();
+                        alert('Catálogo original re-estabelecido com sucesso!');
+                      }
+                    }}
+                    className="bg-zinc-950 hover:bg-rose-600 hover:text-white border border-red-500/40 text-rose-500 px-4 py-2 rounded text-xs font-mono font-bold uppercase transition-all tracking-wider text-center"
+                    id="btn-hard-reset-catalog"
+                  >
+                    Resetar Todo o Catálogo agora
+                  </button>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        )}
+
+          </div> {/* Fim do flex-1 */}
+        </div> {/* Fim do flex-col lg:flex-row dual alignment */}
+
+      </div>
+    </div>
+  );
+}

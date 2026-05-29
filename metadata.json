@@ -1,0 +1,6 @@
+{
+  "name": "VHSFLIX",
+  "description": "Uma plataforma de streaming estilo Netflix com toque retrô VHS, painel administrativo para controle total de filmes e séries, visualização de usuários, área de perfis, continuar assistindo de onde parou (com player integrado) e integração nativa de busca e importação do TMDB.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
