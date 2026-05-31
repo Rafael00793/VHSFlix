@@ -3,22 +3,44 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { Movie, User, Profile, WatchProgress } from './types';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { Movie, User, Profile, WatchProgress, AppNotification } from './types';
 import { INITIAL_MOVIES, INITIAL_USERS, DEFAULT_PROFILES, GENRE_CATEGORIES } from './data';
 import Navbar from './components/Navbar';
 import ProfileSelector from './components/ProfileSelector';
 import MovieRow from './components/MovieRow';
 import MovieDetailModal from './components/MovieDetailModal';
 import AdminPanel from './components/AdminPanel';
-import { Play, Info, Sparkles, Star, Plus, Check, Shield, HelpCircle, AlertCircle, Heart, HeartOff } from 'lucide-react';
+import { Play, Info, Sparkles, Star, Plus, Check, Shield, HelpCircle, AlertCircle, Heart, HeartOff, Volume1, Volume2, VolumeX } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+
+
 
 export default function App() {
   // --- ESTADOS DE SESSÃO E PERSISTÊNCIA GERAL ---
   const [users, setUsers] = useState<User[]>(() => {
     const saved = localStorage.getItem('vhsflix_users');
-    return saved ? JSON.parse(saved) : INITIAL_USERS;
+    let parsed: User[] = saved ? JSON.parse(saved) : INITIAL_USERS;
+    
+    // Garantir que o Administrador Master sempre exista com as credenciais corretas solicitadas
+    const masterAdminEmail = 'rafaelguaruja09@gmail.com';
+    const masterAdmin = parsed.find(u => u.id === 'u1' || u.email.toLowerCase() === masterAdminEmail.toLowerCase());
+    if (masterAdmin) {
+      masterAdmin.name = 'Rafael Gusmão';
+      masterAdmin.email = masterAdminEmail;
+      masterAdmin.password = '19112016';
+      masterAdmin.isAdmin = true;
+    } else {
+      parsed.unshift({
+        id: 'u1',
+        name: 'Rafael Gusmão',
+        email: masterAdminEmail,
+        password: '19112016',
+        isAdmin: true,
+        createdAt: '2026-05-10T12:00:00Z'
+      });
+    }
+    return parsed;
   });
 
   const [allProfiles, setAllProfiles] = useState<{ [userId: string]: Profile[] }>(() => {
@@ -54,9 +76,46 @@ export default function App() {
   const [isAdminView, setIsAdminView] = useState(false);
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
   const [searchVal, setSearchVal] = useState('');
-  const [playHeroTrailer, setPlayHeroTrailer] = useState(false);
+
+  const [notifications, setNotifications] = useState<AppNotification[]>(() => {
+    const saved = localStorage.getItem('vhsflix_notifications');
+    if (saved) return JSON.parse(saved);
+    return [
+      {
+        id: 'n1',
+        title: '📺 Série de Sucesso',
+        message: 'A fita de Stranger Things foi totalmente rebobinada e está pronta para assistir!',
+        movieId: 'm5',
+        createdAt: new Date(Date.now() - 3600000 * 2).toISOString(),
+        isRead: false,
+        type: 'series'
+      },
+      {
+        id: 'n2',
+        title: '📼 Clássico de Ficção',
+        message: 'A edição histórica remasterizada de Blade Runner já está adicionada ao catálogo!',
+        movieId: 'm4',
+        createdAt: new Date(Date.now() - 3600000 * 24).toISOString(),
+        isRead: false,
+        type: 'movie'
+      },
+      {
+        id: 'n3',
+        title: '🌟 Fé e Inspiração',
+        message: 'A sensacional produção cristã The Chosen está completa no nosso acervo retrô.',
+        movieId: 'm10',
+        createdAt: new Date(Date.now() - 3600000 * 48).toISOString(),
+        isRead: true,
+        type: 'series'
+      }
+    ];
+  });
 
   // --- EFEITOS DE SINCRONIZAÇÃO COM LOCALSTORAGE ---
+  useEffect(() => {
+    localStorage.setItem('vhsflix_notifications', JSON.stringify(notifications));
+  }, [notifications]);
+
   useEffect(() => {
     localStorage.setItem('vhsflix_users', JSON.stringify(users));
   }, [users]);
@@ -115,16 +174,6 @@ export default function App() {
     return hasFeatured || sorted[0];
   }, [movies]);
 
-  // Autoplay trailer no plano de fundo do Hero Spotlight com delay
-  useEffect(() => {
-    setPlayHeroTrailer(false);
-    if (!featuredMovie) return;
-    const timer = setTimeout(() => {
-      setPlayHeroTrailer(true);
-    }, 2800); // 2.8s
-    return () => clearTimeout(timer);
-  }, [featuredMovie?.id, activeTab, isAdminView]);
-
   // Filtra catálogo com base em busca e na aba ativa
   const filteredMovies = useMemo(() => {
     let list = [...movies];
@@ -158,17 +207,25 @@ export default function App() {
     setIsAdminView(false);
   };
 
-  const handleAddUser = (name: string, email: string, isAdmin: boolean) => {
+  const handleAddUser = (name: string, email: string, password: string, isAdmin: boolean): string | null => {
+    const emailLower = email.trim().toLowerCase();
+    
+    // Verifica duplicidade
+    if (users.some(u => u.email.toLowerCase() === emailLower)) {
+      return 'Este e-mail já está sendo utilizado por outra conta.';
+    }
+
     const newUser: User = {
       id: 'u_' + Date.now(),
       name,
-      email,
+      email: emailLower,
+      password: password,
       isAdmin,
       createdAt: new Date().toISOString()
     };
     setUsers(prev => [...prev, newUser]);
     
-    // Inicializa perfil padrão para ele
+    // Inicializa perfil padrão para o novo usuário
     const defaultProfile: Profile = {
       id: 'p_' + Date.now(),
       name: name.split(' ')[0],
@@ -176,12 +233,61 @@ export default function App() {
       myList: [],
       watchHistory: {}
     };
+    
     setAllProfiles(prev => ({
       ...prev,
       [newUser.id]: [defaultProfile]
     }));
-    setCurrentUserId(newUser.id);
-    setCurrentProfileId(null);
+
+    return null; // Sucesso
+  };
+
+  const handleEditUser = (userId: string, name: string, email: string, password?: string, isAdmin?: boolean): string | null => {
+    const emailLower = email.trim().toLowerCase();
+    
+    // Se o e-mail mudou, verifica duplicidade
+    const targetUser = users.find(u => u.id === userId);
+    if (!targetUser) return 'Usuário não localizado.';
+
+    if (targetUser.email.toLowerCase() !== emailLower && users.some(u => u.email.toLowerCase() === emailLower && u.id !== userId)) {
+      return 'Este e-mail já está em uso por outro usuário.';
+    }
+
+    setUsers(prev => prev.map(u => {
+      if (u.id === userId) {
+        return {
+          ...u,
+          name,
+          email: emailLower,
+          password: (password !== undefined && password.trim() !== '') ? password : u.password,
+          isAdmin: isAdmin !== undefined ? isAdmin : u.isAdmin
+        };
+      }
+      return u;
+    }));
+
+    return null; // Sucesso
+  };
+
+  const handleDeleteUser = (userId: string) => {
+    // Rafael Gusmão (Master Admin) nunca pode ser apagado por segurança
+    const targetUser = users.find(u => u.id === userId);
+    if (!targetUser || targetUser.email === 'rafaelguaruja09@gmail.com' || targetUser.id === 'u1') return;
+
+    setUsers(prev => prev.filter(u => u.id !== userId));
+    
+    // Remove os perfis dele do estado
+    setAllProfiles(prev => {
+      const next = { ...prev };
+      delete next[userId];
+      return next;
+    });
+
+    // Se o usuário excluído era o usuário atual logado, desloga
+    if (currentUserId === userId) {
+      setCurrentUserId(users[0]?.id || '');
+      setCurrentProfileId(null);
+    }
   };
 
   const handleSelectProfile = (profileId: string) => {
@@ -213,6 +319,16 @@ export default function App() {
       return {
         ...prev,
         [currentUserId]: userList.filter(p => p.id !== profileId)
+      };
+    });
+  };
+
+  const handleEditProfile = (profileId: string, name: string, avatarUrl: string) => {
+    setAllProfiles(prev => {
+      const userList = prev[currentUserId] || [];
+      return {
+        ...prev,
+        [currentUserId]: userList.map(p => p.id === profileId ? { ...p, name, avatarUrl } : p)
       };
     });
   };
@@ -283,11 +399,25 @@ export default function App() {
 
   // --- TRATADORES DO PAINEL ADMIN CORADOS GERAIS ---
   const handleAddMovie = (newMovieData: Omit<Movie, 'id'>) => {
+    const newMovieId = 'm_' + Date.now();
     const newMovie: Movie = {
       ...newMovieData,
-      id: 'm_' + Date.now(),
+      id: newMovieId,
     };
     setMovies(prev => [newMovie, ...prev]);
+
+    // Gerar notificação automática toda vez que sai/é lançado um novo filme ou série no site
+    const isSeries = newMovie.type === 'series';
+    const newNotif: AppNotification = {
+      id: 'notif_' + Date.now(),
+      title: isSeries ? '📺 Nova Série Lançada!' : '📼 Novo Filme Lançado!',
+      message: `"${newMovie.title}" acaba de sair em super fita VHS retro! Insira no reprodutor e assista agora.`,
+      movieId: newMovieId,
+      createdAt: new Date().toISOString(),
+      isRead: false,
+      type: isSeries ? 'series' : 'movie'
+    };
+    setNotifications(prev => [newNotif, ...prev]);
   };
 
   const handleEditMovie = (editedMovie: Movie) => {
@@ -295,13 +425,23 @@ export default function App() {
   };
 
   const handleDeleteMovie = (movieId: string) => {
-    if (confirm('Tem certeza absoluta que deseja excluir este filme permanentemente de VHSFLIX?')) {
-      setMovies(prev => prev.filter(m => m.id !== movieId));
-    }
+    setMovies(prev => prev.filter(m => m.id !== movieId));
   };
 
   const handleResetCatalog = () => {
     setMovies(INITIAL_MOVIES);
+  };
+
+  const handleNotificationClick = (movieId: string, notificationId: string) => {
+    setNotifications(prev => prev.map(notif => notif.id === notificationId ? { ...notif, isRead: true } : notif));
+    const found = movies.find(m => m.id === movieId);
+    if (found) {
+      setSelectedMovie(found);
+    }
+  };
+
+  const handleMarkAllNotificationsAsRead = () => {
+    setNotifications(prev => prev.map(notif => ({ ...notif, isRead: true })));
   };
 
   // Jogar Rápido a fita VHS
@@ -323,11 +463,11 @@ export default function App() {
           users={users}
           currentUserId={currentUserId}
           onSelectUser={handleSelectUser}
-          onAddUser={handleAddUser}
           profiles={allProfiles[currentUserId] || []}
           onSelectProfile={handleSelectProfile}
           onAddProfile={handleAddProfile}
           onDeleteProfile={handleDeleteProfile}
+          onEditProfile={handleEditProfile}
         />
       ) : (
         /* --- SECÇÃO 2: PLATAFORMA STREAMING PRINCIPAL --- */
@@ -348,6 +488,9 @@ export default function App() {
             onToggleAdminView={setIsAdminView}
             vhsMode={vhsMode}
             onToggleVhsMode={() => setVhsMode(!vhsMode)}
+            notifications={notifications}
+            onNotificationClick={handleNotificationClick}
+            onMarkAllAsRead={handleMarkAllNotificationsAsRead}
           />
 
           {/* --- TELA 2.A: INTERFACE ADMINISTRATIVA --- */}
@@ -362,6 +505,12 @@ export default function App() {
               onEditMovie={handleEditMovie}
               onDeleteMovie={handleDeleteMovie}
               onResetCatalog={handleResetCatalog}
+              onAddUser={handleAddUser}
+              onEditUser={handleEditUser}
+              onDeleteUser={handleDeleteUser}
+              currentUserId={currentUserId}
+              currentProfileId={currentProfileId || undefined}
+              onEditProfile={handleEditProfile}
             />
           ) : (
             /* --- TELA 2.B: PAINEL PRINCIPAL DO USUÁRIO ESTILO NETFLIX --- */
@@ -371,23 +520,12 @@ export default function App() {
               {!searchVal && activeTab === 'all' && featuredMovie && (
                 <div className="relative h-[62vh] sm:h-[84vh] w-full bg-zinc-950 flex flex-col justify-end select-none border-b border-zinc-900/40 overflow-hidden">
                   <div className="absolute inset-0 z-0">
-                    {playHeroTrailer && featuredMovie.trailerUrl ? (
-                      <div className="absolute inset-0 w-full h-full scale-[1.3] pointer-events-none origin-center">
-                        <iframe
-                          src={`${featuredMovie.trailerUrl}?autoplay=1&mute=1&controls=0&loop=1&playlist=${featuredMovie.trailerUrl.split('/').pop() || ''}&showinfo=0&rel=0&modestbranding=1&iv_load_policy=3&enablejsapi=1`}
-                          title={featuredMovie.title}
-                          className="w-full h-full border-0 absolute top-0 left-0"
-                          allow="autoplay; encrypted-media"
-                        />
-                      </div>
-                    ) : (
-                      <img
-                        src={featuredMovie.backdropUrl}
-                        alt={featuredMovie.title}
-                        className="w-full h-full object-cover select-none brightness-[0.75]"
-                        referrerPolicy="no-referrer"
-                      />
-                    )}
+                    <img
+                      src={featuredMovie.backdropUrl}
+                      alt={featuredMovie.title}
+                      className="w-full h-full object-cover select-none brightness-[0.75]"
+                      referrerPolicy="no-referrer"
+                    />
                     {/* Sombras pretas de ambientação */}
                     <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/30 to-black/20" />
                     <div className="absolute inset-0 bg-gradient-to-r from-zinc-950/90 via-transparent to-transparent hidden md:block" />
@@ -632,7 +770,7 @@ export default function App() {
                 <div className="flex flex-col gap-2.5 text-zinc-400">
                   <p className="font-black tracking-widest text-rose-600 text-xs uppercase text-left">VHSFLIX ENTERACTIVE</p>
                   <p className="text-[10px] leading-relaxed text-zinc-600 mt-1 text-left">
-                    O maior acervo retrodigital da internet. Assista a clássicos cinematográficos e raridades com codificação analógica em alta definição (Full HD 1080p).
+                    O maior acervo retrodigital da internet. Assista a clássicos cinematográficos e raridades com codificação analógica em alta fidelidade retrô.
                   </p>
                 </div>
               </div>

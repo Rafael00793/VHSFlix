@@ -41,6 +41,7 @@ export interface User {
   id: string;
   name: string;
   email: string;
+  password?: string;
   avatarUrl?: string;
   isAdmin: boolean;
   createdAt: string;
@@ -50,3 +51,14 @@ export interface TMDBConfig {
   apiKey: string;
   useFallbackSearch: boolean;
 }
+
+export interface AppNotification {
+  id: string;
+  title: string;
+  message: string;
+  movieId: string;
+  createdAt: string;
+  isRead: boolean;
+  type: 'movie' | 'series' | 'system';
+}
+

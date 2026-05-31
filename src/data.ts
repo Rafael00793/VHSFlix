@@ -200,15 +200,17 @@ export const INITIAL_MOVIES: Movie[] = [
 export const INITIAL_USERS: User[] = [
   {
     id: 'u1',
-    name: 'Rafael Guimarães',
+    name: 'Rafael Gusmão',
     email: 'rafaelguaruja09@gmail.com',
+    password: '19112016',
     isAdmin: true,
     createdAt: '2026-05-10T12:00:00Z',
   },
   {
     id: 'u2',
     name: 'Ana Maria',
-    email: 'anamaria@vhsflix.com.br',
+    email: 'usuario@streamflix.cor',
+    password: 'user',
     isAdmin: false,
     createdAt: '2026-05-15T15:30:00Z',
   },
@@ -216,6 +218,7 @@ export const INITIAL_USERS: User[] = [
     id: 'u3',
     name: 'Carlos VHS Collector',
     email: 'carlos@retro.com',
+    password: 'user',
     isAdmin: false,
     createdAt: '2026-05-18T18:45:00Z',
   }

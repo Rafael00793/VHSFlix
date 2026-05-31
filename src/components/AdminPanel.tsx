@@ -5,8 +5,8 @@
 
 import React, { useState } from 'react';
 import { Movie, User, Profile } from '../types';
-import { GENRE_CATEGORIES, searchMoviesTMDB, getMovieDetailsTMDB } from '../data';
-import { Trash, Edit, Plus, Users, Library, Settings, Search, Import, Download, Star, Shield, Film, Tv, Play, AlertTriangle, ShieldAlert, RefreshCw, Check, LayoutDashboard, Activity, Clock, TrendingUp } from 'lucide-react';
+import { GENRE_CATEGORIES, searchMoviesTMDB, getMovieDetailsTMDB, PROFILE_AVATARS } from '../data';
+import { Trash, Edit, Plus, Users, Library, Settings, Search, Import, Download, Star, Shield, Film, Tv, Play, AlertTriangle, ShieldAlert, RefreshCw, Check, LayoutDashboard, Activity, Clock, TrendingUp, User as UserIcon, Lock as LockIcon, Eye, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface AdminPanelProps {
@@ -19,6 +19,12 @@ interface AdminPanelProps {
   onEditMovie: (movie: Movie) => void;
   onDeleteMovie: (movieId: string) => void;
   onResetCatalog: () => void;
+  onAddUser: (name: string, email: string, password: string, isAdmin: boolean) => string | null;
+  onEditUser: (userId: string, name: string, email: string, password?: string, isAdmin?: boolean) => string | null;
+  onDeleteUser: (userId: string) => void;
+  currentUserId: string;
+  currentProfileId?: string;
+  onEditProfile?: (profileId: string, name: string, avatarUrl: string) => void;
 }
 
 export default function AdminPanel({
@@ -30,10 +36,52 @@ export default function AdminPanel({
   onAddMovie,
   onEditMovie,
   onDeleteMovie,
-  onResetCatalog
+  onResetCatalog,
+  onAddUser,
+  onEditUser,
+  onDeleteUser,
+  currentUserId,
+  currentProfileId,
+  onEditProfile
 }: AdminPanelProps) {
-  const [activeAdminTab, setActiveAdminTab] = useState<'dashboard' | 'catalog' | 'users' | 'settings'>('dashboard');
+  const [activeAdminTab, setActiveAdminTab] = useState<'dashboard' | 'catalog' | 'users' | 'myaccount' | 'settings'>('dashboard');
+
+  // Estados com confirmação customizada segura
+  const [userToDelete, setUserToDelete] = useState<User | null>(null);
+  const [movieToDelete, setMovieToDelete] = useState<Movie | null>(null);
+  const [showCatalogResetConfirm, setShowCatalogResetConfirm] = useState(false);
+
+  // Estados com edição de foto de perfil de Admin
+  const [showAdminAvatarModal, setShowAdminAvatarModal] = useState(false);
+  const [adminCustomAvatarUrl, setAdminCustomAvatarUrl] = useState('');
+  const [adminSelectedAvatarIdx, setAdminSelectedAvatarIdx] = useState(0);
   
+  // Estados para Gerenciamento de Usuários
+  const [isUserFormOpen, setIsUserFormOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [userFormName, setUserFormName] = useState('');
+  const [userFormEmail, setUserFormEmail] = useState('');
+  const [userFormPassword, setUserFormPassword] = useState('');
+  const [userFormIsAdmin, setUserFormIsAdmin] = useState(false);
+  const [userFormError, setUserFormError] = useState('');
+
+  // Estados para "Minha Conta"
+  const currentUser = users.find(u => u.id === currentUserId) || { name: 'Admin', email: '', password: '' };
+  const [myAccountEmail, setMyAccountEmail] = useState(currentUser.email);
+  const [myAccountPassword, setMyAccountPassword] = useState(currentUser.password || '');
+  const [myAccountMessage, setMyAccountMessage] = useState('');
+  const [myAccountError, setMyAccountError] = useState('');
+  const [showUserFormPass, setShowUserFormPass] = useState(false);
+  const [showMyAccountPass, setShowMyAccountPass] = useState(false);
+
+  // Sincroniza campos de "Minha Conta" quando o usuário muda
+  React.useEffect(() => {
+    if (currentUser) {
+      setMyAccountEmail(currentUser.email);
+      setMyAccountPassword(currentUser.password || '');
+    }
+  }, [currentUserId, users]);
+
   // Estados para Gerenciamento de Filme (Inclusão e Edição)
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingMovie, setEditingMovie] = useState<Movie | null>(null);
@@ -291,6 +339,19 @@ export default function AdminPanel({
                 >
                   <Users className="w-4.5 h-4.5" />
                   <span>Usuários ({users.length})</span>
+                </button>
+
+                <button
+                  onClick={() => { setActiveAdminTab('myaccount'); setIsFormOpen(false); }}
+                  className={`w-full px-3.5 py-3 rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-start gap-3 transition-all truncate whitespace-nowrap cursor-pointer ${
+                    activeAdminTab === 'myaccount'
+                      ? 'bg-rose-600 text-white shadow-md shadow-rose-600/10 font-bold'
+                      : 'text-zinc-400 hover:text-white hover:bg-zinc-800/40'
+                  }`}
+                  id="sidebar-btn-myaccount"
+                >
+                  <UserIcon className="w-4.5 h-4.5" />
+                  <span>Minha Conta</span>
                 </button>
 
                 <button
@@ -612,7 +673,7 @@ export default function AdminPanel({
                               <Edit className="w-4 h-4" />
                             </button>
                             <button
-                              onClick={() => onDeleteMovie(movie.id)}
+                              onClick={() => setMovieToDelete(movie)}
                               className="text-zinc-500 hover:text-rose-500 p-1 rounded hover:bg-zinc-900 transition-colors"
                               title="Excluir do catálogo"
                               id={`btn-delete-movie-${movie.id}`}
@@ -960,27 +1021,44 @@ export default function AdminPanel({
               </div>
             </div>
 
-            {/* Tabela de Contas Registradas e Perfis Internos */}
-            <div className="bg-zinc-900 border border-zinc-900 rounded-xl overflow-hidden shadow-xl">
-              <div className="px-6 py-4.5 border-b border-zinc-950 font-display">
-                <h3 className="font-bold text-lg text-white">Banco de Contas Cadastradas</h3>
-                <p className="text-xs text-zinc-500">Cada usuário pode possuir múltiplos perfis estilo família Netflix.</p>
+            <div className="bg-zinc-900 border border-zinc-905 rounded-xl overflow-hidden shadow-xl">
+              <div className="px-6 py-4.5 border-b border-zinc-950 font-display flex justify-between items-center bg-zinc-950/20">
+                <div>
+                  <h3 className="font-bold text-lg text-white">Banco de Contas Cadastradas</h3>
+                  <p className="text-xs text-zinc-500">Cada usuário pode possuir múltiplos perfis estilo família Netflix.</p>
+                </div>
+                <button
+                  onClick={() => {
+                    setEditingUser(null);
+                    setUserFormName('');
+                    setUserFormEmail('');
+                    setUserFormPassword('');
+                    setUserFormIsAdmin(false);
+                    setUserFormError('');
+                    setIsUserFormOpen(true);
+                  }}
+                  className="bg-rose-600 hover:bg-rose-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1 transition-all shadow-md shadow-rose-600/15 cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Criar Usuário
+                </button>
               </div>
 
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse">
                   <thead>
-                    <tr className="bg-zinc-950/60 text-zinc-450 text-[10px] uppercase font-mono tracking-wider border-b border-zinc-900">
+                    <tr className="bg-zinc-950/60 text-zinc-455 text-[10px] uppercase font-mono tracking-wider border-b border-zinc-950">
                       <th className="py-4.5 px-6 font-semibold">Conta / Titular</th>
                       <th className="py-4.5 px-6 font-semibold">ID Único</th>
                       <th className="py-4.5 px-6 font-semibold">Privilégios</th>
                       <th className="py-4.5 px-6 font-semibold">Subperfis Criados</th>
                       <th className="py-4.5 px-6 font-semibold">Data Registro</th>
+                      <th className="py-4.5 px-6 font-semibold text-right">Ações</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-zinc-900 text-sm">
+                  <tbody className="divide-y divide-zinc-900/60 text-sm">
                     {users.map(u => {
                       const listProfiles = allProfiles[u.id] || [];
+                      const isMasterAdmin = u.email === 'rafaelguaruja09@gmail.com' || u.id === 'u1';
                       
                       return (
                         <tr key={u.id} className="hover:bg-zinc-950/40 transition-colors">
@@ -997,12 +1075,16 @@ export default function AdminPanel({
                           </td>
                           <td className="py-4 px-6 font-mono text-xs text-zinc-500">{u.id}</td>
                           <td className="py-4 px-6.5">
-                            {u.isAdmin ? (
+                            {isMasterAdmin ? (
+                              <span className="bg-red-600/20 text-rose-400 border border-red-500/35 px-2 py-0.5 rounded font-mono text-[10px] font-bold uppercase inline-flex items-center gap-1">
+                                <Shield className="w-2.5 h-2.5" /> M. Admin
+                              </span>
+                            ) : u.isAdmin ? (
                               <span className="bg-red-600/10 text-rose-500 border border-red-500/30 px-2 py-0.5 rounded font-mono text-[10px] font-bold uppercase inline-flex items-center gap-1">
                                 <Shield className="w-2.5 h-2.5" /> Administrador
                               </span>
                             ) : (
-                              <span className="bg-zinc-800 text-zinc-450 px-2 py-0.5 rounded font-mono text-[10px] uppercase">
+                              <span className="bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded font-mono text-[10px] uppercase">
                                 Padrão
                               </span>
                             )}
@@ -1019,11 +1101,42 @@ export default function AdminPanel({
                                   referrerPolicy="no-referrer"
                                 />
                               ))}
-                              {listProfiles.length === 0 && <span className="text-xs text-zinc-600 italic">Sem perfis</span>}
+                              {listProfiles.length === 0 && <span className="text-xs text-zinc-650 italic">Sem perfis</span>}
                             </div>
                           </td>
                           <td className="py-4 px-6 text-xs text-zinc-500 font-mono">
                             {new Date(u.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}
+                          </td>
+                          <td className="py-4 px-6 text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                onClick={() => {
+                                  setEditingUser(u);
+                                  setUserFormName(u.name);
+                                  setUserFormEmail(u.email);
+                                  setUserFormPassword(''); // deixa em branco para não alterar
+                                  setUserFormIsAdmin(!!u.isAdmin);
+                                  setUserFormError('');
+                                  setIsUserFormOpen(true);
+                                }}
+                                className="p-1 px-1.5 rounded-md bg-zinc-850 hover:bg-rose-600 hover:text-white transition-all text-zinc-300 text-xs flex items-center gap-1 cursor-pointer"
+                                title="Editar Usuário"
+                              >
+                                <Edit className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Editar</span>
+                              </button>
+                              
+                              {!isMasterAdmin && (
+                                <button
+                                  onClick={() => {
+                                    setUserToDelete(u);
+                                  }}
+                                  className="p-1 px-1.5 rounded-md bg-red-950/20 hover:bg-red-650 text-red-100 hover:text-white transition-all border border-red-900/10 text-xs flex items-center gap-1 cursor-pointer"
+                                  title="Excluir Usuário"
+                                >
+                                  <Trash className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Excluir</span>
+                                </button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       );
@@ -1032,6 +1145,307 @@ export default function AdminPanel({
                 </table>
               </div>
             </div>
+
+            {/* Modal de Criar ou Editar Usuário */}
+            {isUserFormOpen && (
+              <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50">
+                <motion.div
+                  initial={{ scale: 0.95, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  className="bg-zinc-900 border border-zinc-800 rounded-2xl max-w-md w-full overflow-hidden shadow-2xl"
+                >
+                  <div className="px-6 py-4 border-b border-zinc-805 flex justify-between items-center bg-zinc-950/60">
+                    <h3 className="font-bold text-base text-white font-display">
+                      {editingUser ? 'Alterar Dados do Usuário' : 'Manualmente Cadastrar Usuário'}
+                    </h3>
+                    <button
+                      onClick={() => setIsUserFormOpen(false)}
+                      className="text-zinc-550 hover:text-white transition-colors font-sans text-xl p-1"
+                    >
+                      &times;
+                    </button>
+                  </div>
+
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      setUserFormError('');
+
+                      const name = userFormName.trim();
+                      const email = userFormEmail.trim().toLowerCase();
+                      const password = userFormPassword;
+
+                      if (!name || !email) {
+                        setUserFormError('Nome completo e e-mail são obrigatórios!');
+                        return;
+                      }
+
+                      if (!editingUser && !password) {
+                        setUserFormError('A senha é obrigatória para novos usuários!');
+                        return;
+                      }
+
+                      if (password && password.length < 8) {
+                        setUserFormError('A senha deve conter no mínimo 8 dígitos/caracteres!');
+                        return;
+                      }
+
+                      if (editingUser) {
+                        const res = onEditUser(editingUser.id, name, email, password || undefined, userFormIsAdmin);
+                        if (res) {
+                          setUserFormError(res);
+                        } else {
+                          setIsUserFormOpen(false);
+                          setShowUserFormPass(false);
+                        }
+                      } else {
+                        // Criar
+                        const res = onAddUser(name, email, password, userFormIsAdmin);
+                        if (res) {
+                          setUserFormError(res);
+                        } else {
+                          setIsUserFormOpen(false);
+                          setShowUserFormPass(false);
+                        }
+                      }
+                    }}
+                    className="p-6 space-y-4 text-xs"
+                  >
+                    {userFormError && (
+                      <div className="p-3 bg-red-950/35 border border-red-900/30 text-red-500 rounded-lg flex items-center gap-2 font-mono">
+                        <AlertTriangle className="w-4 h-4 text-rose-500 flex-shrink-0" />
+                        <span>{userFormError}</span>
+                      </div>
+                    )}
+
+                    <div className="flex flex-col gap-1">
+                      <label className="text-zinc-400 font-bold uppercase tracking-wider text-[9px]">Nome Completo</label>
+                      <input
+                        type="text"
+                        required
+                        value={userFormName}
+                        onChange={(e) => setUserFormName(e.target.value)}
+                        className="w-full bg-zinc-950 border border-zinc-800 px-3 py-2 rounded text-sm text-white focus:outline-none focus:border-rose-500"
+                        placeholder="Ex: Rafael Gusmão"
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <label className="text-zinc-400 font-bold uppercase tracking-wider text-[9px]">E-mail de Acesso</label>
+                      <input
+                        type="email"
+                        required
+                        disabled={editingUser?.email === 'rafaelguaruja09@gmail.com' || editingUser?.id === 'u1'}
+                        value={userFormEmail}
+                        onChange={(e) => setUserFormEmail(e.target.value)}
+                        className="w-full bg-zinc-950 border border-zinc-800 px-3 py-2 rounded text-sm text-white focus:outline-none focus:border-rose-500 disabled:opacity-50"
+                        placeholder="usuario@email.com"
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                      <label className="text-zinc-400 font-bold uppercase tracking-wider text-[9px]">
+                        Senha {editingUser ? '(Preencha apenas para alterar)' : '(Obrigatória)'}
+                      </label>
+                      <div className="relative flex items-center">
+                        <input
+                          type={showUserFormPass ? "text" : "password"}
+                          required={!editingUser}
+                          value={userFormPassword}
+                          onChange={(e) => setUserFormPassword(e.target.value)}
+                          className="w-full bg-zinc-950 border border-zinc-800 pl-3 pr-10 py-2 rounded text-sm text-white focus:outline-none focus:border-rose-500"
+                          placeholder={editingUser ? "Senha atual preservada" : "Senha secreta de acesso"}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowUserFormPass(!showUserFormPass)}
+                          className="absolute right-3.5 text-zinc-400 hover:text-white p-1 focus:outline-none focus:text-white flex items-center justify-center transition-colors rounded"
+                          title={showUserFormPass ? "Ocultar senha" : "Mostrar senha"}
+                        >
+                          {showUserFormPass ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Controlo de privilégios de Administrador */}
+                    {editingUser?.email !== 'rafaelguaruja09@gmail.com' && editingUser?.id !== 'u1' && (
+                      <div className="pt-2">
+                        <label className="flex items-center gap-2 cursor-pointer text-xs text-zinc-400 select-none">
+                          <input
+                            type="checkbox"
+                            checked={userFormIsAdmin}
+                            onChange={(e) => setUserFormIsAdmin(e.target.checked)}
+                            className="accent-rose-600 rounded cursor-pointer w-4 h-4"
+                          />
+                          <span>Privilégios de Administrador (Acesso ao Painel Admin)</span>
+                        </label>
+                        <p className="text-[10px] text-zinc-500 ml-6 mt-0.5">
+                          Permite ao usuário acessar e alterar as configurações do console de administração.
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="flex gap-3 justify-end pt-4 border-t border-zinc-800">
+                      <button
+                        type="button"
+                        onClick={() => setIsUserFormOpen(false)}
+                        className="px-4 py-2 hover:bg-zinc-850 rounded text-xs text-zinc-400 font-semibold cursor-pointer"
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="submit"
+                        className="bg-rose-600 hover:bg-rose-700 text-white font-bold px-5 py-2 rounded text-xs transition-colors shadow-md shadow-rose-600/10 cursor-pointer"
+                      >
+                        {editingUser ? 'Salvar Usuário' : 'Cadastrar Usuário'}
+                      </button>
+                    </div>
+                  </form>
+                </motion.div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* --- ABA: MINHA CONTA --- */}
+        {activeAdminTab === 'myaccount' && (
+          <div className="max-w-2xl bg-zinc-900 border border-zinc-850 rounded-2xl p-6 md:p-8 space-y-6 shadow-2xl">
+            <div className="border-b border-zinc-800 pb-4">
+              <h3 className="font-bold text-xl text-white font-display uppercase tracking-tight flex items-center gap-2">
+                <Shield className="w-5 h-5 text-rose-500" /> Minha Conta (Administrador Master)
+              </h3>
+              <p className="text-xs text-zinc-500 mt-1">
+                Gerencie suas credenciais de acesso exclusivas do administrador master.
+              </p>
+            </div>
+
+            {(() => {
+              const adminActiveProfile = allProfiles[currentUserId]?.find(p => p.id === currentProfileId) || allProfiles[currentUserId]?.[0];
+              if (!adminActiveProfile) return null;
+              return (
+                <div className="flex flex-col sm:flex-row items-center gap-4 bg-zinc-950/40 p-4 rounded-xl border border-zinc-850">
+                  <div className="relative w-16 h-16 rounded-lg overflow-hidden border-2 border-rose-500 shadow-md">
+                    <img src={adminActiveProfile.avatarUrl} alt="Foto de perfil" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  </div>
+                  <div className="text-center sm:text-left flex-1">
+                    <p className="text-[10px] font-mono text-zinc-500 uppercase tracking-wide">Sua Capa de Perfil Ativa</p>
+                    <p className="text-sm font-bold text-white mt-1 font-sans">{adminActiveProfile.name}</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAdminCustomAvatarUrl(adminActiveProfile.avatarUrl);
+                        const matchingIdx = PROFILE_AVATARS.findIndex(avatar => avatar.url === adminActiveProfile.avatarUrl);
+                        setAdminSelectedAvatarIdx(matchingIdx !== -1 ? matchingIdx : 0);
+                        setShowAdminAvatarModal(true);
+                      }}
+                      className="text-[10px] text-rose-500 hover:text-rose-400 font-mono font-bold uppercase tracking-wider mt-2.5 hover:underline cursor-pointer flex items-center justify-center sm:justify-start gap-1 p-1.5 bg-zinc-900 border border-zinc-750 rounded px-2 self-start"
+                    >
+                      <Edit className="w-3 h-3" /> Alterar Minha Foto de Perfil
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
+
+            <div className="space-y-2 py-2 rounded bg-zinc-950/40 p-4 border border-zinc-850">
+              <div className="text-sm font-semibold flex justify-between">
+                <span className="text-zinc-500">Nome Titular:</span>
+                <span className="text-zinc-200">Rafael Guzmão</span>
+              </div>
+              <div className="text-sm font-semibold flex justify-between">
+                <span className="text-zinc-500">Tipo de Conta:</span>
+                <span className="text-rose-500 uppercase font-mono text-xs font-black">Administrador Master</span>
+              </div>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                setMyAccountMessage('');
+                setMyAccountError('');
+
+                if (!myAccountEmail.trim() || !myAccountEmail.includes('@')) {
+                  setMyAccountError('E-mail inválido');
+                  return;
+                }
+                if (!myAccountPassword.trim()) {
+                  setMyAccountError('Senha é obrigatória');
+                  return;
+                }
+                if (myAccountPassword.trim().length < 8) {
+                  setMyAccountError('A senha deve conter no mínimo 8 dígitos/caracteres!');
+                  return;
+                }
+
+                // Salva utilizando callback
+                const res = onEditUser(currentUserId, currentUser.name, myAccountEmail.trim(), myAccountPassword);
+                if (res) {
+                  setMyAccountError(res);
+                } else {
+                  setMyAccountMessage('Dados atualizados com sucesso!');
+                  setTimeout(() => setMyAccountMessage(''), 4000);
+                }
+              }}
+              className="space-y-4"
+            >
+              {myAccountError && (
+                <div className="p-3 bg-red-950/35 border border-red-900/30 text-red-500 text-xs rounded-xl flex items-center gap-2 font-mono">
+                  <AlertTriangle className="w-4 h-4 text-rose-500 flex-shrink-0" />
+                  <span>{myAccountError}</span>
+                </div>
+              )}
+
+              {myAccountMessage && (
+                <div className="p-3 bg-green-950/35 border border-green-900/30 text-green-400 text-xs rounded-xl flex items-center gap-2 font-mono">
+                  <Check className="w-4 h-4 text-green-500 flex-shrink-0" />
+                  <span>{myAccountMessage}</span>
+                </div>
+              )}
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-zinc-400 font-bold uppercase tracking-wider text-[10px]">Endereço de E-mail</label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-zinc-550 text-xs uppercase">@</span>
+                  <input
+                    type="email"
+                    required
+                    value={myAccountEmail}
+                    onChange={(e) => setMyAccountEmail(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 focus:border-rose-500 rounded-lg py-2.5 pl-8 pr-4 text-sm text-white focus:outline-none transition-colors"
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-zinc-400 font-bold uppercase tracking-wider text-[10px]">Alterar Senha Administrativa</label>
+                <div className="relative flex items-center">
+                  <LockIcon className="absolute left-3 top-3 w-4 h-4 text-zinc-500 pointer-events-none" />
+                  <input
+                    type={showMyAccountPass ? "text" : "password"}
+                    required
+                    placeholder="Sua nova senha"
+                    value={myAccountPassword}
+                    onChange={(e) => setMyAccountPassword(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 focus:border-rose-500 rounded-lg py-2.5 pl-9 pr-12 text-sm text-white focus:outline-none transition-colors"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowMyAccountPass(!showMyAccountPass)}
+                    className="absolute right-3 top-2.5 text-zinc-400 hover:text-white p-1.5 focus:outline-none focus:text-white flex items-center justify-center transition-colors rounded-md"
+                    title={showMyAccountPass ? "Ocultar senha" : "Mostrar senha"}
+                  >
+                    {showMyAccountPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                className="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-2.5 rounded-lg text-xs tracking-wider uppercase transition-colors shadow-md shadow-rose-600/10 cursor-pointer"
+              >
+                Salvar Alterações
+              </button>
+            </form>
           </div>
         )}
 
@@ -1099,12 +1513,9 @@ export default function AdminPanel({
                   
                   <button
                     onClick={() => {
-                      if (confirm('Tem certeza absoluta que deseja restaurar o catálogo de filmes original? Todos os filmes inseridos manualmente serão removidos.')) {
-                        onResetCatalog();
-                        alert('Catálogo original re-estabelecido com sucesso!');
-                      }
+                      setShowCatalogResetConfirm(true);
                     }}
-                    className="bg-zinc-950 hover:bg-rose-600 hover:text-white border border-red-500/40 text-rose-500 px-4 py-2 rounded text-xs font-mono font-bold uppercase transition-all tracking-wider text-center"
+                    className="bg-zinc-950 hover:bg-rose-600 hover:text-white border border-red-500/40 text-rose-500 px-4 py-2 rounded text-xs font-mono font-bold uppercase transition-all tracking-wider text-center cursor-pointer"
                     id="btn-hard-reset-catalog"
                   >
                     Resetar Todo o Catálogo agora
@@ -1118,6 +1529,237 @@ export default function AdminPanel({
 
           </div> {/* Fim do flex-1 */}
         </div> {/* Fim do flex-col lg:flex-row dual alignment */}
+
+      {/* MODAL DE CONFIRMAÇÃO DE EXCLUSÃO DE USUÁRIO */}
+      <AnimatePresence>
+        {userToDelete && (
+          <div className="fixed inset-0 bg-black/85 flex justify-center items-center p-4 z-50 modal-backdrop-blur">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-zinc-900 border border-zinc-800 max-w-sm w-full rounded-xl p-6 text-center shadow-2xl"
+            >
+              <AlertTriangle className="w-12 h-12 text-rose-500 mx-auto mb-4" />
+              <h3 className="text-lg font-bold text-white mb-2 font-display">Excluir Usuário?</h3>
+              <p className="text-xs text-zinc-400 mb-6 leading-relaxed font-sans">
+                Tem certeza que deseja excluir permanentemente o usuário <strong className="text-zinc-200">"{userToDelete.name}"</strong>? Esta ação removerá sua conta e todos os perfis associados.
+              </p>
+              <div className="flex gap-3 justify-center">
+                <button
+                  type="button"
+                  onClick={() => setUserToDelete(null)}
+                  className="px-4 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-xs font-semibold hover:text-white transition-all cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onDeleteUser(userToDelete.id);
+                    setUserToDelete(null);
+                  }}
+                  className="bg-red-600 hover:bg-red-700 text-white text-xs font-semibold px-5 py-2 rounded transition-all shadow-lg cursor-pointer"
+                >
+                  Excluir Conta
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL DE CONFIRMAÇÃO DE EXCLUSÃO DE FILME */}
+      <AnimatePresence>
+        {movieToDelete && (
+          <div className="fixed inset-0 bg-black/85 flex justify-center items-center p-4 z-50 modal-backdrop-blur">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-zinc-900 border border-zinc-800 max-w-sm w-full rounded-xl p-6 text-center shadow-2xl"
+            >
+              <Trash className="w-12 h-12 text-rose-500 mx-auto mb-3" />
+              <h3 className="text-lg font-bold text-white mb-2 font-display">Remover do Catálogo?</h3>
+              <p className="text-xs text-zinc-400 mb-6 leading-relaxed font-sans">
+                Deseja realmente excluir <strong className="text-zinc-200">"{movieToDelete.title}"</strong> permanentemente do acervo VHSFLIX?
+              </p>
+              <div className="flex gap-3 justify-center">
+                <button
+                  type="button"
+                  onClick={() => setMovieToDelete(null)}
+                  className="px-4 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-xs font-semibold hover:text-white transition-all cursor-pointer font-sans"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onDeleteMovie(movieToDelete.id);
+                    setMovieToDelete(null);
+                  }}
+                  className="bg-red-600 hover:bg-red-700 text-white text-xs font-semibold px-5 py-2 rounded transition-all shadow-lg cursor-pointer font-sans"
+                >
+                  Remover Mídia
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL DE RECONFORMAÇÃO DO CATALOG RESET */}
+      <AnimatePresence>
+        {showCatalogResetConfirm && (
+          <div className="fixed inset-0 bg-black/90 flex justify-center items-center p-4 z-50 modal-backdrop-blur">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-zinc-900 border border-zinc-800 max-w-sm w-full rounded-xl p-6 text-center shadow-2xl"
+            >
+              <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-3" />
+              <h3 className="text-lg font-bold text-white mb-2 font-display">Restaurar Catálogo?</h3>
+              <p className="text-xs text-zinc-400 mb-6 leading-relaxed font-sans">
+                Isso apagará permanentemente todos os filmes adicionados ou alterados manualmente e re-estabelecerá o acervo original da plataforma. Esta ação é irreversível.
+              </p>
+              <div className="flex gap-3 justify-center">
+                <button
+                  type="button"
+                  onClick={() => setShowCatalogResetConfirm(false)}
+                  className="px-4 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-xs font-semibold hover:text-white transition-all cursor-pointer font-sans"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onResetCatalog();
+                    setShowCatalogResetConfirm(false);
+                  }}
+                  className="bg-red-600 hover:bg-red-700 text-white text-xs font-semibold px-5 py-2 rounded transition-all shadow-lg cursor-pointer font-sans"
+                >
+                  Restaurar Agora
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL PARA ALTERAR FOTO DE PERFIL DO ADMIN */}
+      <AnimatePresence>
+        {showAdminAvatarModal && (
+          <div className="fixed inset-0 bg-black/95 flex justify-center items-center p-4 z-50 modal-backdrop-blur">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-zinc-900 border border-zinc-800 max-w-sm sm:max-w-md w-full rounded-xl p-6 md:p-8 text-left shadow-2xl relative max-h-[90vh] overflow-y-auto"
+            >
+              <h3 className="text-xl font-bold font-display text-white mb-2">Sua Foto de Perfil</h3>
+              <p className="text-xs text-zinc-500 mb-6 font-sans">Altere sua foto de capa do administrador escolhendo um tema pré-definido, colando um link ou enviando um arquivo local.</p>
+
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                const adminActiveProfile = allProfiles[currentUserId]?.find(p => p.id === currentProfileId) || allProfiles[currentUserId]?.[0];
+                if (adminActiveProfile && onEditProfile) {
+                  const finalAvatarUrl = adminCustomAvatarUrl.trim() !== '' ? adminCustomAvatarUrl : PROFILE_AVATARS[adminSelectedAvatarIdx].url;
+                  onEditProfile(adminActiveProfile.id, adminActiveProfile.name, finalAvatarUrl);
+                }
+                setShowAdminAvatarModal(false);
+              }}>
+                {/* Preview */}
+                <div className="flex flex-col items-center justify-center mb-5 bg-zinc-950 p-4 rounded-xl border border-zinc-850">
+                  <div className="w-24 h-24 rounded-lg overflow-hidden border-2 border-rose-500 shadow-xl mb-4 relative bg-zinc-900">
+                    <img 
+                      src={adminCustomAvatarUrl.trim() !== '' ? adminCustomAvatarUrl : PROFILE_AVATARS[adminSelectedAvatarIdx].url} 
+                      alt="Avatar prévia" 
+                      className="w-full h-full object-cover"
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+                  
+                  {/* Seletor de Carrossel de Avatares */}
+                  <div className="flex items-center gap-2 max-w-full overflow-x-auto p-1.5 no-scrollbar bg-zinc-900 rounded-lg">
+                    {PROFILE_AVATARS.map((avatar, idx) => (
+                      <button
+                        key={avatar.id}
+                        type="button"
+                        onClick={() => {
+                          setAdminSelectedAvatarIdx(idx);
+                          setAdminCustomAvatarUrl(''); // limpa customizada ao escolher predefinido
+                        }}
+                        className={`w-10 h-10 rounded-md overflow-hidden flex-shrink-0 transition-all ${
+                          adminSelectedAvatarIdx === idx && adminCustomAvatarUrl.trim() === ''
+                            ? 'ring-2 ring-rose-500 scale-110' 
+                            : 'opacity-50 hover:opacity-100'
+                        }`}
+                      >
+                        <img src={avatar.url} alt={avatar.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      </button>
+                    ))}
+                  </div>
+                  <span className="text-[10px] text-zinc-500 font-mono mt-1.5 uppercase">
+                    {adminCustomAvatarUrl.trim() !== '' ? 'Imagem Personalizada' : `Tema: ${PROFILE_AVATARS[adminSelectedAvatarIdx].name}`}
+                  </span>
+                </div>
+
+                {/* Qualquer imagem no perfil */}
+                <div className="mb-6 p-4 bg-zinc-950 rounded-lg border border-zinc-850 space-y-3.5">
+                  <div>
+                    <label className="block text-[10px] font-mono text-zinc-400 mb-1.5 uppercase tracking-wider">Cole uma URL da Web</label>
+                    <input
+                      type="url"
+                      placeholder="https://exemplo.com/foto.jpg"
+                      value={adminCustomAvatarUrl}
+                      onChange={e => setAdminCustomAvatarUrl(e.target.value)}
+                      className="w-full bg-zinc-900 border border-zinc-800 text-white px-3 py-1.5 rounded text-xs focus:outline-none focus:border-rose-500 font-sans font-semibold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-mono text-zinc-400 mb-1.5 uppercase tracking-wider">Ou Envie do Seu Computador</label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onloadend = () => {
+                            if (typeof reader.result === 'string') {
+                              setAdminCustomAvatarUrl(reader.result);
+                            }
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                      className="w-full text-xs text-zinc-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[10px] file:font-semibold file:bg-zinc-850 file:text-zinc-300 hover:file:bg-zinc-800 cursor-pointer text-ellipsis overflow-hidden"
+                    />
+                  </div>
+                </div>
+
+                {/* Ações */}
+                <div className="flex gap-3 justify-end pt-2 border-t border-zinc-850">
+                  <button
+                    type="button"
+                    onClick={() => setShowAdminAvatarModal(false)}
+                    className="px-4 py-2 rounded text-zinc-400 text-xs hover:text-white transition-colors cursor-pointer font-sans"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold px-5 py-2 rounded transition-colors shadow-lg shadow-rose-600/10 cursor-pointer font-sans"
+                  >
+                    Confirmar Foto
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       </div>
     </div>

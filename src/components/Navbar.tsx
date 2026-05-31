@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, Bell, Shield, LogOut, RefreshCw, UserCheck, Film, Tv, List, Sliders, ChevronDown } from 'lucide-react';
-import { User, Profile } from '../types';
+import { User, Profile, AppNotification } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface NavbarProps {
@@ -23,6 +23,9 @@ interface NavbarProps {
   onToggleAdminView: (val: boolean) => void;
   vhsMode: boolean;
   onToggleVhsMode: () => void;
+  notifications: AppNotification[];
+  onNotificationClick: (movieId: string, notificationId: string) => void;
+  onMarkAllAsRead: () => void;
 }
 
 export default function Navbar({
@@ -39,12 +42,35 @@ export default function Navbar({
   isAdminView,
   onToggleAdminView,
   vhsMode,
-  onToggleVhsMode
+  onToggleVhsMode,
+  notifications,
+  onNotificationClick,
+  onMarkAllAsRead
 }: NavbarProps) {
   const [isScrolled, setIsScrolled] = useState(false);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+  const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false);
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const notificationsRef = useRef<HTMLDivElement>(null);
+
+  const unreadCount = notifications.filter(n => !n.isRead).length;
+
+  // Monitora clique fora para fechar dropdown de perfil e de notificações
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowProfileDropdown(false);
+      }
+      if (notificationsRef.current && !notificationsRef.current.contains(event.target as Node)) {
+        setShowNotificationsDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   // Monitora scroll para alterar opacidade do fundo (igual Netflix original)
   useEffect(() => {
@@ -160,13 +186,21 @@ export default function Navbar({
             <div className="relative flex items-center">
               <motion.div
                 initial={false}
-                animate={{ width: isSearchExpanded || searchVal ? 220 : 36 }}
-                className="flex items-center bg-zinc-950 border border-zinc-800 rounded-full py-1 px-2.5 overflow-hidden transition-all duration-300"
+                animate={{ width: isSearchExpanded || searchVal ? 260 : 40 }}
+                transition={{ type: "spring", stiffness: 350, damping: 26 }}
+                className={`flex items-center bg-zinc-950/90 backdrop-blur-md border rounded-full py-1.5 px-3 overflow-hidden transition-all duration-300 ${
+                  isSearchExpanded || searchVal 
+                    ? 'border-rose-500/50 shadow-[0_0_12px_rgba(225,29,72,0.15)] ring-1 ring-rose-500/20' 
+                    : 'border-zinc-800/80 hover:border-zinc-700 hover:bg-zinc-900/40'
+                }`}
               >
                 <button
                   onClick={() => setIsSearchExpanded(!isSearchExpanded)}
-                  className="text-zinc-400 hover:text-white p-1 focus:outline-none"
+                  className={`p-0.5 focus:outline-none transition-colors duration-200 cursor-pointer ${
+                    isSearchExpanded || searchVal ? 'text-rose-500' : 'text-zinc-400 hover:text-white'
+                  }`}
                   id="btn-search-toggle"
+                  title="Pesquisar fita VHS"
                 >
                   <Search className="w-4 h-4" />
                 </button>
@@ -174,8 +208,8 @@ export default function Navbar({
                   type="text"
                   value={searchVal}
                   onChange={(e) => onSearchChange(e.target.value)}
-                  placeholder="Títulos, atores, gêneros..."
-                  className="bg-transparent border-none text-xs text-white placeholder-zinc-500 focus:outline-none w-full ml-1"
+                  placeholder="Pesquisar títulos, gêneros..."
+                  className="bg-transparent border-none text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none w-full ml-2 font-sans tracking-wide"
                 />
                 {(isSearchExpanded || searchVal) && (
                   <button
@@ -183,7 +217,7 @@ export default function Navbar({
                       onSearchChange('');
                       setIsSearchExpanded(false);
                     }}
-                    className="text-zinc-500 hover:text-zinc-300 text-xs px-1"
+                    className="text-zinc-500 hover:text-rose-450 text-xs px-1.5 transition-colors duration-150 cursor-pointer"
                   >
                     ✕
                   </button>
@@ -193,10 +227,102 @@ export default function Navbar({
           )}
 
           {/* Botão Notificações */}
-          <button className="text-zinc-400 hover:text-white relative p-1.5 hidden sm:block">
-            <Bell className="w-4 h-4" />
-            <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-rose-600 rounded-full"></span>
-          </button>
+          <div className="relative flex items-center" ref={notificationsRef}>
+            <button
+              onClick={() => {
+                setShowNotificationsDropdown(!showNotificationsDropdown);
+                setShowProfileDropdown(false);
+              }}
+              className="text-zinc-400 hover:text-white relative p-1.5 focus:outline-none transition-colors cursor-pointer"
+              id="navbar-notifications-btn"
+              title="Notificações de Lançamentos"
+            >
+              <Bell className="w-4.5 h-4.5" />
+              {unreadCount > 0 && (
+                <span className="absolute top-1 right-1 w-2 h-2 bg-rose-600 rounded-full animate-pulse border border-zinc-950"></span>
+              )}
+            </button>
+
+            {/* Dropdown Menu de Notificações */}
+            <AnimatePresence>
+              {showNotificationsDropdown && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                  className="absolute right-0 mt-12 w-80 sm:w-96 bg-zinc-950 border border-zinc-900 rounded-lg shadow-2xl z-50 overflow-hidden font-sans"
+                >
+                  <div className="p-3 border-b border-zinc-900 bg-zinc-900/40 flex justify-between items-center select-none font-mono text-[10px]">
+                    <div className="flex items-center gap-1.5">
+                      <Bell className="w-3.5 h-3.5 text-rose-500" />
+                      <span className="font-bold uppercase tracking-wider text-white">Lançamentos Recentes</span>
+                    </div>
+                    {unreadCount > 0 && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onMarkAllAsRead();
+                        }}
+                        className="text-rose-500 hover:text-rose-450 font-bold uppercase tracking-widest cursor-pointer"
+                      >
+                        Limpar Novas
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="max-h-[320px] overflow-y-auto divide-y divide-zinc-900/40 custom-scrollbar">
+                    {notifications.length === 0 ? (
+                      <div className="p-8 text-center text-zinc-500 flex flex-col items-center justify-center gap-2 select-none">
+                        <span className="text-xl">📼</span>
+                        <p className="text-[10px] font-mono uppercase tracking-wider">Acervo Atualizado</p>
+                        <p className="text-[9px] text-zinc-600 max-w-[180px] leading-relaxed">Não há novas fitas pendentes no momento.</p>
+                      </div>
+                    ) : (
+                      notifications.map(notif => {
+                        const timeString = new Date(notif.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+                        const dateString = new Date(notif.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+                        return (
+                          <div
+                            key={notif.id}
+                            onClick={() => {
+                              onNotificationClick(notif.movieId, notif.id);
+                              setShowNotificationsDropdown(false);
+                            }}
+                            className={`p-3.5 hover:bg-zinc-900/60 transition-all flex gap-3 cursor-pointer relative ${!notif.isRead ? 'bg-zinc-900/25' : ''}`}
+                          >
+                            {!notif.isRead && (
+                              <span className="absolute left-2.5 top-5 w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+                            )}
+                            <div className="flex-1 space-y-1 text-left pl-1">
+                              <div className="flex justify-between items-start gap-1">
+                                <h4 className="text-xs font-bold text-white leading-tight uppercase font-mono tracking-tight">
+                                  {notif.title}
+                                </h4>
+                                <span className="text-[8px] text-zinc-500 font-mono whitespace-nowrap">{dateString} {timeString}</span>
+                              </div>
+                              <p className="text-[10.5px] text-zinc-400 leading-relaxed font-light">
+                                {notif.message}
+                              </p>
+                              <div className="flex items-center gap-1.5 pt-1">
+                                <span className="text-[8px] bg-zinc-900 text-zinc-400 font-mono border border-zinc-800 px-1.5 py-0.5 rounded uppercase font-bold">
+                                  {notif.type === 'series' ? 'Série' : 'Filme'}
+                                </span>
+                                <span className="text-[9px] text-rose-500 font-extrabold font-mono tracking-widest uppercase truncate animate-pulse ml-auto">Assistir Fita ➔</span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  <div className="p-2 border-t border-zinc-900 bg-zinc-900/10 text-center select-none">
+                    <span className="text-[8px] uppercase font-mono tracking-widest text-zinc-600">Fitas de alta fidelidade VHSFLIX</span>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
 
           {/* Botão de Dropdown de Perfis */}
           <div className="relative" ref={dropdownRef}>

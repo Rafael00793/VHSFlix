@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Movie, WatchProgress } from '../types';
-import { X, Play, Pause, Plus, Check, Star, RefreshCw, Tv, Clock, HelpCircle, Film, Sparkles, AlertCircle, ExternalLink } from 'lucide-react';
+import { X, Play, Pause, Plus, Check, Star, RefreshCw, Tv, Clock, HelpCircle, Film, Sparkles, AlertCircle, ExternalLink, Maximize } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface MovieDetailModalProps {
@@ -80,9 +80,41 @@ export default function MovieDetailModal({
   const [currentTime, setCurrentTime] = useState(0);
   const [totalDuration, setTotalDuration] = useState(120 * 60); // Default 2 horas em segundos
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1); // Retro 1x, 2x, 4x rewind index
+  const [isFullscreen, setIsFullscreen] = useState(false);
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const currentTimeRef = useRef(currentTime);
+  const playerContainerRef = useRef<HTMLDivElement>(null);
+
+  // Monitorar se mudou o estado de Fullscreen para sincronizar os ícones
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!playerContainerRef.current) return;
+    
+    if (!document.fullscreenElement) {
+      playerContainerRef.current.requestFullscreen()
+        .then(() => setIsFullscreen(true))
+        .catch((err) => {
+          console.warn(`Erro ao tentar ativar tela cheia: ${err.message}`);
+        });
+    } else {
+      document.exitFullscreen()
+        .then(() => setIsFullscreen(false))
+        .catch((err) => {
+          console.warn(`Erro ao tentar sair da tela cheia: ${err.message}`);
+        });
+    }
+  };
 
   // Mantém currentTimeRef atualizado sem disparar re-render
   useEffect(() => {
@@ -221,7 +253,7 @@ export default function MovieDetailModal({
             <div className="relative aspect-[16/9] w-full bg-zinc-950 border-b border-zinc-900 overflow-hidden flex flex-col justify-center">
                     {/* CASO 1: REPRODUÇÃO DO PLAYER DE VÍDEO COMPLETO E REAL (EMBED MOVIES API) */}
               {isPlaying && !isTapeLoading ? (
-                <div className="absolute inset-0 bg-black flex flex-col text-white font-mono z-30">
+                <div ref={playerContainerRef} className="absolute inset-0 bg-black flex flex-col text-white font-mono z-30">
                   
                   {/* Player Real do EmbedMovies */}
                   <div className="absolute inset-0 w-full h-full z-10 bg-black">
@@ -231,9 +263,13 @@ export default function MovieDetailModal({
                         : `https://myembed.biz/filme/${movie.tmdbId || '105'}`
                       }
                       title={`Reproduzindo ${movie.title}`}
-                      className="w-full h-full border-0"
+                      className="w-full h-full border-0 animate-fade-in"
+                      height={movie.type === 'series' ? "700" : "600"}
                       allowFullScreen
-                      allow="autoplay; encrypted-media"
+                      webkitallowfullscreen="true"
+                      mozallowfullscreen="true"
+                      allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
+                      sandbox="allow-scripts allow-same-origin allow-forms"
                       loading="lazy"
                     />
                   </div>
@@ -438,10 +474,13 @@ export default function MovieDetailModal({
                   </h3>
                   <div className="relative aspect-[16/9] w-full max-w-4xl mx-auto rounded-xl overflow-hidden border border-zinc-800 shadow-2xl shadow-black/90 bg-zinc-900">
                     <iframe
-                      src={`${movie.trailerUrl}?controls=1&autoplay=0&mute=0`}
+                      src={`${movie.trailerUrl}?controls=1&autoplay=0&mute=0&vq=hd1080&rel=0`}
                       title={`Trailer de ${movie.title}`}
                       className="w-full h-full border-0 absolute inset-0"
                       allowFullScreen
+                      webkitallowfullscreen="true"
+                      mozallowfullscreen="true"
+                      allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
                     />
                   </div>
                   <span className="text-[11px] text-zinc-500 font-mono mt-4 block text-center uppercase tracking-wider">
