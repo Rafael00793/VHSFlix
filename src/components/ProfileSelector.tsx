@@ -367,7 +367,7 @@ export default function ProfileSelector({
           </motion.h2>
 
           {/* Grid de Perfis */}
-          <div className="flex flex-wrap justify-center items-center gap-6 md:gap-10 mb-12">
+          <div className="flex flex-wrap justify-center items-center gap-6 sm:gap-8 md:gap-12 mb-12">
             {profiles.map((profile, idx) => (
               <motion.div
                 key={profile.id}
@@ -380,11 +380,11 @@ export default function ProfileSelector({
                 {isManagingProfiles && profiles.length > 1 && (
                   <button
                     onClick={() => onDeleteProfile(profile.id)}
-                    className="absolute -top-2 -right-2 bg-red-600 hover:bg-red-700 text-white p-1.5 rounded-full z-30 shadow-lg border border-zinc-950 transition-transform active:scale-95"
+                    className="absolute -top-3 -right-3 bg-red-600 hover:bg-red-700 text-white p-2.5 rounded-full z-30 shadow-2xl border-2 border-zinc-950 transition-transform active:scale-95 cursor-pointer"
                     title="Excluir Perfil"
                     id={`delete-profile-${profile.id}`}
                   >
-                    <Trash className="w-4 h-4" />
+                    <Trash className="w-5 h-5" />
                   </button>
                 )}
 
@@ -401,10 +401,10 @@ export default function ProfileSelector({
                       onSelectProfile(profile.id);
                     }
                   }}
-                  className={`relative w-28 h-28 md:w-36 md:h-36 rounded-lg overflow-hidden border-3 bg-zinc-900 transition-all cursor-pointer ${
+                  className={`relative w-36 h-36 sm:w-48 md:w-56 rounded-2xl overflow-hidden border-4 bg-zinc-900 transition-all cursor-pointer focus-visible:ring-4 focus-visible:ring-rose-500 focus-visible:scale-105 focus-visible:outline-none ${
                     isManagingProfiles 
                       ? 'border-dashed border-rose-500 scale-95 hover:border-rose-300' 
-                      : 'border-zinc-800 hover:border-rose-500 group-hover:scale-105 shadow-xl hover:shadow-rose-600/10'
+                      : 'border-zinc-800 hover:border-rose-500 group-hover:scale-105 shadow-2xl hover:shadow-rose-600/25'
                   }`}
                   id={`btn-profile-${profile.id}`}
                 >
@@ -417,27 +417,27 @@ export default function ProfileSelector({
                   
                   {/* Modo Overlays */}
                   {!isManagingProfiles ? (
-                    <div className="absolute inset-0 bg-rose-600/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                      <span className="text-white text-xs font-semibold px-2 py-1 rounded bg-zinc-950/80 uppercase font-mono">Assistir</span>
+                    <div className="absolute inset-0 bg-rose-600/25 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <span className="text-white text-sm font-black px-3 py-1.5 rounded-md bg-zinc-950/90 uppercase font-mono tracking-widest border border-rose-500/30">Assistir</span>
                     </div>
                   ) : (
-                    <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center">
-                      <Edit className="w-5 h-5 text-white mb-1.5" />
-                      <span className="text-[10px] text-zinc-300 font-mono font-bold uppercase tracking-wider bg-black/40 px-1.5 py-0.5 rounded">Editar</span>
+                    <div className="absolute inset-0 bg-black/75 flex flex-col items-center justify-center">
+                      <Edit className="w-7 h-7 text-white mb-2" />
+                      <span className="text-xs text-zinc-200 font-mono font-bold uppercase tracking-widest bg-black/50 px-2.5 py-1 rounded-md border border-zinc-800">Editar</span>
                     </div>
                   )}
                 </button>
 
                 {/* Nome do perfil */}
-                <span className="mt-4 text-zinc-400 font-medium group-hover:text-white transition-colors text-sm md:text-base">
+                <span className="mt-4 text-zinc-100 font-black group-hover:text-rose-500 transition-colors text-base sm:text-xl uppercase tracking-wide">
                   {profile.name}
                 </span>
 
                 {/* Contadores Úteis */}
-                <div className="text-[10px] text-zinc-600 font-mono mt-0.5 flex items-center gap-1">
-                  <span>{profile.myList.length} salvos</span>
-                  <span>•</span>
-                  <span>{Object.keys(profile.watchHistory).length} no histórico</span>
+                <div className="text-[10px] sm:text-xs text-zinc-400 font-mono mt-1.5 flex items-center gap-1.5 select-none font-bold">
+                  <span className="bg-zinc-900/90 px-2 py-0.5 rounded border border-zinc-850/80">{profile.myList.length} salvos</span>
+                  <span className="text-rose-500">•</span>
+                  <span className="bg-zinc-900/90 px-2 py-0.5 rounded border border-zinc-850/80">{Object.keys(profile.watchHistory).length} assistidos</span>
                 </div>
               </motion.div>
             ))}
@@ -451,11 +451,11 @@ export default function ProfileSelector({
               >
                 <button
                   onClick={() => setShowAddProfileModal(true)}
-                  className="w-28 h-28 md:w-36 md:h-36 rounded-lg border-2 border-dashed border-zinc-800 hover:border-zinc-500 flex flex-col justify-center items-center text-zinc-500 hover:text-rose-500 hover:bg-zinc-900/40 transition-all group scale-100 hover:scale-102"
+                  className="w-36 h-36 sm:w-48 md:w-56 rounded-2xl border-2 border-dashed border-zinc-800 hover:border-rose-500 flex flex-col justify-center items-center text-zinc-500 hover:text-rose-500 hover:bg-zinc-900/40 transition-all group scale-100 hover:scale-102 cursor-pointer"
                   id="btn-add-profile"
                 >
-                  <Plus className="w-8 h-8 group-hover:rotate-90 transition-transform duration-300" />
-                  <span className="text-xs font-medium font-mono mt-2 uppercase tracking-wider">Novo Perfil</span>
+                  <Plus className="w-10 h-10 group-hover:rotate-90 transition-transform duration-300" />
+                  <span className="text-[10px] sm:text-xs font-black font-mono mt-2.5 uppercase tracking-widest text-zinc-400 group-hover:text-rose-500">Novo Perfil</span>
                 </button>
                 <span className="mt-4 text-transparent text-sm md:text-base select-none">Espaçador</span>
                 <div className="text-[10px] text-transparent mt-0.5">Espaçador</div>

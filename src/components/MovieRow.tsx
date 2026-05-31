@@ -99,7 +99,7 @@ export default function MovieRow({
         <div
           ref={rowRef}
           onScroll={onScrollContainer}
-          className="flex gap-4 md:gap-5 px-4 sm:px-8 overflow-x-auto no-scrollbar scroll-smooth py-2 sm:py-4"
+          className="flex gap-4 md:gap-5 xl:gap-6 px-4 sm:px-8 overflow-x-auto no-scrollbar scroll-smooth py-2 sm:py-4"
         >
           {movies.map((movie) => {
             const hasProgressState = watchHistory && watchHistory[movie.id];
@@ -113,8 +113,15 @@ export default function MovieRow({
                 whileInView={{ opacity: 1, scale: 1 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.3 }}
-                className="relative flex-none w-36 sm:w-48 lg:w-56 group/card rounded-lg overflow-hidden bg-zinc-900 border border-zinc-800 hover:border-rose-500 hover:shadow-xl hover:shadow-rose-600/10 transition-all cursor-pointer"
+                tabIndex={0}
+                className="relative flex-none w-[145px] xs:w-[165px] sm:w-[195px] md:w-[220px] xl:w-[250px] group/card rounded-lg overflow-hidden bg-zinc-900 border border-zinc-800 hover:border-rose-500 hover:shadow-xl hover:shadow-rose-600/10 focus-visible:ring-4 focus-visible:ring-rose-500 focus-visible:scale-105 focus-visible:outline-none transition-all cursor-pointer"
                 onClick={() => onMovieClick(movie)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onMovieClick(movie);
+                  }
+                }}
                 id={`movie-card-${movie.id}`}
               >
                 {/* Visual VHS estético: adesivo no poster */}

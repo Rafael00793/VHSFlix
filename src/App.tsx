@@ -5,13 +5,13 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Movie, User, Profile, WatchProgress, AppNotification } from './types';
-import { INITIAL_MOVIES, INITIAL_USERS, DEFAULT_PROFILES, GENRE_CATEGORIES } from './data';
+import { INITIAL_MOVIES, INITIAL_USERS, DEFAULT_PROFILES, GENRE_CATEGORIES, getMovieDetailsTMDB } from './data';
 import Navbar from './components/Navbar';
 import ProfileSelector from './components/ProfileSelector';
 import MovieRow from './components/MovieRow';
 import MovieDetailModal from './components/MovieDetailModal';
 import AdminPanel from './components/AdminPanel';
-import { Play, Info, Sparkles, Star, Plus, Check, Shield, HelpCircle, AlertCircle, Heart, HeartOff, Volume1, Volume2, VolumeX } from 'lucide-react';
+import { Play, Info, Sparkles, Star, Plus, Check, Shield, HelpCircle, AlertCircle, Heart, HeartOff, Volume1, Volume2, VolumeX, Bell, X, Flame } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 
@@ -57,6 +57,11 @@ export default function App() {
     return localStorage.getItem('vhsflix_tmdb_key') || '';
   });
 
+  const [adguardEnabled, setAdguardEnabled] = useState<boolean>(() => {
+    const saved = localStorage.getItem('vhsflix_adguard_enabled');
+    return saved ? JSON.parse(saved) : true;
+  });
+
   const [vhsMode, setVhsMode] = useState<boolean>(() => {
     const saved = localStorage.getItem('vhsflix_vhs_mode');
     return saved ? JSON.parse(saved) : true; // Ativo por padrão pois dá o charme do VHSFLIX
@@ -73,6 +78,7 @@ export default function App() {
 
   // Abas de navegação do usuário na plataforma
   const [activeTab, setActiveTab] = useState<'all' | 'movies' | 'series' | 'mylist'>('all');
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [isAdminView, setIsAdminView] = useState(false);
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
   const [searchVal, setSearchVal] = useState('');
@@ -111,6 +117,33 @@ export default function App() {
     ];
   });
 
+  // Toast e sistema alertador de novas notificações na tela
+  const [toast, setToast] = useState<AppNotification | null>(null);
+
+  // Gatilho global para disparar uma nova notificação e mostrá-la no carrossel de popups/toast alertadores
+  const triggerNotification = (title: string, message: string, movieId: string, type: 'movie' | 'series' | 'system') => {
+    const newNotif: AppNotification = {
+      id: 'notif_' + Date.now() + Math.random().toString(36).substring(2, 7),
+      title,
+      message,
+      movieId,
+      createdAt: new Date().toISOString(),
+      isRead: false,
+      type
+    };
+    setNotifications(prev => [newNotif, ...prev]);
+    setToast(newNotif);
+  };
+
+  // Timer para sumir com o toast de notificação da tela automaticamente após alguns segundos
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => {
+      setToast(null);
+    }, 8500);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
   // --- EFEITOS DE SINCRONIZAÇÃO COM LOCALSTORAGE ---
   useEffect(() => {
     localStorage.setItem('vhsflix_notifications', JSON.stringify(notifications));
@@ -133,6 +166,10 @@ export default function App() {
   }, [tmdbApiKey]);
 
   useEffect(() => {
+    localStorage.setItem('vhsflix_adguard_enabled', JSON.stringify(adguardEnabled));
+  }, [adguardEnabled]);
+
+  useEffect(() => {
     localStorage.setItem('vhsflix_vhs_mode', JSON.stringify(vhsMode));
   }, [vhsMode]);
 
@@ -152,7 +189,8 @@ export default function App() {
   useEffect(() => {
     const hasOldGens = movies.some(m => m.category === 'Clássicos 80s' || m.category === 'Ação Retro');
     const hasTheChosen = movies.some(m => m.id === 'm10');
-    if (hasOldGens || !hasTheChosen) {
+    const has2026Movies = movies.some(m => m.id === 'm_2026_1');
+    if (hasOldGens || !hasTheChosen || !has2026Movies) {
       setMovies(INITIAL_MOVIES);
     }
   }, []);
@@ -168,11 +206,142 @@ export default function App() {
   }, [allProfiles, currentUserId, currentProfileId]);
 
   // Escolhe o filme em grande plano (Hero Banner)
-  const featuredMovie = useMemo(() => {
+  const [activeHighlightIndex, setActiveHighlightIndex] = useState(0);
+
+  const featuredHighlights = useMemo(() => {
     const sorted = [...movies].sort((a, b) => b.year - a.year);
-    const hasFeatured = sorted.find(m => m.isFeatured);
-    return hasFeatured || sorted[0];
+    
+    // Filtro e ordenação inteligente:
+    // 1. Prioriza os filmes marcados como isFeatured, mas ordenados por ano decrescente (lançamentos atuais primeiro)
+    // 2. Mescla lançamentos do ano atual (2026+) ordenando por ano desc e nota/rating decrescente
+    const currentYear = new Date().getFullYear();
+    
+    const starred = sorted.filter(m => m.isFeatured).sort((a, b) => b.year - a.year);
+    const nonStarred = sorted.filter(m => !m.isFeatured);
+    
+    // Junta priorizando os marcados + lançamentos do ano corrente
+    const combined = [...starred, ...nonStarred];
+    
+    // Vamos separar filmes e séries para termos um carrossel rotativo intercalado (Filme 1, Série 1, Filme 2, Série 2...)
+    const movieItems = combined.filter(m => m.type === 'movie');
+    const seriesItems = combined.filter(m => m.type === 'series');
+    
+    const highlights: Movie[] = [];
+    const maxHighlightsCount = Math.min(5, combined.length);
+    let moviePtr = 0;
+    let seriesPtr = 0;
+    
+    for (let i = 0; i < maxHighlightsCount; i++) {
+      if (i % 2 === 0 && moviePtr < movieItems.length) {
+        highlights.push(movieItems[moviePtr++]);
+      } else if (seriesPtr < seriesItems.length) {
+        highlights.push(seriesItems[seriesPtr++]);
+      } else if (moviePtr < movieItems.length) {
+        highlights.push(movieItems[moviePtr++]);
+      }
+    }
+    
+    return highlights.length > 0 ? highlights : combined.slice(0, 5);
   }, [movies]);
+
+  // Filme atualmente focado no carrossel do Banner
+  const featuredMovie = useMemo(() => {
+    if (featuredHighlights.length === 0) return null;
+    return featuredHighlights[activeHighlightIndex] || featuredHighlights[0];
+  }, [featuredHighlights, activeHighlightIndex]);
+
+  // Transição automática das fitas de destaque rotativas a cada 8 segundos
+  useEffect(() => {
+    if (featuredHighlights.length <= 1) return;
+    const interval = setInterval(() => {
+      setActiveHighlightIndex(prev => (prev + 1) % featuredHighlights.length);
+    }, 8000);
+    return () => clearInterval(interval);
+  }, [featuredHighlights]);
+
+  // --- BUSCADOR AUTOMÁTICO DE TENDÊNCIAS TMDB (LANÇAMENTOS DO ANO CORRENTE) ---
+  useEffect(() => {
+    if (!tmdbApiKey || tmdbApiKey === 'MY_GEMINI_API_KEY' || tmdbApiKey.trim() === '') return;
+
+    const fetchCurrentYearTrending = async () => {
+      try {
+        const currentYear = new Date().getFullYear();
+        
+        // Descoberta rápida de populares do ano corrente
+        const movieUrl = `https://api.themoviedb.org/3/discover/movie?api_key=${encodeURIComponent(tmdbApiKey)}&language=pt-BR&sort_by=popularity.desc&primary_release_year=${currentYear}&vote_count.gte=10`;
+        const tvUrl = `https://api.themoviedb.org/3/discover/tv?api_key=${encodeURIComponent(tmdbApiKey)}&language=pt-BR&sort_by=popularity.desc&first_air_date_year=${currentYear}&vote_count.gte=10`;
+
+        const [movieData, tvData] = await Promise.all([
+          fetch(movieUrl).then(res => res.ok ? res.json() : null).catch(() => null),
+          fetch(tvUrl).then(res => res.ok ? res.json() : null).catch(() => null)
+        ]);
+
+        const incomingItems: any[] = [];
+        if (movieData && movieData.results) {
+          movieData.results.slice(0, 5).forEach((item: any) => incomingItems.push({ ...item, mediaType: 'movie' }));
+        }
+        if (tvData && tvData.results) {
+          tvData.results.slice(0, 5).forEach((item: any) => incomingItems.push({ ...item, mediaType: 'tv' }));
+        }
+
+        if (incomingItems.length === 0) return;
+
+        const newMoviesToAdd: Movie[] = [];
+
+        for (const item of incomingItems) {
+          const type = item.mediaType === 'tv' ? 'series' : 'movie';
+          const alreadyExists = movies.some(m => m.tmdbId === item.id && m.type === type);
+          if (alreadyExists) continue;
+
+          const details = await getMovieDetailsTMDB(item.id, item.mediaType, tmdbApiKey);
+          if (details && details.title) {
+            newMoviesToAdd.push({
+              id: 'm_tmdb_auto_' + item.id,
+              title: details.title,
+              description: details.description || '',
+              posterUrl: details.posterUrl || '',
+              backdropUrl: details.backdropUrl || '',
+              category: details.category || (type === 'series' ? 'Séries' : 'Destaque'),
+              year: details.year || currentYear,
+              duration: details.duration || '2h 10m',
+              type: type,
+              rating: details.rating || 7.5,
+              trailerUrl: details.trailerUrl || 'https://www.youtube.com/embed/qvsgGtIvCBY',
+              isFeatured: true,
+              vhsTapeColor: ['#e11d48', '#2563eb', '#9333ea', '#16a34a', '#ca8a04', '#059669'][Math.floor(Math.random() * 6)],
+              tmdbId: item.id
+            });
+          }
+        }
+
+        if (newMoviesToAdd.length > 0) {
+          setMovies(prev => {
+            const preserved = prev.filter(p => !newMoviesToAdd.some(n => n.tmdbId === p.tmdbId && n.type === p.type));
+            return [...newMoviesToAdd, ...preserved];
+          });
+          
+          // Dispara as notificações e toasts na tela de maneira elegante e escalonada para cada novo conteúdo sincronizado
+          newMoviesToAdd.forEach((n, idx) => {
+            setTimeout(() => {
+              const isSeries = n.type === 'series';
+              triggerNotification(
+                isSeries ? '📺 Nova Série Sincronizada!' : '📼 Novo Filme Sincronizado!',
+                `O lançamento de ${n.year} "${n.title}" acaba de ser adicionado automaticamente via TMDB! Assista agora em VHS.`,
+                n.id,
+                isSeries ? 'series' : 'movie'
+              );
+            }, idx * 2500); // escalonado a cada 2.5s para visualização perfeita dos popups
+          });
+
+          console.log(`[Auto Highlights] Sincronizados ${newMoviesToAdd.length} lançamentos automáticos de ${currentYear}.`);
+        }
+      } catch (err) {
+        console.error('Erro de sincronização dinâmica do TMDB:', err);
+      }
+    };
+
+    fetchCurrentYearTrending();
+  }, [tmdbApiKey]);
 
   // Filtra catálogo com base em busca e na aba ativa
   const filteredMovies = useMemo(() => {
@@ -197,8 +366,25 @@ export default function App() {
       list = list.filter(m => activeProfile.myList.includes(m.id));
     }
 
+    // Filtro por categoria selecionada (Estática Netflix)
+    if (selectedCategory) {
+      if (selectedCategory === 'Melhores Avaliações') {
+        list = list.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+      } else if (selectedCategory === 'Séries') {
+        list = list.filter(m => m.type === 'series');
+      } else {
+        list = list.filter(m => m.category === selectedCategory);
+      }
+    }
+
     return list;
-  }, [movies, activeTab, activeProfile, searchVal]);
+  }, [movies, activeTab, activeProfile, searchVal, selectedCategory]);
+
+  const handleSelectCategory = (category: string | null) => {
+    setSelectedCategory(category);
+    setActiveTab('all');
+    setIsAdminView(false);
+  };
 
   // --- TRATADORES DE CALLBACKS DO PERFIL ---
   const handleSelectUser = (userId: string) => {
@@ -406,18 +592,14 @@ export default function App() {
     };
     setMovies(prev => [newMovie, ...prev]);
 
-    // Gerar notificação automática toda vez que sai/é lançado um novo filme ou série no site
+    // Gerar notificação automática toda vez que é adicionado um novo filme ou série no site
     const isSeries = newMovie.type === 'series';
-    const newNotif: AppNotification = {
-      id: 'notif_' + Date.now(),
-      title: isSeries ? '📺 Nova Série Lançada!' : '📼 Novo Filme Lançado!',
-      message: `"${newMovie.title}" acaba de sair em super fita VHS retro! Insira no reprodutor e assista agora.`,
-      movieId: newMovieId,
-      createdAt: new Date().toISOString(),
-      isRead: false,
-      type: isSeries ? 'series' : 'movie'
-    };
-    setNotifications(prev => [newNotif, ...prev]);
+    triggerNotification(
+      isSeries ? '📺 Nova Série Adicionada!' : '📼 Novo Filme Adicionado!',
+      `"${newMovie.title}" acaba de ser adicionado ao acervo retrô de ${newMovie.category}!`,
+      newMovieId,
+      isSeries ? 'series' : 'movie'
+    );
   };
 
   const handleEditMovie = (editedMovie: Movie) => {
@@ -483,7 +665,7 @@ export default function App() {
             searchVal={searchVal}
             onSearchChange={setSearchVal}
             activeTab={activeTab}
-            onTabChange={(tab) => { setActiveTab(tab); setIsAdminView(false); }}
+            onTabChange={(tab) => { setActiveTab(tab); setSelectedCategory(null); setIsAdminView(false); }}
             isAdminView={isAdminView}
             onToggleAdminView={setIsAdminView}
             vhsMode={vhsMode}
@@ -491,6 +673,8 @@ export default function App() {
             notifications={notifications}
             onNotificationClick={handleNotificationClick}
             onMarkAllAsRead={handleMarkAllNotificationsAsRead}
+            selectedCategory={selectedCategory}
+            onSelectCategory={handleSelectCategory}
           />
 
           {/* --- TELA 2.A: INTERFACE ADMINISTRATIVA --- */}
@@ -511,47 +695,85 @@ export default function App() {
               currentUserId={currentUserId}
               currentProfileId={currentProfileId || undefined}
               onEditProfile={handleEditProfile}
+              adguardEnabled={adguardEnabled}
+              onToggleAdguardEnabled={setAdguardEnabled}
             />
           ) : (
             /* --- TELA 2.B: PAINEL PRINCIPAL DO USUÁRIO ESTILO NETFLIX --- */
             <div className="flex-1 pb-16 font-sans">
               
-              {/* SEÇÃO HERO SPOTLIGHT (EM GRANDE PLANO) */}
+              {/* SEÇÃO HERO SPOTLIGHT (CARROSSEL DINÂMICO EM GRANDE PLANO) */}
               {!searchVal && activeTab === 'all' && featuredMovie && (
-                <div className="relative h-[62vh] sm:h-[84vh] w-full bg-zinc-950 flex flex-col justify-end select-none border-b border-zinc-900/40 overflow-hidden">
-                  <div className="absolute inset-0 z-0">
-                    <img
-                      src={featuredMovie.backdropUrl}
-                      alt={featuredMovie.title}
-                      className="w-full h-full object-cover select-none brightness-[0.75]"
-                      referrerPolicy="no-referrer"
-                    />
-                    {/* Sombras pretas de ambientação */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/30 to-black/20" />
-                    <div className="absolute inset-0 bg-gradient-to-r from-zinc-950/90 via-transparent to-transparent hidden md:block" />
-                  </div>
+                <div className="relative h-[62vh] sm:h-[84vh] w-full bg-zinc-950 flex flex-col justify-end select-none border-b border-zinc-900/40 overflow-hidden group">
+                  
+                  {/* Container de transição de imagens con AnimatePresence */}
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key={featuredMovie.id}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.85, ease: "easeInOut" }}
+                      className="absolute inset-0 z-0"
+                    >
+                      <img
+                        src={featuredMovie.backdropUrl}
+                        alt={featuredMovie.title}
+                        className="w-full h-full object-cover select-none brightness-[0.70] scale-102 hover:scale-105 transition-transform duration-10000"
+                        referrerPolicy="no-referrer"
+                      />
+                      {/* Sombras pretas de ambientação */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/25 to-black/20" />
+                      <div className="absolute inset-0 bg-gradient-to-r from-zinc-950/90 via-transparent to-transparent hidden md:block" />
+                    </motion.div>
+                  </AnimatePresence>
 
+                  {/* Detalhes e botões informativos */}
                   <div className="relative z-20 max-w-[1400px] w-full mx-auto px-4 sm:px-8 pb-12 sm:pb-24 flex flex-col items-start text-left">
-                    {/* Badge */}
-                    <span className="bg-rose-600 text-white font-mono text-[10px] sm:text-xs font-bold px-2 py-0.5 sm:px-3 sm:py-1 rounded uppercase tracking-widest mb-2.5 sm:mb-4 border border-rose-500/20 shadow-md">
-                      🎬 {featuredMovie.category} • Destaque Retro
-                    </span>
-                    
-                    {/* Título */}
-                    <h1 className="text-3xl sm:text-6xl font-black font-display tracking-widest text-white leading-tight uppercase max-w-2xl text-shadow">
-                      {featuredMovie.title}
-                    </h1>
+                    <AnimatePresence mode="wait">
+                      <motion.div
+                        key={`meta-${featuredMovie.id}`}
+                        initial={{ opacity: 0, y: 15 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -15 }}
+                        transition={{ duration: 0.45 }}
+                        className="flex flex-col items-start"
+                      >
+                        {/* Batches com estilo Premium rotativos e dinâmicos */}
+                        <div className="flex flex-wrap items-center gap-2 mb-3.5 sm:mb-5">
+                          {featuredMovie.year >= new Date().getFullYear() ? (
+                            <span className="bg-rose-600 text-white font-mono text-[9px] sm:text-[10px] font-black px-2.5 py-1 rounded uppercase tracking-wider animate-pulse flex items-center gap-1 border border-rose-500/30 shadow-md">
+                              <Sparkles className="w-3 h-3 text-white fill-current" />
+                              <span>Lançamento {featuredMovie.year}</span>
+                            </span>
+                          ) : null}
+                          
+                          <span className="bg-zinc-900/90 border border-zinc-700/60 text-zinc-350 font-mono text-[9px] sm:text-[10px] font-bold px-2 py-1 rounded uppercase tracking-widest shadow">
+                            🎬 {featuredMovie.category} • Destaque Retro
+                          </span>
+                          
+                          <span className="bg-amber-500/10 border border-amber-500/30 text-amber-400 font-mono text-[9px] sm:text-[10px] font-semibold px-2 py-1 rounded shadow-sm">
+                            ⭐ {featuredMovie.rating}
+                          </span>
+                        </div>
+                        
+                        {/* Título com Display Typography e espaçamento generoso */}
+                        <h1 className="text-3xl sm:text-6xl font-black font-display tracking-widest text-white leading-tight uppercase max-w-2xl text-shadow whitespace-pre-line">
+                          {featuredMovie.title}
+                        </h1>
 
-                    {/* Descrição Sinopse curta */}
-                    <p className="text-xs sm:text-base text-zinc-300 max-w-xl sm:max-w-2xl mt-4 line-clamp-3 leading-relaxed drop-shadow-sm font-light tracking-wide">
-                      {featuredMovie.description}
-                    </p>
+                        {/* Descrição Sinopse curta com efeito line-clamp responsivo */}
+                        <p className="text-xs sm:text-base text-zinc-300 max-w-xl sm:max-w-2xl mt-4 line-clamp-3 leading-relaxed drop-shadow-sm font-light tracking-wide">
+                          {featuredMovie.description}
+                        </p>
+                      </motion.div>
+                    </AnimatePresence>
 
                     {/* Botões do destaque */}
                     <div className="flex items-center gap-3 sm:gap-4 mt-6 sm:mt-10">
                       <button
                         onClick={() => handleFeaturedPlay(featuredMovie)}
-                        className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs sm:text-sm px-5 py-3 sm:px-7 sm:py-4 rounded-lg flex items-center gap-2.5 shadow-lg shadow-rose-600/20 active:scale-95 transition-all cursor-pointer tracking-widest"
+                        className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs sm:text-sm px-5 py-3 sm:px-7 sm:py-4 rounded-lg flex items-center gap-2.5 shadow-lg shadow-rose-600/30 active:scale-95 transition-all cursor-pointer tracking-widest"
                         id="btn-hero-play"
                       >
                         <Play className="w-4 h-4 sm:w-5 sm:h-5 fill-white" />
@@ -582,11 +804,47 @@ export default function App() {
                       </button>
                     </div>
                   </div>
+
+                  {/* Indicadores / Pontos do Carrossel Dinâmico */}
+                  <div className="absolute right-4 bottom-12 sm:right-8 sm:bottom-24 z-30 flex items-center gap-2.5 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full border border-zinc-800/50">
+                    {featuredHighlights.map((_, idx) => (
+                      <button
+                        key={`indicator-${idx}`}
+                        onClick={() => setActiveHighlightIndex(idx)}
+                        className={`rounded-full transition-all duration-300 cursor-pointer ${
+                          idx === activeHighlightIndex
+                            ? 'w-6 h-2 bg-rose-600 shadow-md shadow-rose-600/30'
+                            : 'w-2 h-2 bg-zinc-650 hover:bg-zinc-400'
+                        }`}
+                        aria-label={`Visualizar destaque ${idx + 1}`}
+                      />
+                    ))}
+                  </div>
+
                 </div>
               )}
 
               {/* GRIDS / CATEGORIAS (ESTRELA DO DESIGN) */}
               <div className={`max-w-[1400px] mx-auto px-1 sm:px-4 ${(!searchVal && activeTab === 'all') ? '-mt-2 sm:-mt-8 relative z-30' : 'pt-32'}`}>
+                
+                {/* Visualizador de Categoria Ativa se selecionada */}
+                {selectedCategory && (
+                  <div className="px-4 sm:px-8 mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 select-none animate-fade-in">
+                    <div>
+                      <span className="text-zinc-550 font-mono text-[9px] sm:text-[10px] uppercase font-bold tracking-widest block mb-1">Gênero Retro Filtrado</span>
+                      <h2 className="text-xl sm:text-2xl font-black font-display text-white uppercase tracking-tight">
+                        Catálogo de <span className="text-rose-500 font-extrabold">{selectedCategory}</span>
+                      </h2>
+                    </div>
+                    <button
+                      onClick={() => setSelectedCategory(null)}
+                      className="text-[10px] sm:text-xs font-mono font-black text-rose-500 hover:text-white bg-rose-500/10 hover:bg-rose-600 px-3.5 py-2 rounded-lg border border-rose-500/30 cursor-pointer transition-all hover:scale-105 active:scale-95"
+                      id="btn-clear-category-filter-main"
+                    >
+                      Limpar Filtro ✕
+                    </button>
+                  </div>
+                )}
                 
                 {/* Visualizador de Busca Ativo */}
                 {searchVal && (
@@ -598,8 +856,20 @@ export default function App() {
                   </div>
                 )}
 
+                {/* Visualizador de Categoria Ativa */}
+                {selectedCategory && !searchVal && (
+                  <div className="px-4 sm:px-8 mb-6 mt-1 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                    <div>
+                      <h2 className="text-xl sm:text-2xl font-bold font-display text-white">
+                        Explorando Categoria: <span className="text-rose-500 italic">"{selectedCategory}"</span>
+                      </h2>
+                      <p className="text-xs text-zinc-500 font-mono mt-1 pr-1">Exibindo {filteredMovies.length} fitas de vídeo vintage filtradas para você em alta fidelidade.</p>
+                    </div>
+                  </div>
+                )}
+
                 {/* --- 2.B.I: ROW DE CONTINUAR ASSISTINDO --- */}
-                {!searchVal && activeTab === 'all' && (
+                {!searchVal && !selectedCategory && activeTab === 'all' && (
                   (() => {
                     // Seleciona filmes com histórico de progresso ativo e inacabado
                     const progressHistory = (Object.values(activeProfile.watchHistory) as WatchProgress[])
@@ -626,48 +896,72 @@ export default function App() {
                   })()
                 )}
 
-                {/* --- 2.B.II: ROW MINHA LISTA (SE ESTIVER EM ALL OU EM MYLIST TAB) --- */}
-                {(!searchVal && (activeTab === 'all' || activeTab === 'mylist')) && (
+                {/* --- 2.B.II: ROW MELHORES AVALIAÇÕES (NA HOME PAGE) OU MINHA LISTA (NA ABA MYLIST) --- */}
+                {(!searchVal && !selectedCategory && (activeTab === 'all' || activeTab === 'mylist')) && (
                   (() => {
-                    const listMovies = movies.filter(m => activeProfile.myList.includes(m.id));
-                    if (listMovies.length === 0 && activeTab === 'mylist') {
+                    if (activeTab === 'all') {
+                      // Ordenar filmes e séries da maior para a menor nota
+                      const sortedByRating = [...movies].sort((a, b) => (b.rating || 0) - (a.rating || 0));
                       return (
-                        <div className="text-center py-24 px-4 font-sans max-w-md mx-auto flex flex-col items-center">
-                          <HelpCircle className="w-12 h-12 text-zinc-700 mb-4" />
-                          <h3 className="font-bold text-lg text-zinc-300 font-display">Sua Lista está vazia</h3>
-                          <p className="text-xs text-zinc-500 mt-2 leading-relaxed">
-                            Crie sua estante de fitas VHS personalizadas! Navegue na página inicial e selecione "+" em qualquer filme ou série para salvá-los aqui neste prateleira de acesso rápido.
-                          </p>
-                          <button
-                            onClick={() => setActiveTab('all')}
-                            className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-4 py-2 mt-6 rounded"
-                          >
-                            Explorar Filmes & Séries
-                          </button>
+                        <MovieRow
+                          title="Melhores Avaliações"
+                          movies={sortedByRating}
+                          watchHistory={activeProfile.watchHistory}
+                          myList={activeProfile.myList}
+                          onMovieClick={setSelectedMovie}
+                          onToggleMyList={handleToggleMyList}
+                          onPlayClick={handleFeaturedPlay}
+                        />
+                      );
+                    } else {
+                      // activeTab === 'mylist'
+                      const listMovies = movies.filter(m => activeProfile.myList.includes(m.id));
+                      if (listMovies.length === 0) {
+                        return (
+                          <div className="text-center py-24 px-4 font-sans max-w-md mx-auto flex flex-col items-center">
+                            <HelpCircle className="w-12 h-12 text-zinc-700 mb-4" />
+                            <h3 className="font-bold text-lg text-zinc-300 font-display">Sua Lista está vazia</h3>
+                            <p className="text-xs text-zinc-500 mt-2 leading-relaxed">
+                              Crie sua estante de fitas VHS personalizadas! Navegue na página inicial e selecione "+" em qualquer filme ou série para salvá-los aqui neste prateleira de acesso rápido.
+                            </p>
+                            <button
+                              onClick={() => setActiveTab('all')}
+                              className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-4 py-2 mt-6 rounded"
+                            >
+                              Explorar Filmes & Séries
+                            </button>
+                          </div>
+                        );
+                      }
+                      
+                      return (
+                        <div className="animate-fade-in">
+                          <div className="px-4 sm:px-8 mb-6">
+                            <span className="text-zinc-500 font-mono text-[9px] sm:text-[10px] uppercase font-bold tracking-widest block mb-1">Coleção de Fitas Clássicas</span>
+                            <h2 className="text-xl sm:text-2xl font-black font-display text-white uppercase tracking-tight">
+                              Minha Lista <span className="text-rose-500 font-extrabold">({listMovies.length} {listMovies.length === 1 ? 'item' : 'itens'})</span>
+                            </h2>
+                          </div>
+                          <MovieRow
+                            title="Prateleira Particular"
+                            movies={listMovies}
+                            watchHistory={activeProfile.watchHistory}
+                            myList={activeProfile.myList}
+                            onMovieClick={setSelectedMovie}
+                            onToggleMyList={handleToggleMyList}
+                            onPlayClick={handleFeaturedPlay}
+                          />
                         </div>
                       );
                     }
-                    if (listMovies.length === 0) return null; // Não exibe a row se estiver na home vazia
-                    
-                    return (
-                      <MovieRow
-                        title="Minha Lista"
-                        movies={listMovies}
-                        watchHistory={activeProfile.watchHistory}
-                        myList={activeProfile.myList}
-                        onMovieClick={setSelectedMovie}
-                        onToggleMyList={handleToggleMyList}
-                        onPlayClick={handleFeaturedPlay}
-                      />
-                    );
                   })()
                 )}
 
                 {/* --- 2.B.III: ROWS TRADICIONAIS DE GÊNEROS --- */}
                 {activeTab !== 'mylist' && (
                   (() => {
-                    // Se for busca ativa ou qualquer aba restrita, renderizamos Grid corrido, senão rows separadas
-                    if (searchVal || activeTab === 'movies' || activeTab === 'series') {
+                    // Se for busca ativa, categoria selecionada ou qualquer aba restrita, renderizamos Grid corrido, senão rows separadas
+                    if (searchVal || activeTab === 'movies' || activeTab === 'series' || selectedCategory) {
                       if (filteredMovies.length === 0) {
                         return (
                           <div className="text-center py-28 px-4 flex flex-col items-center max-w-sm mx-auto">
@@ -784,7 +1078,7 @@ export default function App() {
                   <span>Todos os direitos reservados.</span>
                 </div>
                 <div className="font-mono text-[9px] tracking-wider uppercase text-zinc-600 text-center sm:text-right">
-                  PLATAFORMA RETRÔ DIGITAL • CURADORIA DE ALTO PADRÃO COM INTEGRAÇÃO DE API TMDB
+                  PLATAFORMA RETRÔ DIGITAL v2.0
                 </div>
               </div>
             </div>
@@ -799,7 +1093,82 @@ export default function App() {
             onToggleMyList={(id) => handleToggleMyList(id)}
             watchHistory={activeProfile ? activeProfile.watchHistory : {}}
             onUpdateProgress={handleUpdateWatchProgress}
+            adguardEnabled={adguardEnabled}
           />
+
+          {/* --- SISTEMA DE TOAST DE NOTIFICAÇÃO AO VIVO RETRÔ --- */}
+          <AnimatePresence>
+            {toast && (() => {
+              const toastMovie = movies.find(m => m.id === toast.movieId);
+              return (
+                <motion.div
+                  initial={{ opacity: 0, y: 40, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 20, scale: 0.95, transition: { duration: 0.18 } }}
+                  className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-6 sm:bottom-6 z-[9999] max-w-none sm:max-w-sm w-auto sm:w-full bg-zinc-950/95 border border-rose-500/30 rounded-xl p-3.5 shadow-2xl shadow-rose-950/30 backdrop-blur-md flex gap-3 select-none"
+                >
+                  {/* Mini Poster do Filme/Série */}
+                  {toastMovie && toastMovie.posterUrl ? (
+                    <div className="w-16 h-24 rounded overflow-hidden flex-shrink-0 border border-zinc-800 shadow">
+                      <img
+                        src={toastMovie.posterUrl}
+                        alt={toastMovie.title}
+                        className="w-full h-full object-cover"
+                        referrerPolicy="no-referrer"
+                      />
+                    </div>
+                  ) : (
+                    <div className="w-16 h-16 rounded bg-zinc-900 border border-zinc-800 flex items-center justify-center flex-shrink-0 text-rose-500">
+                      <Bell className="w-6 h-6 animate-pulse" />
+                    </div>
+                  )}
+
+                  {/* Conteúdo Informativo */}
+                  <div className="flex-1 min-w-0 flex flex-col justify-between">
+                    <div>
+                      {/* Título da Notificação */}
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] uppercase font-black tracking-wider text-rose-500 flex items-center gap-1">
+                          <Flame className="w-3.5 h-3.5 fill-rose-500/20 text-rose-500 animate-pulse" />
+                          {toast.title}
+                        </span>
+                        <button
+                          onClick={() => setToast(null)}
+                          className="text-zinc-500 hover:text-zinc-200 p-0.5 rounded transition-colors"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      {/* Nome do Conteúdo */}
+                      <p className="text-xs font-bold font-display text-white mt-1 truncate">
+                        {toastMovie ? toastMovie.title : toast.title}
+                      </p>
+
+                      {/* Descritivo curto */}
+                      <p className="text-[10px] text-zinc-400 font-light mt-1.5 leading-relaxed line-clamp-2">
+                        {toastMovie ? toastMovie.description : toast.message}
+                      </p>
+                    </div>
+
+                    {/* Ação Interativa */}
+                    {toastMovie && (
+                      <button
+                        onClick={() => {
+                          setSelectedMovie(toastMovie);
+                          setToast(null);
+                        }}
+                        className="mt-2.5 w-full bg-rose-600 hover:bg-rose-700 active:scale-[0.98] transition-all text-white font-bold text-[9px] uppercase tracking-widest py-1.5 px-3 rounded flex items-center justify-center gap-1 shadow shadow-rose-600/20 cursor-pointer"
+                      >
+                        <Play className="w-3 h-3 fill-current" />
+                        <span>Inserir VHS e Assistir</span>
+                      </button>
+                    )}
+                  </div>
+                </motion.div>
+              );
+            })()}
+          </AnimatePresence>
 
         </div>
       )}

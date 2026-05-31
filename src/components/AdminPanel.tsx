@@ -25,6 +25,8 @@ interface AdminPanelProps {
   currentUserId: string;
   currentProfileId?: string;
   onEditProfile?: (profileId: string, name: string, avatarUrl: string) => void;
+  adguardEnabled: boolean;
+  onToggleAdguardEnabled: (enabled: boolean) => void;
 }
 
 export default function AdminPanel({
@@ -42,7 +44,9 @@ export default function AdminPanel({
   onDeleteUser,
   currentUserId,
   currentProfileId,
-  onEditProfile
+  onEditProfile,
+  adguardEnabled,
+  onToggleAdguardEnabled
 }: AdminPanelProps) {
   const [activeAdminTab, setActiveAdminTab] = useState<'dashboard' | 'catalog' | 'users' | 'myaccount' | 'settings'>('dashboard');
 
@@ -1487,6 +1491,65 @@ export default function AdminPanel({
                     </span>
                   </div>
                 </div>
+              </div>
+            </div>
+
+            {/* Bloco AdGuard Integrado */}
+            <div className="bg-zinc-900 border border-zinc-850 rounded-xl p-5 md:p-6 space-y-5 flex flex-col justify-between">
+              <div className="space-y-4">
+                <div className="border-b border-zinc-800 pb-4">
+                  <h3 className="font-bold text-md text-emerald-400 font-display uppercase tracking-tight flex items-center gap-2">
+                    <Shield className="w-4.5 h-4.5 text-emerald-400" /> Extensão AdGuard Pro
+                  </h3>
+                  <p className="text-xs text-zinc-500 mt-1">
+                    Filtro estrito de anúncios e anúncios injetados por players/embeds e prevenção robusta contra pop-ups/redirecionamento de guias.
+                  </p>
+                </div>
+
+                <div className="space-y-3.5">
+                  <div className="bg-zinc-950 p-4 rounded border border-zinc-800 flex items-start gap-3">
+                    <div className="bg-emerald-500/10 p-2 rounded-lg border border-emerald-500/20 text-emerald-450">
+                      <Shield className="w-5 h-5 animate-pulse" />
+                    </div>
+                    <div className="text-xs font-mono">
+                      <span className="text-[11px] font-bold text-zinc-300 block font-sans">Bloqueio Anti-Popup Global</span>
+                      <p className="text-[10px] text-zinc-500 mt-1 leading-relaxed">
+                        Intercepção ativa de guias fantasmas em iFrames, controle estrito de redirecionamento involuntário e monitoramento de scripts de anúncio em segundo plano.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between p-4 bg-zinc-950 rounded border border-zinc-850">
+                    <div className="space-y-1">
+                      <span className="text-xs font-bold text-zinc-200 block">Status da Extensão</span>
+                      <span className="text-[10px] font-mono text-zinc-500 block">
+                        {adguardEnabled 
+                          ? '🛡️ ATIVO PARA TODOS OS VISITANTES' 
+                          : '⚠️ DESATIVADO (RISCO DE ANÚNCIOS EXTERNOS)'
+                        }
+                      </span>
+                    </div>
+
+                    <button
+                      onClick={() => onToggleAdguardEnabled(!adguardEnabled)}
+                      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-1 focus:ring-emerald-500 ${
+                        adguardEnabled ? 'bg-emerald-500' : 'bg-zinc-850'
+                      }`}
+                      style={{ transition: 'background-color 0.2s' }}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                          adguardEnabled ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-zinc-850/50 flex items-center gap-2 text-[10px] font-mono text-zinc-500">
+                <Check className="w-3.5 h-3.5 text-emerald-500" />
+                <span>Autorizado e configurado via Credencial de Administrador</span>
               </div>
             </div>
 

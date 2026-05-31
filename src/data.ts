@@ -15,6 +15,54 @@ export const PROFILE_AVATARS = [
 
 export const INITIAL_MOVIES: Movie[] = [
   {
+    id: 'm_2026_1',
+    title: 'The Batman: Parte II',
+    description: 'No segundo capítulo da saga do Cavaleiro das Trevas dirigida por Matt Reeves, Bruce Wayne se aprofunda ainda mais no submundo corrupto e gótico de Gotham City, enfrentando novas ameaças que testam sua integridade e mente investigativa.',
+    posterUrl: 'https://image.tmdb.org/t/p/w780/jX7mK6H2T9V0W7qH0vM3L7V1F7W.jpg',
+    backdropUrl: 'https://image.tmdb.org/t/p/original/yY76b9gSsaCuYgzoPvZ6vC93YgZ.jpg',
+    category: 'Ação',
+    year: 2026,
+    duration: '2h 45m',
+    type: 'movie',
+    rating: 8.9,
+    trailerUrl: 'https://www.youtube.com/embed/mqq_H30_u5Q',
+    isFeatured: true,
+    vhsTapeColor: '#1c1917', // Dark Stone
+    tmdbId: 414906
+  },
+  {
+    id: 'm_2026_2',
+    title: 'Stranger Things: Temporada Final (5)',
+    description: 'A épica conclusão da saga dos anos 80 em Hawkins. Eleven, Mike e toda a turma precisam unir forças em uma batalha derradeira contra o mundo invertido e o terrível vilão Vecna, para fechar de vez o portal e salvar o mundo.',
+    posterUrl: 'https://image.tmdb.org/t/p/w780/49Wp6m9lhbClvIGv2Irp4st6L8s.jpg',
+    backdropUrl: 'https://image.tmdb.org/t/p/original/56v2Kj2qLz6v64g4TLis6YfOf6N.jpg',
+    category: 'Suspense',
+    year: 2026,
+    duration: '5ª Temporada',
+    type: 'series',
+    rating: 9.1,
+    trailerUrl: 'https://www.youtube.com/embed/b9EkMc79ZSU',
+    isFeatured: true,
+    vhsTapeColor: '#e11d48', // Crimson Red
+    tmdbId: 66732
+  },
+  {
+    id: 'm_2026_3',
+    title: 'Avatar: Fogo e Cinzas',
+    description: 'Jake Sully e Neytiri enfrentam uma nova tribo Na\'vi ameaçadora e vulcânica em Pandora: o Povo das Cinzas. Determinados a manter a paz e proteger seu ecossistema, eles precisam forjar perigosas alianças contra novos inimigos.',
+    posterUrl: 'https://image.tmdb.org/t/p/w780/orS9OFID6g3gO0SgH1Gv2u3fG6N.jpg',
+    backdropUrl: 'https://image.tmdb.org/t/p/original/x2rc88LpS6mI9H19IY7Nisg6YfO.jpg',
+    category: 'Ficção Científica',
+    year: 2026,
+    duration: '2h 35m',
+    type: 'movie',
+    rating: 8.4,
+    trailerUrl: 'https://www.youtube.com/embed/CRRlbK5w8AE',
+    isFeatured: false,
+    vhsTapeColor: '#2563eb', // Indigo Blue
+    tmdbId: 83533
+  },
+  {
     id: 'm1',
     title: 'De Volta para o Futuro',
     description: 'Marty McFly, um adolescente típico dos anos 80, é acidentalmente enviado de volta a 1955 em uma máquina do tempo construída pelo excêntrico cientista Doc Brown. Para voltar, ele precisa fazer com que seus futuros pais se apaixonem.',
@@ -269,6 +317,7 @@ export const DEFAULT_PROFILES: { [userId: string]: Profile[] } = {
 // CATEGORIES definidos de forma robusta e estilosa para a navegação de gênero
 export const GENRE_CATEGORIES = [
   'Todos',
+  'Melhores Avaliações',
   'Ação',
   'Aventura',
   'Terror',

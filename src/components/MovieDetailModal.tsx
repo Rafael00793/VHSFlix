@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Movie, WatchProgress } from '../types';
-import { X, Play, Pause, Plus, Check, Star, RefreshCw, Tv, Clock, HelpCircle, Film, Sparkles, AlertCircle, ExternalLink, Maximize } from 'lucide-react';
+import { X, Play, Pause, Plus, Check, Star, RefreshCw, Tv, Clock, HelpCircle, Film, Sparkles, AlertCircle, ExternalLink, Maximize, Shield } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface MovieDetailModalProps {
@@ -16,6 +16,7 @@ interface MovieDetailModalProps {
   onToggleMyList: (movieId: string) => void;
   watchHistory: { [movieId: string]: WatchProgress };
   onUpdateProgress: (movieId: string, progress: number, currentTime: number, duration: number, isFinished: boolean) => void;
+  adguardEnabled?: boolean;
 }
 
 const CATEGORY_COLORS: { [key: string]: string } = {
@@ -73,7 +74,8 @@ export default function MovieDetailModal({
   myList,
   onToggleMyList,
   watchHistory,
-  onUpdateProgress
+  onUpdateProgress,
+  adguardEnabled = true
 }: MovieDetailModalProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isTapeLoading, setIsTapeLoading] = useState(false);
@@ -120,6 +122,83 @@ export default function MovieDetailModal({
   useEffect(() => {
     currentTimeRef.current = currentTime;
   }, [currentTime]);
+
+  // AdGuard Active Protection Engine (Anti-Ads / Anti-Popups / Anti-Redirection)
+  useEffect(() => {
+    if (!isPlaying || !adguardEnabled) return;
+
+    // Intercepta tentativas automáticas de redirecionar ou sair da página principal
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "AdGuard Pro bloqueou um redirecionamento de anúncio externo.";
+      return e.returnValue;
+    };
+
+    // Bloqueia qualquer clique ou evento que tente de alguma forma iniciar abertura de abas externas/popups
+    const preventPopups = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as HTMLElement;
+      const closestLink = target.closest('a');
+      if (closestLink) {
+        const href = closestLink.getAttribute('href') || '';
+        const targetAttr = closestLink.getAttribute('target') || '';
+
+        if (targetAttr === '_blank' || href.startsWith('http') || href.startsWith('//')) {
+          try {
+            const urlObj = new URL(href, window.location.href);
+            if (urlObj.hostname !== window.location.hostname) {
+              e.preventDefault();
+              e.stopPropagation();
+              console.warn("[AdGuard Pro] Link ou Popup bloqueado com sucesso:", href);
+            }
+          } catch (err) {
+            e.preventDefault();
+            e.stopPropagation();
+          }
+        }
+      }
+    };
+
+    // Sobrescreve com segurança o window.open para evitar novos popups de abrirem via script
+    const originalOpen = window.open;
+    // @ts-ignore
+    window.open = function() {
+      console.warn("[AdGuard Pro] Tentativa bloqueada de criar uma nova aba/janela.");
+      return {
+        focus: () => {},
+        blur: () => {},
+        close: () => {},
+        postMessage: () => {}
+      }; // Retorna objeto proxy inofensivo para evitar erros de compilação/execução em scripts invasivos
+    };
+
+    // Bloqueia manipulações de window.top para redirecionar a página inteira
+    const preventFrameEscape = () => {
+      try {
+        if (window.top && window.top !== window.self) {
+          window.top.onbeforeunload = function() {
+            return "O AdGuard impediu que o reprodutor nativo tentasse escapar da página.";
+          };
+        }
+      } catch (e) {}
+    };
+
+    const intervalId = setInterval(preventFrameEscape, 1000);
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    document.addEventListener('click', preventPopups, true);
+    document.addEventListener('mousedown', preventPopups, true);
+    document.addEventListener('mouseup', preventPopups, true);
+
+    return () => {
+      // @ts-ignore
+      window.open = originalOpen;
+      clearInterval(intervalId);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.removeEventListener('click', preventPopups, true);
+      document.removeEventListener('mousedown', preventPopups, true);
+      document.removeEventListener('mouseup', preventPopups, true);
+    };
+  }, [isPlaying, adguardEnabled]);
 
   const isAddedToList = movie ? myList.includes(movie.id) : false;
   const progressState = movie ? watchHistory[movie.id] : undefined;
@@ -185,6 +264,57 @@ export default function MovieDetailModal({
     };
   }, [isPlaying, totalDuration, movie?.id, playbackSpeed, onUpdateProgress]);
 
+  // --- SISTEMA DE PROTEÇÃO ROBUSTO ANTI-ANÚNCIOS, POPUPS E REDIRECIONAMENTOS ---
+  useEffect(() => {
+    if (!isPlaying) return;
+
+    // 1. Bloquear abertura de novas abas via window.open
+    const originalOpen = window.open;
+    window.open = function() {
+      console.warn("[VHSFLIX-SECURITY] Chamada para window.open bloqueada para prevenção de anúncios.");
+      return null;
+    };
+
+    // 2. Interceptar tentativas de redirecionamento ou saída do aplicativo
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      const msg = "Prevenção de anúncios: Deseja realmente sair do VHSFLIX?";
+      e.returnValue = msg;
+      return msg;
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    // 3. Capturar e bloquear cliques em elementos de redirecionamento fantasma / anúncios flutuantes
+    const handleWindowClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (target && (target.tagName === 'A' || target.closest('a'))) {
+        const anchor = target.tagName === 'A' ? (target as HTMLAnchorElement) : target.closest('a');
+        if (anchor && anchor.href) {
+          try {
+            const destUrl = new URL(anchor.href);
+            // Bloqueia se não for do próprio domínio vhsflix
+            if (destUrl.hostname !== window.location.hostname && !destUrl.hostname.includes("youtube.com")) {
+              e.preventDefault();
+              e.stopPropagation();
+              console.warn(`[VHSFLIX-SECURITY] Link externo suspeito bloqueado durante a reprodução: ${anchor.href}`);
+            }
+          } catch (err) {
+            e.preventDefault();
+            e.stopPropagation();
+            console.warn("[VHSFLIX-SECURITY] URL inválida bloqueada.");
+          }
+        }
+      }
+    };
+    window.addEventListener("click", handleWindowClick, true);
+
+    return () => {
+      window.open = originalOpen;
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      window.removeEventListener("click", handleWindowClick, true);
+    };
+  }, [isPlaying]);
+
   const formatVCRTime = (secs: number) => {
     const h = Math.floor(secs / 3600);
     const m = Math.floor((secs % 3600) / 60);
@@ -227,67 +357,68 @@ export default function MovieDetailModal({
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/95 backdrop-blur-md overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-0 md:p-4 bg-black/95 backdrop-blur-md overflow-y-auto">
           {/* Backdrop de click para fechar */}
-          <div className="absolute inset-0 z-10" onClick={onClose} />
+          <div className="absolute inset-0 z-10 hidden md:block" onClick={onClose} />
 
           {/* Card Principal do Detalhe (Estilo Caixa Estojo VHS) */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.9, y: 30 }}
+            initial={{ opacity: 0, scale: 0.95, y: 15 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.9, y: 30 }}
-            transition={{ duration: 0.3 }}
-            className="relative z-20 w-full max-w-4xl bg-zinc-950 border border-zinc-800 rounded-xl overflow-hidden shadow-2xl flex flex-col max-h-[92vh]"
+            exit={{ opacity: 0, scale: 0.95, y: 15 }}
+            transition={{ duration: 0.25 }}
+            className="relative z-20 w-full max-w-4xl bg-zinc-950 border-0 md:border border-zinc-800 rounded-none md:rounded-xl overflow-hidden shadow-2xl flex flex-col h-[100dvh] md:h-auto md:max-h-[92vh]"
             id={`detail-modal-${movie.id}`}
           >
             {/* Botão de Fechar Modal */}
             <button
               onClick={onClose}
-              className="absolute top-4 right-4 bg-black/80 hover:bg-rose-600 hover:text-white text-zinc-400 p-2 rounded-full z-45 border border-zinc-800 transition-colors cursor-pointer"
+              className="absolute top-4 right-4 bg-black/80 hover:bg-rose-600 hover:text-white text-zinc-400 p-3.5 sm:p-2 rounded-full z-45 border border-zinc-800 transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none"
               id="btn-close-modal"
+              aria-label="Fechar Modal"
             >
-              <X className="w-5 h-5" />
+              <X className="w-6 h-6 sm:w-5 sm:h-5" />
             </button>
 
-            {/* --- ÁREA SUPERIOR: BANNER OU PLAYER DE VIDEO --- */}
-            <div className="relative aspect-[16/9] w-full bg-zinc-950 border-b border-zinc-900 overflow-hidden flex flex-col justify-center">
-                    {/* CASO 1: REPRODUÇÃO DO PLAYER DE VÍDEO COMPLETO E REAL (EMBED MOVIES API) */}
-              {isPlaying && !isTapeLoading ? (
-                <div ref={playerContainerRef} className="absolute inset-0 bg-black flex flex-col text-white font-mono z-30">
-                  
-                  {/* Player Real do EmbedMovies */}
-                  <div className="absolute inset-0 w-full h-full z-10 bg-black">
-                    <iframe
-                      src={movie.type === 'series' 
-                        ? `https://myembed.biz/serie/${movie.tmdbId || '1396'}`
-                        : `https://myembed.biz/filme/${movie.tmdbId || '105'}`
-                      }
-                      title={`Reproduzindo ${movie.title}`}
-                      className="w-full h-full border-0 animate-fade-in"
-                      height={movie.type === 'series' ? "700" : "600"}
-                      allowFullScreen
-                      webkitallowfullscreen="true"
-                      mozallowfullscreen="true"
-                      allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
-                      sandbox="allow-scripts allow-same-origin allow-forms"
-                      loading="lazy"
-                    />
-                  </div>
-
-                  {/* Barra sobreposta temporária para voltar ao menu */}
-                  <div className="absolute top-4 left-4 z-20 flex gap-2 mr-12 bg-black/60 p-1.5 rounded-lg border border-zinc-850 backdrop-blur-md">
-                    <button
-                      onClick={() => setIsPlaying(false)}
-                      className="bg-black/95 hover:bg-zinc-900 border border-zinc-800 text-white px-3.5 py-1.5 rounded-md text-xs font-sans font-bold flex items-center gap-1.5 transition-all cursor-pointer hover:scale-105 active:scale-95"
-                    >
-                      <X className="w-3.5 h-3.5 text-rose-500 fill-current" />
-                      <span>Voltar ao VHSFLIX</span>
-                    </button>
-                  </div>
+            {/* REPRODUÇÃO DO PLAYER DE VÍDEO COMPLETO E REAL (OCUPA TODO O MODAL EM REPRODUÇÃO) */}
+            {isPlaying && !isTapeLoading && (
+              <div ref={playerContainerRef} className="absolute inset-0 bg-black flex flex-col text-white font-mono z-45 animate-fade-in">
+                {/* Player Real do EmbedMovies */}
+                <div className="absolute inset-0 w-full h-full z-10 bg-black">
+                  <iframe
+                    src={movie.type === 'series' 
+                      ? `https://myembed.biz/serie/${movie.tmdbId || '1396'}`
+                      : `https://myembed.biz/filme/${movie.tmdbId || '105'}`
+                    }
+                    title={`Reproduzindo ${movie.title}`}
+                    className="w-full h-full border-0 video-player-iframe"
+                    allowFullScreen
+                    webkitallowfullscreen="true"
+                    mozallowfullscreen="true"
+                    allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
+                  />
                 </div>
-              ) : isTapeLoading ? (
+
+                {/* Botão de fechar player - posicionado no canto superior direito para cobrir marca d'água e exibir um 'X' vermelho pequeno */}
+                <div className="absolute top-2 right-2 sm:top-4 sm:right-4 z-50 bg-black/95 p-1 rounded-full shadow-2xl border border-zinc-800">
+                  <button
+                    onClick={() => setIsPlaying(false)}
+                    className="bg-black hover:bg-zinc-900 text-rose-500 hover:text-rose-400 p-2 sm:p-2.5 rounded-full transition-all cursor-pointer hover:scale-110 active:scale-95 flex items-center justify-center focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none"
+                    aria-label="Voltar para Detalhes"
+                    title="Fechar Vídeo"
+                    id="btn-close-vhs-player"
+                  >
+                    <X className="w-4.5 h-4.5 sm:w-5 sm:h-5 text-rose-500 stroke-[3.5]" />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* --- ÁREA SUPERIOR: BANNER OU CARREGAMENTO DA FITA --- */}
+            <div className="relative min-h-[350px] xs:min-h-[290px] sm:min-h-0 sm:aspect-[16/9] w-full bg-zinc-950 border-b border-zinc-900 overflow-hidden flex flex-col justify-end">
+              {isTapeLoading ? (
                 /* CASO 2: ANIMAÇÃO ESTÉTICA DE CARREGAMENTO DA FITA VHS */
-                <div className="absolute inset-0 bg-black flex flex-col justify-center items-center font-mono text-zinc-400 z-30 select-none vhs-crt-flicker">
+                <div className="absolute inset-0 bg-black flex flex-col justify-center items-center font-mono text-zinc-400 z-30 select-none vhs-crt-flicker p-4">
                   <div className="w-40 h-10 border border-zinc-800 rounded-lg p-1.5 mb-4 flex gap-1 items-center bg-zinc-950">
                     <span className="w-2.5 h-2.5 bg-red-600 rounded-full animate-pulse"></span>
                     <div className="flex-1 bg-zinc-900 h-full rounded overflow-hidden relative">
@@ -298,6 +429,7 @@ export default function MovieDetailModal({
                   <h3 className="text-sm font-bold text-amber-500 tracking-widest uppercase animate-pulse">INSERINDO FITA VHS...</h3>
                   <div className="flex flex-col gap-1 mt-4 text-center text-[10px] text-zinc-600 max-w-xs">
                     <p>SISTEMA VHSFLIX CO. EST. 1982</p>
+
                     <p className="font-mono">CARREGANDO DADOS {movie.title.substring(0, 15).toUpperCase()}...</p>
                   </div>
                 </div>
@@ -314,27 +446,27 @@ export default function MovieDetailModal({
                   <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/20 to-black/40" />
 
                   {/* Detalhes Rápidos no Banner */}
-                  <div className="absolute bottom-4 left-4 sm:bottom-8 sm:left-8 right-4 text-left z-20 flex flex-col items-start">
+                  <div className="absolute bottom-3 left-3 sm:bottom-8 sm:left-8 right-3 text-left z-20 flex flex-col items-start">
                     
                     {/* Categoria */}
-                    <span className="bg-rose-600 text-white font-mono text-[9px] sm:text-xs font-black px-2.5 py-1 rounded tracking-wider uppercase mb-2.5 sm:mb-4 shadow-lg border border-rose-500/20">
+                    <span className="bg-rose-600 text-white font-mono text-[9px] sm:text-xs font-black px-2 py-0.5 sm:px-2.5 sm:py-1 rounded tracking-wider uppercase mb-1.5 sm:mb-4 shadow-lg border border-rose-500/20">
                       {movie.category}
                     </span>
 
                     {/* Título Principal */}
-                    <h2 className="text-xl sm:text-4.5xl font-black font-display text-white tracking-tight leading-tight uppercase text-shadow">
+                    <h2 className="text-xl xs:text-2xl sm:text-4xl md:text-5xl font-black font-display text-white tracking-tight leading-tight uppercase text-shadow">
                       {movie.title}
                     </h2>
 
                     {/* Botões Rápidos */}
-                    <div className="flex flex-wrap items-center gap-2.5 sm:gap-4 mt-4 sm:mt-6">
+                    <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-4 mt-3 sm:mt-6 w-full sm:w-auto">
                       
                       <button
                         onClick={handlePlayClick}
-                        className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs sm:text-sm px-5 py-2.5 sm:px-7 sm:py-3.5 rounded-lg transition-transform active:scale-95 flex items-center gap-2 shadow-lg shadow-rose-600/20 cursor-pointer"
+                        className="w-full sm:w-auto bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs sm:text-sm px-5 py-2.5 sm:px-7 sm:py-3.5 rounded-lg transition-transform active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-rose-600/20 cursor-pointer focus-visible:ring-4 focus-visible:ring-rose-500 focus-visible:outline-none focus-visible:scale-[1.02]"
                         id="btn-modal-play"
                       >
-                        <Play className="w-4 h-4 sm:w-5 sm:h-5 fill-white" />
+                        <Play className="w-4.5 h-4.5 sm:w-5 sm:h-5 fill-white" />
                         <span>
                           {progressState && progressState.progress > 0 
                             ? `Continuar (${Math.round(progressState.progress)}%)` 
@@ -345,7 +477,7 @@ export default function MovieDetailModal({
 
                       <button
                         onClick={() => onToggleMyList(movie.id)}
-                        className={`text-xs sm:text-sm font-semibold px-4 py-2.5 sm:px-5 sm:py-3.5 rounded-lg border transition-all active:scale-95 flex items-center gap-2 ${
+                        className={`w-full sm:w-auto text-xs sm:text-sm font-semibold px-5 py-2.5 sm:px-5 sm:py-3.5 rounded-lg border transition-all active:scale-95 flex items-center justify-center gap-2 focus-visible:ring-4 focus-visible:ring-rose-500 focus-visible:outline-none focus-visible:scale-[1.02] ${
                           isAddedToList 
                             ? 'bg-rose-500/10 border-rose-500 text-rose-400' 
                             : 'border-zinc-700 text-zinc-300 hover:text-white hover:border-zinc-400 bg-zinc-900/60'
@@ -369,11 +501,12 @@ export default function MovieDetailModal({
                       {progressState && progressState.progress > 0 && (
                         <button
                           onClick={handleResetProgress}
-                          className="bg-zinc-900/80 border border-zinc-800 text-zinc-400 hover:text-rose-500 p-2.5 sm:p-3.5 rounded-lg transition-colors"
+                          className="w-full sm:w-auto bg-zinc-900/80 border border-zinc-800 text-zinc-400 hover:text-rose-500 px-5 py-2.5 sm:p-3.5 rounded-lg transition-transform active:scale-95 flex items-center justify-center gap-2 focus-visible:ring-4 focus-visible:ring-rose-500 focus-visible:outline-none focus-visible:scale-[1.02]"
                           title="Recomeçar do início (Rebobinar de forma digital)"
                           id="btn-modal-rewind"
                         >
                           <RefreshCw className="w-4 h-4 sm:w-5 sm:h-5" />
+                          <span className="sm:hidden text-xs font-semibold">Rebobinar Fita</span>
                         </button>
                       )}
                     </div>
@@ -383,7 +516,7 @@ export default function MovieDetailModal({
             </div>
 
             {/* --- ÁREA INFERIOR: ABAS DE DETALHES E TRAILER EMBED --- */}
-            <div className="flex-1 overflow-y-auto p-4 sm:p-8 text-left grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-10 bg-zinc-950 font-sans">
+            <div className="flex-1 overflow-y-auto p-5 sm:p-8 text-left grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-10 bg-zinc-950 font-sans">
               
               {/* Lado Esquerdo/Centro: Sinopse, Ano, Duração, Progresso */}
               <div className="md:col-span-2 flex flex-col gap-5 sm:gap-6">

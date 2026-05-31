@@ -6,6 +6,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, Bell, Shield, LogOut, RefreshCw, UserCheck, Film, Tv, List, Sliders, ChevronDown } from 'lucide-react';
 import { User, Profile, AppNotification } from '../types';
+import { GENRE_CATEGORIES } from '../data';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface NavbarProps {
@@ -26,6 +27,8 @@ interface NavbarProps {
   notifications: AppNotification[];
   onNotificationClick: (movieId: string, notificationId: string) => void;
   onMarkAllAsRead: () => void;
+  selectedCategory: string | null;
+  onSelectCategory: (category: string | null) => void;
 }
 
 export default function Navbar({
@@ -45,18 +48,22 @@ export default function Navbar({
   onToggleVhsMode,
   notifications,
   onNotificationClick,
-  onMarkAllAsRead
+  onMarkAllAsRead,
+  selectedCategory,
+  onSelectCategory
 }: NavbarProps) {
   const [isScrolled, setIsScrolled] = useState(false);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false);
+  const [showGenresDropdown, setShowGenresDropdown] = useState(false);
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const notificationsRef = useRef<HTMLDivElement>(null);
+  const genresRef = useRef<HTMLDivElement>(null);
 
   const unreadCount = notifications.filter(n => !n.isRead).length;
 
-  // Monitora clique fora para fechar dropdown de perfil e de notificações
+  // Monitora clique fora para fechar dropdown de perfil, de notificações e de gêneros
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -64,6 +71,9 @@ export default function Navbar({
       }
       if (notificationsRef.current && !notificationsRef.current.contains(event.target as Node)) {
         setShowNotificationsDropdown(false);
+      }
+      if (genresRef.current && !genresRef.current.contains(event.target as Node)) {
+        setShowGenresDropdown(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -96,7 +106,7 @@ export default function Navbar({
       <div className="max-w-[1400px] mx-auto px-4 sm:px-8 flex items-center justify-between">
         
         {/* Lado Esquerdo: Logo e Navegação de Abas */}
-        <div className="flex items-center gap-6 md:gap-10">
+        <div className="flex items-center gap-3 sm:gap-6 md:gap-10">
           
           {/* Logo VHSFLIX */}
           <button 
@@ -104,9 +114,9 @@ export default function Navbar({
               onToggleAdminView(false);
               onTabChange('all');
             }}
-            className="flex flex-col items-start leading-none group text-left"
+            className="flex flex-col items-start leading-none group text-left focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none focus-visible:scale-102 rounded p-0.5"
           >
-            <span className="text-2xl md:text-3xl font-black font-display tracking-widest text-rose-600 group-hover:text-rose-500 transition-colors text-neon-glow leading-none select-none">
+            <span className="text-xl xs:text-2xl md:text-3xl font-black font-display tracking-widest text-rose-600 group-hover:text-rose-500 transition-colors text-neon-glow leading-none select-none">
               VHS<span className="text-white italic text-base md:text-lg font-mono align-super">FLIX</span>
             </span>
             <span className="text-[8px] text-rose-500/80 font-mono tracking-widest mt-0.5 font-bold uppercase hidden md:inline">Retro Tube v2.0</span>
@@ -118,7 +128,7 @@ export default function Navbar({
               <li>
                 <button
                   onClick={() => onTabChange('all')}
-                  className={`transition-colors py-1 ${activeTab === 'all' ? 'text-white font-bold border-b-2 border-rose-600' : 'hover:text-zinc-400'}`}
+                  className={`transition-colors py-1 focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none rounded px-1.5 ${activeTab === 'all' ? 'text-white font-bold border-b-2 border-rose-600' : 'hover:text-zinc-400'}`}
                 >
                   Início
                 </button>
@@ -126,7 +136,7 @@ export default function Navbar({
               <li>
                 <button
                   onClick={() => onTabChange('movies')}
-                  className={`transition-colors py-1 flex items-center gap-1 ${activeTab === 'movies' ? 'text-white font-bold border-b-2 border-rose-600' : 'hover:text-zinc-400'}`}
+                  className={`transition-colors py-1 flex items-center gap-1 focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none rounded px-1.5 ${activeTab === 'movies' ? 'text-white font-bold border-b-2 border-rose-600' : 'hover:text-zinc-400'}`}
                 >
                   <Film className="w-3.5 h-3.5" /> Filmes
                 </button>
@@ -134,7 +144,7 @@ export default function Navbar({
               <li>
                 <button
                   onClick={() => onTabChange('series')}
-                  className={`transition-colors py-1 flex items-center gap-1 ${activeTab === 'series' ? 'text-white font-bold border-b-2 border-rose-600' : 'hover:text-zinc-400'}`}
+                  className={`transition-colors py-1 flex items-center gap-1 focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none rounded px-1.5 ${activeTab === 'series' ? 'text-white font-bold border-b-2 border-rose-600' : 'hover:text-zinc-400'}`}
                 >
                   <Tv className="w-3.5 h-3.5" /> Séries
                 </button>
@@ -142,15 +152,54 @@ export default function Navbar({
               <li>
                 <button
                   onClick={() => onTabChange('mylist')}
-                  className={`transition-colors py-1 flex items-center gap-1 ${activeTab === 'mylist' ? 'text-white font-bold border-b-2 border-rose-600' : 'hover:text-zinc-400'}`}
+                  className={`transition-colors py-1 flex items-center gap-1 focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none rounded px-1.5 ${activeTab === 'mylist' ? 'text-white font-bold border-b-2 border-rose-600' : 'hover:text-zinc-400'}`}
                 >
                   <List className="w-3.5 h-3.5" /> Minha Lista
-                  {activeProfile.myList.length > 0 && (
-                    <span className="bg-rose-600 text-white text-[10px] w-4 border border-rose-500/20 h-4 rounded-full flex items-center justify-center font-bold">
-                      {activeProfile.myList.length}
-                    </span>
-                  )}
                 </button>
+              </li>
+              <li className="relative" ref={genresRef}>
+                <button
+                  onClick={() => setShowGenresDropdown(!showGenresDropdown)}
+                  className={`transition-colors py-1 flex items-center gap-1 focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none rounded px-1.5 cursor-pointer ${
+                    selectedCategory ? 'text-rose-500 font-bold border-b-2 border-rose-600' : 'text-zinc-300 hover:text-white'
+                  }`}
+                  id="navbar-categories-trigger"
+                >
+                  <span>Categorias</span>
+                  <ChevronDown className={`w-3.5 h-3.5 text-zinc-500 transition-transform ${showGenresDropdown ? 'rotate-180' : ''}`} />
+                </button>
+
+                {/* Dropdown com grid de todas as categorias */}
+                <AnimatePresence>
+                  {showGenresDropdown && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                      className="absolute left-0 mt-2 w-[420px] bg-zinc-950 border border-zinc-800 rounded-lg shadow-2xl p-4 grid grid-cols-3 gap-2 z-50 backdrop-blur-lg animate-fade-in font-sans"
+                    >
+                      {GENRE_CATEGORIES.map((category) => {
+                        const isSelected = (category === 'Todos' && selectedCategory === null) || selectedCategory === category;
+                        return (
+                          <button
+                            key={category}
+                            onClick={() => {
+                              onSelectCategory(category === 'Todos' ? null : category);
+                              setShowGenresDropdown(false);
+                            }}
+                            className={`text-[10px] px-3 py-2.5 text-left rounded transition-all font-bold uppercase tracking-wider cursor-pointer border ${
+                              isSelected
+                                ? 'bg-rose-600 border-rose-500 text-white font-black shadow-md shadow-rose-600/20'
+                                : 'text-zinc-400 bg-zinc-950/20 hover:bg-zinc-900 border-zinc-900 hover:border-rose-500 hover:text-white'
+                            }`}
+                          >
+                            {category}
+                          </button>
+                        );
+                      })}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </li>
             </ul>
           )}
@@ -164,21 +213,21 @@ export default function Navbar({
         </div>
 
         {/* Lado Direito: Busca, Filtros, VHS Mode, Menu Perfil */}
-        <div className="flex items-center gap-3 sm:gap-5">
+        <div className="flex items-center gap-1.5 xs:gap-3 sm:gap-5">
           
           {/* Seletor de modo fita VHS (Ligar / Desligar Scanlines CRT) */}
           <button
             onClick={onToggleVhsMode}
-            className={`border rounded-full px-3 py-1 flex items-center gap-1.5 transition-all text-xs font-mono font-bold select-none ${
+            className={`border rounded-full px-2 py-0.5 xs:px-3 xs:py-1 flex items-center gap-1 xs:gap-1.5 transition-all text-[9px] xs:text-xs font-mono font-bold select-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none ${
               vhsMode 
-                ? 'bg-amber-500/20 border-amber-400 text-amber-300 shadow-md shadow-amber-500/10 animate-pulse' 
+                ? 'bg-amber-500/20 border-amber-400 text-amber-300 shadow-md shadow-amber-500/10' 
                 : 'border-zinc-800 text-zinc-500 hover:border-zinc-500 hover:text-zinc-300 bg-zinc-900/50'
             }`}
             title="Ligar efeito estético VHS de Tubo CRT"
             id="vhs-aesthetic-toggle"
           >
-            <span className={`w-1.5 h-1.5 rounded-full ${vhsMode ? 'bg-amber-400 animate-ping' : 'bg-zinc-600'}`}></span>
-            VHS MODE
+            <span className={`w-1 xs:w-1.5 h-1 xs:h-1.5 rounded-full ${vhsMode ? 'bg-amber-400 animate-pulse' : 'bg-zinc-650'}`}></span>
+            <span className="truncate max-w-[55px] xs:max-w-none">VHS MODE</span>
           </button>
 
           {/* Barra de Busca Animada (Oculta se Admin) */}
@@ -186,9 +235,9 @@ export default function Navbar({
             <div className="relative flex items-center">
               <motion.div
                 initial={false}
-                animate={{ width: isSearchExpanded || searchVal ? 260 : 40 }}
+                animate={{ width: isSearchExpanded || searchVal ? (typeof window !== 'undefined' && window.innerWidth < 480 ? 130 : 210) : 38 }}
                 transition={{ type: "spring", stiffness: 350, damping: 26 }}
-                className={`flex items-center bg-zinc-950/90 backdrop-blur-md border rounded-full py-1.5 px-3 overflow-hidden transition-all duration-300 ${
+                className={`flex items-center bg-zinc-950/90 backdrop-blur-md border rounded-full py-1 px-2.5 xs:py-1.5 xs:px-3 overflow-hidden transition-all duration-300 ${
                   isSearchExpanded || searchVal 
                     ? 'border-rose-500/50 shadow-[0_0_12px_rgba(225,29,72,0.15)] ring-1 ring-rose-500/20' 
                     : 'border-zinc-800/80 hover:border-zinc-700 hover:bg-zinc-900/40'
@@ -196,20 +245,20 @@ export default function Navbar({
               >
                 <button
                   onClick={() => setIsSearchExpanded(!isSearchExpanded)}
-                  className={`p-0.5 focus:outline-none transition-colors duration-200 cursor-pointer ${
+                  className={`p-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none rounded-full transition-colors duration-200 cursor-pointer ${
                     isSearchExpanded || searchVal ? 'text-rose-500' : 'text-zinc-400 hover:text-white'
                   }`}
                   id="btn-search-toggle"
                   title="Pesquisar fita VHS"
                 >
-                  <Search className="w-4 h-4" />
+                  <Search className="w-3.5 h-3.5 xs:w-4 xs:h-4" />
                 </button>
                 <input
                   type="text"
                   value={searchVal}
                   onChange={(e) => onSearchChange(e.target.value)}
-                  placeholder="Pesquisar títulos, gêneros..."
-                  className="bg-transparent border-none text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none w-full ml-2 font-sans tracking-wide"
+                  placeholder="Buscar..."
+                  className="bg-transparent border-none text-[11px] xs:text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none w-full ml-1.5 font-sans tracking-wide"
                 />
                 {(isSearchExpanded || searchVal) && (
                   <button
@@ -217,7 +266,7 @@ export default function Navbar({
                       onSearchChange('');
                       setIsSearchExpanded(false);
                     }}
-                    className="text-zinc-500 hover:text-rose-450 text-xs px-1.5 transition-colors duration-150 cursor-pointer"
+                    className="text-zinc-500 hover:text-rose-400 text-xs px-1 transition-colors duration-150 cursor-pointer ml-1"
                   >
                     ✕
                   </button>
@@ -233,11 +282,11 @@ export default function Navbar({
                 setShowNotificationsDropdown(!showNotificationsDropdown);
                 setShowProfileDropdown(false);
               }}
-              className="text-zinc-400 hover:text-white relative p-1.5 focus:outline-none transition-colors cursor-pointer"
+              className="text-zinc-400 hover:text-white relative p-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none rounded-full transition-colors cursor-pointer"
               id="navbar-notifications-btn"
               title="Notificações de Lançamentos"
             >
-              <Bell className="w-4.5 h-4.5" />
+              <Bell className="w-4 h-4 xs:w-4.5 xs:h-4.5" />
               {unreadCount > 0 && (
                 <span className="absolute top-1 right-1 w-2 h-2 bg-rose-600 rounded-full animate-pulse border border-zinc-950"></span>
               )}
@@ -250,7 +299,7 @@ export default function Navbar({
                   initial={{ opacity: 0, y: 10, scale: 0.95 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                  className="absolute right-0 mt-12 w-80 sm:w-96 bg-zinc-950 border border-zinc-900 rounded-lg shadow-2xl z-50 overflow-hidden font-sans"
+                  className="absolute right-0 mt-12 w-[calc(100vw-1.5rem)] xs:w-80 sm:w-96 bg-zinc-950 border border-zinc-900 rounded-lg shadow-2xl z-[9999] overflow-hidden font-sans"
                 >
                   <div className="p-3 border-b border-zinc-900 bg-zinc-900/40 flex justify-between items-center select-none font-mono text-[10px]">
                     <div className="flex items-center gap-1.5">
@@ -443,36 +492,100 @@ export default function Navbar({
       {!isAdminView && (
         <div className="md:hidden flex justify-around border-t border-zinc-900 bg-zinc-950 mt-3 pt-2 text-xs text-zinc-400 font-medium">
           <button
-            onClick={() => onTabChange('all')}
-            className={`py-1 flex-1 text-center font-semibold ${activeTab === 'all' ? 'text-rose-500' : ''}`}
+            onClick={() => {
+              onSelectCategory(null);
+              onTabChange('all');
+            }}
+            className={`py-1 flex-1 text-center font-semibold ${activeTab === 'all' && !selectedCategory ? 'text-rose-500 font-extrabold' : ''}`}
           >
             Início
           </button>
           <button
-            onClick={() => onTabChange('movies')}
-            className={`py-1 flex-1 text-center font-semibold ${activeTab === 'movies' ? 'text-rose-500' : ''}`}
+            onClick={() => {
+              onSelectCategory(null);
+              onTabChange('movies');
+            }}
+            className={`py-1 flex-1 text-center font-semibold ${activeTab === 'movies' ? 'text-rose-500 font-extrabold' : ''}`}
           >
             Filmes
           </button>
           <button
-            onClick={() => onTabChange('series')}
-            className={`py-1 flex-1 text-center font-semibold ${activeTab === 'series' ? 'text-rose-500' : ''}`}
+            onClick={() => {
+              onSelectCategory(null);
+              onTabChange('series');
+            }}
+            className={`py-1 flex-1 text-center font-semibold ${activeTab === 'series' ? 'text-rose-500 font-extrabold' : ''}`}
           >
             Séries
           </button>
           <button
-            onClick={() => onTabChange('mylist')}
-            className={`py-1 flex-1 text-center font-semibold relative ${activeTab === 'mylist' ? 'text-rose-500' : ''}`}
+            onClick={() => {
+              onSelectCategory(null);
+              onTabChange('mylist');
+            }}
+            className={`py-1 flex-1 text-center font-semibold relative ${activeTab === 'mylist' ? 'text-rose-500 font-extrabold' : ''}`}
           >
             Lista
-            {activeProfile.myList.length > 0 && (
-              <span className="absolute top-0 right-4 bg-rose-600 text-white text-[8px] w-3.5 h-3.5 rounded-full flex items-center justify-center font-bold">
-                {activeProfile.myList.length}
-              </span>
-            )}
+          </button>
+          <button
+            onClick={() => setShowGenresDropdown(!showGenresDropdown)}
+            className={`py-1 flex-1 text-center font-semibold relative ${selectedCategory ? 'text-rose-500 font-extrabold' : ''}`}
+          >
+            {selectedCategory ? selectedCategory : 'Gêneros'}
           </button>
         </div>
       )}
+
+      {/* Popover De Categorias para Mobile */}
+      <AnimatePresence>
+        {showGenresDropdown && (
+          <div className="md:hidden fixed inset-0 z-50 flex items-end justify-center bg-black/70 backdrop-blur-sm">
+            {/* Overlay Clickable to Close */}
+            <div className="absolute inset-0" onClick={() => setShowGenresDropdown(false)} />
+            
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 350 }}
+              className="w-full bg-zinc-950 border-t border-zinc-800 rounded-t-2xl p-5 font-sans relative z-10"
+              style={{ maxHeight: "75vh" }}
+            >
+              <div className="flex items-center justify-between mb-4 pb-2 border-b border-zinc-900">
+                <span className="text-xs font-mono uppercase tracking-widest text-rose-500 font-bold">Navegar por Gêneros</span>
+                <button
+                  onClick={() => setShowGenresDropdown(false)}
+                  className="text-zinc-500 hover:text-zinc-300 font-bold font-mono text-xs cursor-pointer p-1"
+                >
+                  Fechar ✕
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 overflow-y-auto max-h-[50vh] no-scrollbar py-1">
+                {GENRE_CATEGORIES.map((category) => {
+                  const isSelected = (category === 'Todos' && selectedCategory === null) || selectedCategory === category;
+                  return (
+                    <button
+                      key={category}
+                      onClick={() => {
+                        onSelectCategory(category === 'Todos' ? null : category);
+                        setShowGenresDropdown(false);
+                      }}
+                      className={`text-xs px-3 py-3 text-center rounded transition-all font-bold uppercase tracking-wider cursor-pointer border ${
+                        isSelected
+                          ? 'bg-rose-600 border-rose-500 text-white font-black shadow-md'
+                          : 'text-zinc-400 bg-zinc-900/55 border-zinc-850 hover:bg-zinc-800 hover:text-white'
+                      }`}
+                    >
+                      {category}
+                    </button>
+                  );
+                })}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </nav>
   );
 }
