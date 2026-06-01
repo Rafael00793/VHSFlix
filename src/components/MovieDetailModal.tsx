@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Movie, WatchProgress } from '../types';
-import { X, Play, Pause, Plus, Check, Star, RefreshCw, Tv, Clock, HelpCircle, Film, Sparkles, AlertCircle, ExternalLink, Maximize, Shield } from 'lucide-react';
+import { X, Play, Pause, Plus, Check, Star, RefreshCw, Tv, Clock, HelpCircle, Film, Sparkles, AlertCircle, ExternalLink, Maximize, Shield, Sliders } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface MovieDetailModalProps {
@@ -67,6 +67,53 @@ const CATEGORY_TAPE_LABELS: { [key: string]: string } = {
   'Biografia': 'Teal Documental'
 };
 
+export function getSeriesSeasonsData(movie: Movie) {
+  // Tentar parsear o número de temporadas
+  let numSeasons = 3; // Fallback
+  const durationStr = movie.duration || '';
+  const match = durationStr.match(/(\d+)/);
+  if (match) {
+    numSeasons = parseInt(match[1], 10);
+  } else if (durationStr.toLowerCase().includes('uma') || durationStr.toLowerCase().includes('1')) {
+    numSeasons = 1;
+  }
+
+  // Obter episódios de forma consistente
+  const seasons: { seasonNumber: number; episodesCount: number }[] = [];
+  
+  // Séries conhecidas
+  if (movie.tmdbId === 66732) { // Stranger Things
+    const eps = [8, 9, 8, 9, 8];
+    for (let i = 1; i <= numSeasons; i++) {
+      seasons.push({
+        seasonNumber: i,
+        episodesCount: eps[(i - 1) % eps.length]
+      });
+    }
+  } else if (movie.tmdbId === 97186) { // The Chosen
+    for (let i = 1; i <= numSeasons; i++) {
+      seasons.push({
+        seasonNumber: i,
+        episodesCount: 8
+      });
+    }
+  } else {
+    // Para qualquer outra série (pode ser criada pelo usuário)
+    // Vamos usar o id do filme pra gerar algo consistente (pseudo-random reproduzível)
+    const seed = movie.id ? movie.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) : 10;
+    for (let i = 1; i <= numSeasons; i++) {
+      // Gera episódios de 6 a 16 de forma consistente por temporada
+      const episodesCount = 6 + ((seed * i + 3) % 11);
+      seasons.push({
+        seasonNumber: i,
+        episodesCount: episodesCount
+      });
+    }
+  }
+
+  return seasons;
+}
+
 export default function MovieDetailModal({
   movie,
   isOpen,
@@ -83,6 +130,13 @@ export default function MovieDetailModal({
   const [totalDuration, setTotalDuration] = useState(120 * 60); // Default 2 horas em segundos
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1); // Retro 1x, 2x, 4x rewind index
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [selectedPlayer, setSelectedPlayer] = useState<'embedmovies' | 'megaembed'>(() => {
+    const last = localStorage.getItem('vhsflix_last_player');
+    return (last === 'megaembed' ? 'megaembed' : 'embedmovies');
+  });
+  const [isConfiguringPlayer, setIsConfiguringPlayer] = useState(false);
+  const [season, setSeason] = useState<number>(1);
+  const [episode, setEpisode] = useState<number>(1);
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const currentTimeRef = useRef(currentTime);
@@ -208,6 +262,9 @@ export default function MovieDetailModal({
     if (movie) {
       setIsPlaying(false);
       setIsTapeLoading(false);
+      setIsConfiguringPlayer(false);
+      setSeason(1);
+      setEpisode(1);
       setPlaybackSpeed(1);
       
       let seconds = 110 * 60; // default 1h 50m
@@ -326,12 +383,17 @@ export default function MovieDetailModal({
     if (isPlaying) {
       setIsPlaying(false);
     } else {
-      setIsTapeLoading(true);
-      setTimeout(() => {
-        setIsTapeLoading(false);
-        setIsPlaying(true);
-      }, 1800); // Simulador de encaixar fita VCR
+      setIsConfiguringPlayer(true);
     }
+  };
+
+  const handleStartPlayback = () => {
+    setIsConfiguringPlayer(false);
+    setIsTapeLoading(true);
+    setTimeout(() => {
+      setIsTapeLoading(false);
+      setIsPlaying(true);
+    }, 1800); // Simulador de encaixar fita VCR
   };
 
   const handleScrubChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -370,33 +432,45 @@ export default function MovieDetailModal({
             className="relative z-20 w-full max-w-4xl bg-zinc-950 border-0 md:border border-zinc-800 rounded-none md:rounded-xl overflow-hidden shadow-2xl flex flex-col h-[100dvh] md:h-auto md:max-h-[92vh]"
             id={`detail-modal-${movie.id}`}
           >
-            {/* Botão de Fechar Modal */}
-            <button
-              onClick={onClose}
-              className="absolute top-4 right-4 bg-black/80 hover:bg-rose-600 hover:text-white text-zinc-400 p-3.5 sm:p-2 rounded-full z-45 border border-zinc-800 transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none"
-              id="btn-close-modal"
-              aria-label="Fechar Modal"
-            >
-              <X className="w-6 h-6 sm:w-5 sm:h-5" />
-            </button>
-
             {/* REPRODUÇÃO DO PLAYER DE VÍDEO COMPLETO E REAL (OCUPA TODO O MODAL EM REPRODUÇÃO) */}
             {isPlaying && !isTapeLoading && (
-              <div ref={playerContainerRef} className="absolute inset-0 bg-black flex flex-col text-white font-mono z-45 animate-fade-in">
-                {/* Player Real do EmbedMovies */}
+              <div ref={playerContainerRef} className="absolute inset-0 bg-black flex flex-col text-white font-mono z-45 animate-fade-in h-[100dvh] md:h-full w-full overflow-hidden">
+                {/* Player Real do VHSFLIX */}
                 <div className="absolute inset-0 w-full h-full z-10 bg-black">
                   <iframe
-                    src={movie.type === 'series' 
-                      ? `https://myembed.biz/serie/${movie.tmdbId || '1396'}`
-                      : `https://myembed.biz/filme/${movie.tmdbId || '105'}`
+                    src={selectedPlayer === 'embedmovies'
+                      ? (movie.type === 'series' 
+                          ? `https://myembed.biz/serie/${movie.tmdbId || '1396'}/${season}/${episode}`
+                          : `https://myembed.biz/filme/${movie.tmdbId || '105'}`)
+                      : (movie.type === 'series'
+                          ? `https://mgeb.top/embed/${movie.tmdbId || '1396'}/${season}/${episode}`
+                          : `https://mgeb.top/embed/${movie.tmdbId || '105'}`)
                     }
                     title={`Reproduzindo ${movie.title}`}
-                    className="w-full h-full border-0 video-player-iframe"
+                    className="w-full h-full border-0 video-player-iframe animate-fade-in"
                     allowFullScreen
                     webkitallowfullscreen="true"
                     mozallowfullscreen="true"
-                    allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
+                    allow="autoplay *; encrypted-media *; picture-in-picture *; fullscreen *; clipboard-write *; accelerometer *; gyroscope *; web-share *"
+                    sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
+                    referrerPolicy="no-referrer"
                   />
+                </div>
+
+                {/* Botão de alternar player - canto superior esquerdo para trocar de player sem sair da página */}
+                <div className="absolute top-2 left-2 sm:top-4 sm:left-4 z-50 flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      setIsPlaying(false);
+                      setIsConfiguringPlayer(true);
+                    }}
+                    className="bg-black/95 hover:bg-zinc-900 text-rose-500 hover:text-rose-400 font-mono text-[9px] sm:text-xs font-black uppercase tracking-wider px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-lg border border-rose-500/30 flex items-center gap-1.5 shadow-2xl hover:scale-105 active:scale-95 transition-all cursor-pointer active:bg-rose-950/20"
+                    title="Alternar Servidor de Player ou Episódio"
+                    id="btn-switch-player"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5 text-rose-500 animate-spin" style={{ animationDuration: '6s' }} />
+                    <span>Trocar Player (Canal)</span>
+                  </button>
                 </div>
 
                 {/* Botão de fechar player - posicionado no canto superior direito para cobrir marca d'água e exibir um 'X' vermelho pequeno */}
@@ -412,6 +486,238 @@ export default function MovieDetailModal({
                   </button>
                 </div>
               </div>
+            )}
+
+            {/* CONFIGURADOR DO PLAYER RETRO (SOBREPÕE TODO O MODAL EM CONFIGURAÇÃO) */}
+            {isConfiguringPlayer && (
+              <div className="absolute inset-0 bg-zinc-950/98 backdrop-blur-md flex flex-col text-white font-mono z-45 animate-fade-in overflow-y-auto p-4 sm:p-8">
+                {/* Botão de Fechar Configuração */}
+                <div className="absolute top-4 right-4 z-50">
+                  <button
+                    onClick={() => setIsConfiguringPlayer(false)}
+                    className="bg-black hover:bg-zinc-900 border border-zinc-850 text-zinc-440 hover:text-white p-2 text-xs sm:text-sm font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none"
+                    aria-label="Voltar para Detalhes"
+                  >
+                    <X className="w-4 h-4 text-rose-500" />
+                    <span className="hidden sm:inline">Voltar</span>
+                  </button>
+                </div>
+
+                <div className="max-w-2xl w-full mx-auto my-auto flex flex-col gap-4 sm:gap-6 pt-10 pb-6 pr-1 pl-1">
+                  {/* Header do Configurações */}
+                  <div className="text-center select-none">
+                    <span className="text-[10px] uppercase font-black tracking-widest text-rose-500 bg-rose-500/10 px-3 py-1 rounded-full border border-rose-500/20">
+                      Sintonizador VHSFLIX v3.82
+                    </span>
+                    <h3 className="text-base sm:text-lg font-bold text-zinc-100 uppercase tracking-widest mt-3">
+                      Sintonizar Reprodutor de Vídeo
+                    </h3>
+                    <p className="text-[10px] text-zinc-500 mt-1 max-w-sm mx-auto p-0">
+                      Selecione o servidor, sintonizar canais de episódios e decole na fita retrô.
+                    </p>
+                  </div>
+
+                  {/* Detalhes do Filme Selecionado */}
+                  <div className="flex gap-4 p-3 rounded-lg border border-zinc-805/50 bg-zinc-900/40 items-center">
+                    {movie.posterUrl && (
+                      <img
+                        src={movie.posterUrl}
+                        alt={movie.title}
+                        className="w-12 h-18 object-cover rounded border border-zinc-700 shadow animate-pulse"
+                        referrerPolicy="no-referrer"
+                      />
+                    )}
+                    <div className="text-left">
+                      <p className="text-xs font-black font-sans text-rose-500 leading-none uppercase tracking-wider">
+                        {movie.category}
+                      </p>
+                      <p className="text-sm font-bold text-white mt-1 leading-tight uppercase font-sans">
+                        {movie.title}
+                      </p>
+                      <p className="text-[10px] text-zinc-400 mt-1">
+                        Ano: {movie.year} • {movie.type === 'series' ? 'Série de TV' : 'Fita de Filme'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* SELEÇÃO DO PLAYER */}
+                  <div className="flex flex-col gap-2.5 text-left">
+                    <span className="text-[10px] text-zinc-400 uppercase tracking-wider font-extrabold flex items-center gap-1.5">
+                      <Sliders className="w-3.5 h-3.5 text-rose-500" />
+                      Selecione o Reprodutor (Player)
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {/* Player 1: EmbedMovies */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedPlayer('embedmovies');
+                          localStorage.setItem('vhsflix_last_player', 'embedmovies');
+                        }}
+                        className={`p-4 rounded-xl border text-left cursor-pointer transition-all flex flex-col justify-between h-28 relative overflow-hidden group ${
+                          selectedPlayer === 'embedmovies'
+                            ? 'bg-rose-950/20 border-rose-600 shadow-lg shadow-rose-950/40 text-white'
+                            : 'bg-zinc-900/40 border-zinc-900 hover:border-zinc-800 text-zinc-400 hover:text-zinc-200'
+                        }`}
+                      >
+                        <div className="flex justify-between items-start w-full">
+                          <span className="text-xs font-black uppercase tracking-wider flex items-center gap-1.5">
+                            📽️ EmbedMovies
+                          </span>
+                          <span className="text-[8px] sm:text-[9px] font-black tracking-widest bg-emerald-500 text-black px-1.5 py-0.5 rounded uppercase flex items-center gap-1 shadow-sm">
+                            <Star className="w-2.5 h-2.5 fill-black text-black" />
+                            RECOMENDADO
+                          </span>
+                        </div>
+                        <div className="mt-2 text-[10px] leading-relaxed text-zinc-400 group-hover:text-zinc-300">
+                          Servidor primário em alta velocidade e legendado.
+                        </div>
+                        <div className="absolute bottom-1.5 right-2 text-[9px] text-rose-500 font-bold tracking-widest uppercase opacity-80">
+                          {selectedPlayer === 'embedmovies' && "✔️ Ativo"}
+                        </div>
+                      </button>
+
+                      {/* Player 2: MegaEmbed */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedPlayer('megaembed');
+                          localStorage.setItem('vhsflix_last_player', 'megaembed');
+                        }}
+                        className={`p-4 rounded-xl border text-left cursor-pointer transition-all flex flex-col justify-between h-28 relative overflow-hidden group ${
+                          selectedPlayer === 'megaembed'
+                            ? 'bg-rose-950/20 border-rose-600 shadow-lg shadow-rose-950/40 text-white'
+                            : 'bg-zinc-900/40 border-zinc-900 hover:border-zinc-805 text-zinc-400 hover:text-zinc-200'
+                        }`}
+                      >
+                        <div className="flex justify-between items-start w-full">
+                          <span className="text-xs font-black uppercase tracking-wider flex items-center gap-1.5">
+                            📡 MegaEmbed
+                          </span>
+                          <span className="text-[8px] sm:text-[9px] font-black tracking-widest bg-blue-500 text-white px-1.5 py-0.5 rounded uppercase">
+                            BACKUP
+                          </span>
+                        </div>
+                        <div className="mt-2 text-[10px] leading-relaxed text-zinc-400 group-hover:text-zinc-300">
+                          Servidor alternativo altamente redundante. Ideal se o principal falhar.
+                        </div>
+                        <div className="absolute bottom-1.5 right-2 text-[9px] text-rose-500 font-bold tracking-widest uppercase opacity-80">
+                          {selectedPlayer === 'megaembed' && "✔️ Ativo"}
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* SELEÇÃO DE TEMPORADA / EPISÓDIO PARA SÉRIES */}
+                  {movie.type === 'series' && (
+                    <div className="flex flex-col gap-2.5 text-left">
+                      <span className="text-[10px] text-zinc-400 uppercase tracking-wider font-extrabold flex items-center gap-1.5">
+                        <Tv className="w-3.5 h-3.5 text-rose-500" />
+                        Sintonizar Canal (Temporada & Episódio)
+                      </span>
+                      <div className="flex flex-col sm:flex-row gap-4 w-full mt-1 font-mono">
+                        {/* SELETOR DE TEMPORADA */}
+                        <div className="flex-1 bg-zinc-900/60 p-4 rounded-xl border border-zinc-850 flex flex-col items-center select-none">
+                          <span className="text-[9px] text-zinc-500 uppercase tracking-widest font-black mb-2 flex items-center gap-1">
+                            <Tv className="w-3 h-3 text-rose-500" />
+                            Temporada
+                          </span>
+                          <div className="flex items-center gap-3">
+                            <button
+                              type="button"
+                              onClick={() => setSeason(p => Math.max(1, p - 1))}
+                              className="w-9 h-9 rounded bg-zinc-950 border border-zinc-800 hover:border-rose-500/40 text-zinc-400 hover:text-white flex items-center justify-center hover:bg-zinc-900 active:scale-95 transition-all font-black text-lg cursor-pointer"
+                            >
+                              -
+                            </button>
+                            <div className="w-16 h-10 bg-black border border-zinc-900 rounded flex items-center justify-center shadow-inner relative overflow-hidden">
+                              <div className="absolute inset-x-0 top-0 h-[2px] bg-emerald-500/20 blur-[1px]"></div>
+                              <span className="text-xl font-bold font-mono text-emerald-400 tracking-widest select-none drop-shadow-[0_0_6px_rgba(52,211,153,0.4)]">
+                                {season.toString().padStart(2, '0')}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setSeason(p => p + 1)}
+                              className="w-9 h-9 rounded bg-zinc-950 border border-zinc-800 hover:border-rose-500/40 text-zinc-400 hover:text-white flex items-center justify-center hover:bg-zinc-900 active:scale-95 transition-all font-black text-lg cursor-pointer animate-none"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* SELETOR DE EPISÓDIO */}
+                        <div className="flex-1 bg-zinc-900/60 p-4 rounded-xl border border-zinc-850 flex flex-col items-center select-none">
+                          <span className="text-[9px] text-zinc-500 uppercase tracking-widest font-black mb-2 flex items-center gap-1">
+                            <Film className="w-3 h-3 text-rose-500" />
+                            Episódio
+                          </span>
+                          <div className="flex items-center gap-3">
+                            <button
+                              type="button"
+                              onClick={() => setEpisode(p => Math.max(1, p - 1))}
+                              className="w-9 h-9 rounded bg-zinc-950 border border-zinc-800 hover:border-rose-500/40 text-zinc-400 hover:text-white flex items-center justify-center hover:bg-zinc-900 active:scale-95 transition-all font-black text-lg cursor-pointer animate-none"
+                            >
+                              -
+                            </button>
+                            <div className="w-16 h-10 bg-black border border-zinc-900 rounded flex items-center justify-center shadow-inner relative overflow-hidden">
+                              <div className="absolute inset-x-0 top-0 h-[2px] bg-emerald-500/20 blur-[1px]"></div>
+                              <span className="text-xl font-bold font-mono text-emerald-400 tracking-widest select-none drop-shadow-[0_0_6px_rgba(52,211,153,0.4)]">
+                                {episode.toString().padStart(2, '0')}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setEpisode(p => p + 1)}
+                              className="w-9 h-9 rounded bg-zinc-950 border border-zinc-800 hover:border-rose-500/40 text-zinc-400 hover:text-white flex items-center justify-center hover:bg-zinc-900 active:scale-95 transition-all font-black text-lg cursor-pointer animate-none"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* DETALHE DO ADGUARD POPUP BLOCKER */}
+                  <div className="border border-zinc-900 bg-zinc-900/20 rounded-xl p-3.5 flex items-center justify-between font-mono text-xs text-left">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-500 animate-pulse">
+                        <Shield className="w-4 h-4 text-rose-500" />
+                      </div>
+                      <div>
+                        <p className="text-zinc-200 font-black text-[10px] sm:text-xs uppercase tracking-wider">Filtro de Popups Estrito (AdGuard Ativo)</p>
+                        <p className="text-zinc-500 text-[9px] sm:text-[10px] mt-0.5">Iframe sintonizado sob sandbox protegida. Popups externos bloqueados.</p>
+                      </div>
+                    </div>
+                    <span className="text-[9px] font-black uppercase text-emerald-400 bg-emerald-400/5 py-1 px-2.5 rounded border border-emerald-400/10 select-none animate-pulse">
+                      PROTEGIDO
+                    </span>
+                  </div>
+
+                  {/* BOTÃO DE INSERIR E REPRODUZIR */}
+                  <button
+                    type="button"
+                    onClick={handleStartPlayback}
+                    className="w-full bg-rose-600 hover:bg-rose-700 active:scale-[0.99] transition-all text-white font-black text-xs sm:text-sm uppercase tracking-widest py-4 sm:py-5 rounded-xl flex items-center justify-center gap-2.5 shadow-xl shadow-rose-950/20 cursor-pointer text-shadow mt-2 animate-none"
+                  >
+                    <Play className="w-4 h-4 fill-current text-white animate-pulse" />
+                    <span>Inserir VHS e Iniciar Reprodução</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Botão de Fechar Modal (Visível apenas quando não está reproduzindo o vídeo real ou configurando) */}
+            {(!isPlaying || isTapeLoading) && !isConfiguringPlayer && (
+              <button
+                onClick={onClose}
+                className="absolute top-4 right-4 bg-black/80 hover:bg-rose-600 hover:text-white text-zinc-450 p-3 sm:p-2 rounded-full z-45 border border-zinc-800 transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none"
+                id="btn-close-modal"
+                aria-label="Fechar Modal"
+              >
+                <X className="w-5 h-5" />
+              </button>
             )}
 
             {/* --- ÁREA SUPERIOR: BANNER OU CARREGAMENTO DA FITA --- */}
@@ -596,6 +902,43 @@ export default function MovieDetailModal({
                     <span className="text-zinc-500 font-mono uppercase font-bold text-[10px] block mb-1 tracking-wider">Lançamento VHS</span>
                     <span className="text-zinc-300 font-medium font-sans">{movie.year} ({movie.type === 'movie' ? 'Fita Cinematográfica' : 'Televisivo'})</span>
                   </div>
+
+                  {movie.type === 'series' && (
+                    <div className="border-t border-zinc-850 pt-3 mt-1">
+                      <span className="text-zinc-500 font-mono uppercase font-bold text-[10px] block mb-2 tracking-wider flex items-center gap-1.5">
+                        <Tv className="w-3.5 h-3.5 text-rose-500" /> Catalogação de Temporadas
+                      </span>
+                      
+                      {(() => {
+                        const seasonsData = getSeriesSeasonsData(movie);
+                        const totalEpisodes = seasonsData.reduce((acc, s) => acc + s.episodesCount, 0);
+                        return (
+                          <div className="space-y-2.5">
+                            <p className="text-[11px] text-zinc-400 leading-relaxed font-sans">
+                              Sinal sintonizado com <span className="text-rose-500 font-black">{seasonsData.length} temporada(s)</span> e <span className="text-emerald-400 font-bold">{totalEpisodes} episódios</span> no total:
+                            </p>
+                            
+                            <div className="flex flex-col gap-1.5 font-mono">
+                              {seasonsData.map((s) => (
+                                <div 
+                                  key={s.seasonNumber} 
+                                  className="flex items-center justify-between p-1.5 px-2.5 bg-zinc-950/90 rounded border border-zinc-900 text-[10px] sm:text-[11px]"
+                                >
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
+                                    <span className="text-zinc-200 font-bold">Temporada {s.seasonNumber}</span>
+                                  </div>
+                                  <div className="text-emerald-400 font-bold">
+                                    {s.episodesCount} episódios
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
                 </div>
               </div>
 

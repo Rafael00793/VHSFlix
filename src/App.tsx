@@ -54,7 +54,7 @@ export default function App() {
   });
 
   const [tmdbApiKey, setTmdbApiKey] = useState<string>(() => {
-    return localStorage.getItem('vhsflix_tmdb_key') || '';
+    return localStorage.getItem('vhsflix_tmdb_key') || '9ba478ffe785bbc34fa2b10c46296580';
   });
 
   const [adguardEnabled, setAdguardEnabled] = useState<boolean>(() => {
@@ -393,7 +393,7 @@ export default function App() {
     setIsAdminView(false);
   };
 
-  const handleAddUser = (name: string, email: string, password: string, isAdmin: boolean): string | null => {
+  const handleAddUser = (name: string, email: string, password: string, isAdmin: boolean, avatarUrl?: string): string | null => {
     const emailLower = email.trim().toLowerCase();
     
     // Verifica duplicidade
@@ -401,12 +401,15 @@ export default function App() {
       return 'Este e-mail já está sendo utilizado por outra conta.';
     }
 
+    const defaultAvatar = avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80';
+
     const newUser: User = {
       id: 'u_' + Date.now(),
       name,
       email: emailLower,
       password: password,
       isAdmin,
+      avatarUrl: defaultAvatar,
       createdAt: new Date().toISOString()
     };
     setUsers(prev => [...prev, newUser]);
@@ -415,7 +418,7 @@ export default function App() {
     const defaultProfile: Profile = {
       id: 'p_' + Date.now(),
       name: name.split(' ')[0],
-      avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
+      avatarUrl: defaultAvatar,
       myList: [],
       watchHistory: {}
     };
@@ -428,7 +431,7 @@ export default function App() {
     return null; // Sucesso
   };
 
-  const handleEditUser = (userId: string, name: string, email: string, password?: string, isAdmin?: boolean): string | null => {
+  const handleEditUser = (userId: string, name: string, email: string, password?: string, isAdmin?: boolean, avatarUrl?: string): string | null => {
     const emailLower = email.trim().toLowerCase();
     
     // Se o e-mail mudou, verifica duplicidade
@@ -446,11 +449,26 @@ export default function App() {
           name,
           email: emailLower,
           password: (password !== undefined && password.trim() !== '') ? password : u.password,
-          isAdmin: isAdmin !== undefined ? isAdmin : u.isAdmin
+          isAdmin: isAdmin !== undefined ? isAdmin : u.isAdmin,
+          avatarUrl: avatarUrl !== undefined ? avatarUrl : u.avatarUrl
         };
       }
       return u;
     }));
+
+    // Se o avatarUrl foi atualizado, também atualiza o perfil principal
+    if (avatarUrl) {
+      setAllProfiles(prev => {
+        const userList = prev[userId] || [];
+        if (userList.length > 0) {
+          return {
+            ...prev,
+            [userId]: userList.map((p, idx) => idx === 0 ? { ...p, avatarUrl } : p)
+          };
+        }
+        return prev;
+      });
+    }
 
     return null; // Sucesso
   };

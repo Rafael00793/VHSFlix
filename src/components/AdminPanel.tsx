@@ -19,8 +19,8 @@ interface AdminPanelProps {
   onEditMovie: (movie: Movie) => void;
   onDeleteMovie: (movieId: string) => void;
   onResetCatalog: () => void;
-  onAddUser: (name: string, email: string, password: string, isAdmin: boolean) => string | null;
-  onEditUser: (userId: string, name: string, email: string, password?: string, isAdmin?: boolean) => string | null;
+  onAddUser: (name: string, email: string, password: string, isAdmin: boolean, avatarUrl?: string) => string | null;
+  onEditUser: (userId: string, name: string, email: string, password?: string, isAdmin?: boolean, avatarUrl?: string) => string | null;
   onDeleteUser: (userId: string) => void;
   currentUserId: string;
   currentProfileId?: string;
@@ -67,6 +67,8 @@ export default function AdminPanel({
   const [userFormEmail, setUserFormEmail] = useState('');
   const [userFormPassword, setUserFormPassword] = useState('');
   const [userFormIsAdmin, setUserFormIsAdmin] = useState(false);
+  const [userFormAvatarUrl, setUserFormAvatarUrl] = useState('');
+  const [userFormSelectedAvatarIdx, setUserFormSelectedAvatarIdx] = useState(0);
   const [userFormError, setUserFormError] = useState('');
 
   // Estados para "Minha Conta"
@@ -1038,6 +1040,8 @@ export default function AdminPanel({
                     setUserFormEmail('');
                     setUserFormPassword('');
                     setUserFormIsAdmin(false);
+                    setUserFormAvatarUrl('');
+                    setUserFormSelectedAvatarIdx(0);
                     setUserFormError('');
                     setIsUserFormOpen(true);
                   }}
@@ -1118,8 +1122,11 @@ export default function AdminPanel({
                                   setEditingUser(u);
                                   setUserFormName(u.name);
                                   setUserFormEmail(u.email);
-                                  setUserFormPassword(''); // deixa em branco para não alterar
+                                  setUserFormPassword(u.password || ''); // Revela a senha que foi colocada inicialmente
                                   setUserFormIsAdmin(!!u.isAdmin);
+                                  setUserFormAvatarUrl(u.avatarUrl || '');
+                                  const matchingIdx = PROFILE_AVATARS.findIndex(avatar => avatar.url === u.avatarUrl);
+                                  setUserFormSelectedAvatarIdx(matchingIdx !== -1 ? matchingIdx : 0);
                                   setUserFormError('');
                                   setIsUserFormOpen(true);
                                 }}
@@ -1195,7 +1202,7 @@ export default function AdminPanel({
                       }
 
                       if (editingUser) {
-                        const res = onEditUser(editingUser.id, name, email, password || undefined, userFormIsAdmin);
+                        const res = onEditUser(editingUser.id, name, email, password || undefined, userFormIsAdmin, userFormAvatarUrl);
                         if (res) {
                           setUserFormError(res);
                         } else {
@@ -1204,7 +1211,7 @@ export default function AdminPanel({
                         }
                       } else {
                         // Criar
-                        const res = onAddUser(name, email, password, userFormIsAdmin);
+                        const res = onAddUser(name, email, password, userFormIsAdmin, userFormAvatarUrl);
                         if (res) {
                           setUserFormError(res);
                         } else {
@@ -1249,7 +1256,7 @@ export default function AdminPanel({
 
                     <div className="flex flex-col gap-1">
                       <label className="text-zinc-400 font-bold uppercase tracking-wider text-[9px]">
-                        Senha {editingUser ? '(Preencha apenas para alterar)' : '(Obrigatória)'}
+                        Senha {editingUser ? '(Preencha/visualize a senha do usuário)' : '(Obrigatória)'}
                       </label>
                       <div className="relative flex items-center">
                         <input
@@ -1258,7 +1265,7 @@ export default function AdminPanel({
                           value={userFormPassword}
                           onChange={(e) => setUserFormPassword(e.target.value)}
                           className="w-full bg-zinc-950 border border-zinc-800 pl-3 pr-10 py-2 rounded text-sm text-white focus:outline-none focus:border-rose-500"
-                          placeholder={editingUser ? "Senha atual preservada" : "Senha secreta de acesso"}
+                          placeholder={editingUser ? "Senha do usuário" : "Senha secreta de acesso"}
                         />
                         <button
                           type="button"
@@ -1267,6 +1274,39 @@ export default function AdminPanel({
                           title={showUserFormPass ? "Ocultar senha" : "Mostrar senha"}
                         >
                           {showUserFormPass ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
+
+                      {/* Opções extras de senha / Esquecimento / Troca de senha */}
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1.5 font-mono text-[10px] select-none">
+                        {editingUser && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setUserFormPassword(editingUser.password || 'vhsflix123');
+                                setShowUserFormPass(true);
+                              }}
+                              className="text-amber-500 hover:text-amber-400 font-bold underline cursor-pointer flex items-center gap-1"
+                              title="Esqueceu a senha? Clique para revelar a senha inicial que foi salva para este usuário"
+                            >
+                              <span>🔑 Esqueceu? Mostrar Senha Inicial</span>
+                            </button>
+                            <span className="text-zinc-800">|</span>
+                          </>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const randomNum = Math.floor(1000 + Math.random() * 9000);
+                            const newPass = `VHS-${randomNum}`;
+                            setUserFormPassword(newPass);
+                            setShowUserFormPass(true);
+                          }}
+                          className="text-rose-500 hover:text-rose-400 font-bold underline cursor-pointer flex items-center gap-1"
+                          title="Gera uma nova senha aleatória segura para o usuário"
+                        >
+                          <span>⚙️ Trocar: Gerar Nova Senha</span>
                         </button>
                       </div>
                     </div>
@@ -1288,6 +1328,84 @@ export default function AdminPanel({
                         </p>
                       </div>
                     )}
+
+                    {/* Opção para alterar a foto de perfil */}
+                    <div className="flex flex-col gap-2 pt-3 border-t border-zinc-850">
+                      <label className="text-zinc-400 font-bold uppercase tracking-wider text-[9px]">
+                        Foto de Perfil do Usuário
+                      </label>
+                      <div className="flex items-center gap-4 bg-zinc-950 p-3 rounded-lg border border-zinc-855">
+                        {/* Preview */}
+                        <div className="w-12 h-12 rounded bg-zinc-900 border border-zinc-700 overflow-hidden shrink-0">
+                          <img
+                            src={userFormAvatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80'}
+                            alt="Avatar"
+                            className="w-full h-full object-cover"
+                            referrerPolicy="no-referrer"
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[10px] text-zinc-500 font-medium">Selecione uma foto pré-definida ou envie uma foto abaixo:</p>
+                          
+                          {/* Carrossel de presets */}
+                          <div className="flex items-center gap-1.5 overflow-x-auto p-1 bg-zinc-900 rounded no-scrollbar mt-1.5">
+                            {PROFILE_AVATARS.map((avatar, idx) => (
+                              <button
+                                key={avatar.id}
+                                type="button"
+                                onClick={() => {
+                                  setUserFormAvatarUrl(avatar.url);
+                                  setUserFormSelectedAvatarIdx(idx);
+                                }}
+                                className={`w-8 h-8 rounded overflow-hidden flex-shrink-0 transition-all cursor-pointer ${
+                                  userFormAvatarUrl === avatar.url
+                                    ? 'ring-2 ring-rose-500 scale-105'
+                                    : 'opacity-60 hover:opacity-100'
+                                }`}
+                                title={avatar.name}
+                              >
+                                <img src={avatar.url} alt={avatar.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* URL Personalizada ou upload de arquivo */}
+                      <div className="grid grid-cols-1 gap-2 mt-1">
+                        <div>
+                          <input
+                            type="url"
+                            placeholder="URL personalizada da foto (https://...)"
+                            value={userFormAvatarUrl}
+                            onChange={(e) => {
+                              setUserFormAvatarUrl(e.target.value);
+                            }}
+                            className="w-full bg-zinc-950 border border-zinc-800 px-3 py-1.5 rounded text-[11px] text-white focus:outline-none focus:border-rose-500"
+                          />
+                        </div>
+                        <div className="bg-zinc-950/45 p-1 px-2 rounded border border-zinc-850 flex items-center justify-between">
+                          <span className="text-[10px] text-zinc-500">Ou envie uma foto local:</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                const reader = new FileReader();
+                                reader.onloadend = () => {
+                                  if (typeof reader.result === 'string') {
+                                    setUserFormAvatarUrl(reader.result);
+                                  }
+                                };
+                                reader.readAsDataURL(file);
+                              }
+                            }}
+                            className="text-[10px] text-zinc-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[9px] file:font-bold file:bg-zinc-800 file:text-zinc-300 hover:file:bg-zinc-700 cursor-pointer max-w-[150px] overflow-hidden"
+                          />
+                        </div>
+                      </div>
+                    </div>
 
                     <div className="flex gap-3 justify-end pt-4 border-t border-zinc-800">
                       <button
