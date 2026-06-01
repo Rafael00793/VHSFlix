@@ -194,13 +194,19 @@ export default function App() {
     }
   }, [currentProfileId]);
 
-  // Efetuador de Migração automática se houver dados antigos ou falta de itens cruciais recém-adicionados
+  // Efetuador de Migração automática segura e não destrutiva se houver dados antigos
   useEffect(() => {
     const hasOldGens = movies.some(m => m.category === 'Clássicos 80s' || m.category === 'Ação Retro');
-    const hasTheChosen = movies.some(m => m.id === 'm10');
-    const has2026Movies = movies.some(m => m.id === 'm_2026_1');
-    if (hasOldGens || !hasTheChosen || !has2026Movies) {
-      setMovies(INITIAL_MOVIES);
+    if (hasOldGens) {
+      setMovies(prev => prev.map(m => {
+        if (m.category === 'Clássicos 80s') {
+          return { ...m, category: 'Drama' };
+        }
+        if (m.category === 'Ação Retro') {
+          return { ...m, category: 'Ação' };
+        }
+        return m;
+      }));
     }
   }, []);
 
