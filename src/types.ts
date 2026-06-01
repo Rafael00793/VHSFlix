@@ -18,6 +18,9 @@ export interface Movie {
   isFeatured?: boolean;
   vhsTapeColor?: string; // Cor estética do cartucho VHS (para o visual retro)
   tmdbId?: number;
+  clicksCount?: number;
+  votesLikes?: number;
+  votesDislikes?: number;
 }
 
 export interface WatchProgress {

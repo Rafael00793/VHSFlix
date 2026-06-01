@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Movie, WatchProgress } from '../types';
-import { X, Play, Pause, Plus, Check, Star, RefreshCw, Tv, Clock, HelpCircle, Film, Sparkles, AlertCircle, ExternalLink, Maximize, Shield, Sliders } from 'lucide-react';
+import { X, Play, Pause, Plus, Check, Star, RefreshCw, Tv, Clock, HelpCircle, Film, Sparkles, AlertCircle, ExternalLink, Maximize, Shield, Sliders, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface MovieDetailModalProps {
@@ -17,6 +17,8 @@ interface MovieDetailModalProps {
   watchHistory: { [movieId: string]: WatchProgress };
   onUpdateProgress: (movieId: string, progress: number, currentTime: number, duration: number, isFinished: boolean) => void;
   adguardEnabled?: boolean;
+  onVoteMovie?: (movieId: string, voteType: 'like' | 'dislike') => void;
+  activeProfileId?: string;
 }
 
 const CATEGORY_COLORS: { [key: string]: string } = {
@@ -122,7 +124,9 @@ export default function MovieDetailModal({
   onToggleMyList,
   watchHistory,
   onUpdateProgress,
-  adguardEnabled = true
+  adguardEnabled = true,
+  onVoteMovie,
+  activeProfileId = ''
 }: MovieDetailModalProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isTapeLoading, setIsTapeLoading] = useState(false);
@@ -839,6 +843,44 @@ export default function MovieDetailModal({
                   <span className="border border-zinc-700 px-1.5 py-0.5 rounded text-[10px] font-bold text-zinc-300 uppercase leading-none">
                     {movie.type === 'movie' ? 'Filme' : 'Série'}
                   </span>
+                </div>
+
+                {/* --- SEÇÃO VOTAÇÃO POPULAR RESISTENTE (JOINHA E DISLIKE REAL) --- */}
+                <div className="bg-zinc-900/40 border border-zinc-800/60 p-4 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-4 select-none">
+                  <div className="flex flex-col items-center sm:items-start text-center sm:text-left">
+                    <span className="text-[10px] uppercase font-mono font-bold tracking-widest text-[#10b981]">Opinião do Espectador</span>
+                    <h4 className="text-[12px] font-bold text-zinc-300 mt-0.5">Você curtiu esta fita de vídeo retro?</h4>
+                  </div>
+                  
+                  <div className="flex items-center gap-2.5">
+                    {/* Joinha (Like) */}
+                    <button
+                      onClick={() => onVoteMovie && onVoteMovie(movie.id, 'like')}
+                      className={`px-3.5 py-2 rounded-lg border text-xs font-mono font-bold flex items-center gap-2 transition-all active:scale-95 cursor-pointer ${
+                        localStorage.getItem(`vote_${activeProfileId}_${movie.id}`) === 'like'
+                          ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400 font-black'
+                          : 'border-zinc-805 bg-zinc-950/60 text-zinc-400 hover:text-emerald-400 hover:border-emerald-500/40'
+                      }`}
+                      title="Gostei dessa fita"
+                    >
+                      <ThumbsUp className={`w-3.5 h-3.5 ${localStorage.getItem(`vote_${activeProfileId}_${movie.id}`) === 'like' ? 'fill-current text-emerald-400' : ''}`} />
+                      <span>{movie.votesLikes || 0} gostaram</span>
+                    </button>
+
+                    {/* Dislike */}
+                    <button
+                      onClick={() => onVoteMovie && onVoteMovie(movie.id, 'dislike')}
+                      className={`px-3.5 py-2 rounded-lg border text-xs font-mono font-bold flex items-center gap-2 transition-all active:scale-95 cursor-pointer ${
+                        localStorage.getItem(`vote_${activeProfileId}_${movie.id}`) === 'dislike'
+                          ? 'bg-rose-500/10 border-rose-500 text-rose-400 font-black'
+                          : 'border-zinc-805 bg-zinc-950/60 text-zinc-400 hover:text-rose-400 hover:border-rose-500/40'
+                      }`}
+                      title="Não gostei dessa fita"
+                    >
+                      <ThumbsDown className={`w-3.5 h-3.5 ${localStorage.getItem(`vote_${activeProfileId}_${movie.id}`) === 'dislike' ? 'fill-current text-rose-400' : ''}`} />
+                      <span>{movie.votesDislikes || 0} não curtiram</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Caixa VHS de estojo físico decorativa com cor baseada na categoria */}

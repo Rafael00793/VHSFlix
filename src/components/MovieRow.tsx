@@ -203,12 +203,20 @@ export default function MovieRow({
                     </div>
 
                     {/* Stats rápidos */}
-                    <div className="flex items-center gap-1.5 text-[9px] sm:text-xs text-zinc-300 font-mono">
+                    <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[9px] sm:text-[10px] text-zinc-300 font-mono mt-1 select-none">
                       <span className="text-yellow-400 font-bold flex items-center gap-0.5">
                         <Star className="w-2.5 h-2.5 fill-yellow-400" /> {movie.rating}
                       </span>
                       <span>•</span>
-                      <span>{movie.year}</span>
+                      <span className="text-zinc-400">{movie.year}</span>
+                      <span>•</span>
+                      <span className="text-emerald-400 font-bold" title={`${movie.votesLikes || 0} gostaram`}>
+                        👍 {movie.votesLikes || 0}
+                      </span>
+                      <span>•</span>
+                      <span className="text-rose-500 font-bold" title={`${movie.clicksCount || 0} visualizações`}>
+                        🔥 {movie.clicksCount || 0}v
+                      </span>
                     </div>
                   </div>
                 </div>

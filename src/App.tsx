@@ -50,7 +50,16 @@ export default function App() {
 
   const [movies, setMovies] = useState<Movie[]>(() => {
     const saved = localStorage.getItem('vhsflix_movies');
-    return saved ? JSON.parse(saved) : INITIAL_MOVIES;
+    const base = saved ? JSON.parse(saved) : INITIAL_MOVIES;
+    return base.map((m: Movie, idx: number) => {
+      const seed = (m.title?.length || 10) + idx * 7;
+      return {
+        ...m,
+        clicksCount: m.clicksCount !== undefined ? m.clicksCount : (100 + (seed * 19) % 850),
+        votesLikes: m.votesLikes !== undefined ? m.votesLikes : (45 + (seed * 13) % 400),
+        votesDislikes: m.votesDislikes !== undefined ? m.votesDislikes : (2 + (seed * 3) % 25),
+      };
+    });
   });
 
   const [tmdbApiKey, setTmdbApiKey] = useState<string>(() => {
@@ -249,6 +258,33 @@ export default function App() {
     if (featuredHighlights.length === 0) return null;
     return featuredHighlights[activeHighlightIndex] || featuredHighlights[0];
   }, [featuredHighlights, activeHighlightIndex]);
+
+  // Fita VHS Mais Desejada (Baseado no sistema de mais assistidos / mais clicados)
+  const mostDesejadaMovie = useMemo(() => {
+    if (movies.length === 0) return null;
+    const sorted = [...movies].sort((a, b) => {
+      const clicksA = a.clicksCount || 0;
+      const clicksB = b.clicksCount || 0;
+      if (clicksB !== clicksA) {
+        return clicksB - clicksA;
+      }
+      return (b.rating || 0) - (a.rating || 0);
+    });
+    return sorted[0];
+  }, [movies]);
+
+  // Mais Votados da Audiência (Ordenado por Likes)
+  const moviesSortedByLikes = useMemo(() => {
+    return [...movies].sort((a, b) => (b.votesLikes || 0) - (a.votesLikes || 0));
+  }, [movies]);
+
+  // Lançamentos VHS (Ordenado por ano decrescente e rating)
+  const moviesSortedByYear = useMemo(() => {
+    return [...movies].sort((a, b) => {
+      if (b.year !== a.year) return b.year - a.year;
+      return (b.rating || 0) - (a.rating || 0);
+    });
+  }, [movies]);
 
   // Transição automática das fitas de destaque rotativas a cada 8 segundos
   useEffect(() => {
@@ -647,8 +683,69 @@ export default function App() {
   // Jogar Rápido a fita VHS
   const handleFeaturedPlay = (movie: Movie, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    setSelectedMovie(movie);
-    // Modal se abrirá e o player estará pronto para tocar
+    handleSelectMovie(movie);
+  };
+
+  // Abre detalhes do filme sintonizando cliques de audiência
+  const handleSelectMovie = (movie: Movie) => {
+    setMovies(prev => prev.map(m => {
+      if (m.id === movie.id) {
+        return {
+          ...m,
+          clicksCount: (m.clicksCount || 0) + 1
+        };
+      }
+      return m;
+    }));
+    setSelectedMovie({
+      ...movie,
+      clicksCount: (movie.clicksCount || 0) + 1
+    });
+  };
+
+  // Contabilidade real de gostei/não-gostei profissional e preciso
+  const handleVoteMovie = (movieId: string, voteType: 'like' | 'dislike') => {
+    if (!activeProfile) return;
+    const storageKey = `vote_${activeProfile.id}_${movieId}`;
+    const previousVote = localStorage.getItem(storageKey);
+
+    setMovies(prev => prev.map(m => {
+      if (m.id === movieId) {
+        let likesDelta = 0;
+        let dislikesDelta = 0;
+
+        if (previousVote === voteType) {
+          // Desfaz voto anterior de mesma opção
+          if (voteType === 'like') likesDelta = -1;
+          if (voteType === 'dislike') dislikesDelta = -1;
+          localStorage.removeItem(storageKey);
+        } else {
+          // Se mudou de ideia ou votou novo, desfaz o voto oposto velho, se houver
+          if (previousVote === 'like') likesDelta = -1;
+          if (previousVote === 'dislike') dislikesDelta = -1;
+
+          // E adiciona o novo voto
+          if (voteType === 'like') likesDelta += 1;
+          if (voteType === 'dislike') dislikesDelta += 1;
+          localStorage.setItem(storageKey, voteType);
+        }
+
+        const newLikes = Math.max(0, (m.votesLikes || 0) + likesDelta);
+        const newDislikes = Math.max(0, (m.votesDislikes || 0) + dislikesDelta);
+
+        // Atualiza o modal de detalhes ativo se estiver com o filme carregado
+        if (selectedMovie && selectedMovie.id === movieId) {
+          setSelectedMovie(curr => curr ? { ...curr, votesLikes: newLikes, votesDislikes: newDislikes } : null);
+        }
+
+        return {
+          ...m,
+          votesLikes: newLikes,
+          votesDislikes: newDislikes
+        };
+      }
+      return m;
+    }));
   };
 
   return (
@@ -799,7 +896,7 @@ export default function App() {
                       </button>
 
                       <button
-                        onClick={() => setSelectedMovie(featuredMovie)}
+                        onClick={() => handleSelectMovie(featuredMovie)}
                         className="bg-zinc-900/80 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 hover:text-white font-semibold text-xs sm:text-sm px-5 py-3 sm:px-6 sm:py-4 rounded-lg flex items-center gap-2 transition-colors cursor-pointer tracking-wider"
                         id="btn-hero-details"
                       >
@@ -823,21 +920,7 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Indicadores / Pontos do Carrossel Dinâmico */}
-                  <div className="absolute right-4 bottom-12 sm:right-8 sm:bottom-24 z-30 flex items-center gap-2.5 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full border border-zinc-800/50">
-                    {featuredHighlights.map((_, idx) => (
-                      <button
-                        key={`indicator-${idx}`}
-                        onClick={() => setActiveHighlightIndex(idx)}
-                        className={`rounded-full transition-all duration-300 cursor-pointer ${
-                          idx === activeHighlightIndex
-                            ? 'w-6 h-2 bg-rose-600 shadow-md shadow-rose-600/30'
-                            : 'w-2 h-2 bg-zinc-650 hover:bg-zinc-400'
-                        }`}
-                        aria-label={`Visualizar destaque ${idx + 1}`}
-                      />
-                    ))}
-                  </div>
+                  {/* Indicadores do carrossel removidos por solicitação do usuário */}
 
                 </div>
               )}
@@ -906,7 +989,7 @@ export default function App() {
                         movies={listToResume}
                         watchHistory={activeProfile.watchHistory}
                         myList={activeProfile.myList}
-                        onMovieClick={setSelectedMovie}
+                        onMovieClick={handleSelectMovie}
                         onToggleMyList={handleToggleMyList}
                         onPlayClick={handleFeaturedPlay}
                       />
@@ -914,22 +997,134 @@ export default function App() {
                   })()
                 )}
 
-                {/* --- 2.B.II: ROW MELHORES AVALIAÇÕES (NA HOME PAGE) OU MINHA LISTA (NA ABA MYLIST) --- */}
+                {/* --- 2.B.I.B: SPOTHLIGHT / HIGHLIGHT DA FITA VHS MAIS DESEJADA (SISTEMA REAL DE CLIQUES) --- */}
+                {!searchVal && !selectedCategory && activeTab === 'all' && mostDesejadaMovie && (
+                  <div className="px-4 sm:px-8 mb-10 select-none animate-fade-in">
+                    <div className="relative overflow-hidden rounded-2xl border border-rose-500/30 bg-gradient-to-br from-zinc-950 via-zinc-900/90 to-zinc-950 p-5 sm:p-7 flex flex-col md:flex-row items-center gap-6 shadow-2xl shadow-rose-950/20">
+                      {/* Efeitos neon glow de fundo */}
+                      <div className="absolute top-0 right-0 w-80 h-80 bg-rose-500/10 rounded-full blur-[100px] pointer-events-none"></div>
+                      <div className="absolute bottom-0 left-0 w-80 h-80 bg-emerald-500/5 rounded-full blur-[100px] pointer-events-none"></div>
+
+                      {/* Poster */}
+                      <div 
+                        onClick={() => handleSelectMovie(mostDesejadaMovie)}
+                        className="relative shrink-0 w-32 sm:w-40 aspect-[2/3] rounded-lg overflow-hidden border-2 border-rose-500/80 shadow-lg shadow-rose-500/20 scale-100 hover:scale-[1.03] transition-all duration-300 cursor-pointer"
+                      >
+                        <img 
+                          src={mostDesejadaMovie.posterUrl} 
+                          alt={mostDesejadaMovie.title}
+                          className="w-full h-full object-cover"
+                          referrerPolicy="no-referrer"
+                        />
+                        {/* Etiqueta VHS Clássica */}
+                        <div className="absolute top-2 left-2 bg-rose-600 text-white font-mono text-[8px] font-black tracking-widest px-1.5 py-0.5 rounded shadow">
+                          MAIS DESEJADO
+                        </div>
+                      </div>
+
+                      {/* Informações detalhadas da fita mais assistida */}
+                      <div className="flex-1 text-center md:text-left flex flex-col items-center md:items-start">
+                        <div className="flex flex-wrap items-center justify-center md:justify-start gap-2.5">
+                          <span className="text-[10px] sm:text-xs font-mono font-black text-rose-500 uppercase tracking-widest bg-rose-500/10 px-3 py-1 rounded-full border border-rose-500/20 flex items-center gap-1">
+                            <Flame className="w-3 sm:w-3.5 h-3 sm:h-3.5 fill-current animate-pulse text-rose-500" />
+                            📼 Fita VHS Mais Desejada
+                          </span>
+                          <span className="text-[9px] sm:text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 flex items-center gap-1 font-bold">
+                            🔥 {mostDesejadaMovie.clicksCount || 0} acessos à fita
+                          </span>
+                        </div>
+
+                        <h3 className="text-xl sm:text-2xl font-black text-white font-sans mt-3 tracking-tight uppercase leading-tight text-shadow">
+                          {mostDesejadaMovie.title}
+                        </h3>
+
+                        <p className="text-xs text-zinc-400 mt-2 max-w-xl leading-relaxed text-justify md:text-left line-clamp-2">
+                          {mostDesejadaMovie.description}
+                        </p>
+
+                        <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 text-xs font-mono text-zinc-400 mt-4">
+                          <span className="flex items-center gap-1"><Star className="w-4 h-4 text-yellow-400 fill-current" /> <strong className="text-white">{mostDesejadaMovie.rating}</strong>/10</span>
+                          <span>•</span>
+                          <span>Categoria: <strong className="text-white">{mostDesejadaMovie.category}</strong></span>
+                          <span>•</span>
+                          <span>Temporada/Duração: <strong className="text-white">{mostDesejadaMovie.duration}</strong></span>
+                        </div>
+
+                        {/* Botões rápidos de ação */}
+                        <div className="flex flex-wrap items-center gap-3 mt-5">
+                          <button
+                            onClick={() => handleSelectMovie(mostDesejadaMovie)}
+                            className="bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-mono text-[10px] sm:text-xs font-black uppercase tracking-wider px-5 py-2.5 rounded-lg flex items-center gap-2 transition-all cursor-pointer shadow-lg shadow-rose-950/40 animate-pulse"
+                          >
+                            <Play className="w-4 h-4 fill-current" />
+                            <span>Sintonizar Fita</span>
+                          </button>
+                          
+                          <button
+                            onClick={() => {
+                              if (!activeProfile) return;
+                              handleToggleMyList(mostDesejadaMovie.id);
+                            }}
+                            className={`border font-mono text-[10px] sm:text-xs font-black uppercase tracking-wider px-5 py-2.5 rounded-lg transition-all cursor-pointer flex items-center gap-2 ${
+                              activeProfile.myList.includes(mostDesejadaMovie.id)
+                                ? 'bg-rose-500/10 border-rose-500 text-rose-400'
+                                : 'border-zinc-750 hover:border-zinc-500 text-zinc-300 hover:text-white bg-zinc-900/50'
+                            }`}
+                          >
+                            {activeProfile.myList.includes(mostDesejadaMovie.id) ? (
+                              <>
+                                <Check className="w-4 h-4" />
+                                <span>Na Minha Estante</span>
+                              </>
+                            ) : (
+                              <>
+                                <Plus className="w-4 h-4" />
+                                <span>Salvar Estante</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* --- 2.B.II: ROWS MAIS VOTADOS, LANÇAMENTOS E MELHORES AVALIAÇÕES NA HOME PAGE OU MINHA LISTA NA ABA MYLIST --- */}
                 {(!searchVal && !selectedCategory && (activeTab === 'all' || activeTab === 'mylist')) && (
                   (() => {
                     if (activeTab === 'all') {
-                      // Ordenar filmes e séries da maior para a menor nota
-                      const sortedByRating = [...movies].sort((a, b) => (b.rating || 0) - (a.rating || 0));
                       return (
-                        <MovieRow
-                          title="Melhores Avaliações"
-                          movies={sortedByRating}
-                          watchHistory={activeProfile.watchHistory}
-                          myList={activeProfile.myList}
-                          onMovieClick={setSelectedMovie}
-                          onToggleMyList={handleToggleMyList}
-                          onPlayClick={handleFeaturedPlay}
-                        />
+                        <div className="space-y-2">
+                          <MovieRow
+                            title="🏆 Mais Votados (Prêmio da Audiência)"
+                            movies={moviesSortedByLikes}
+                            watchHistory={activeProfile.watchHistory}
+                            myList={activeProfile.myList}
+                            onMovieClick={handleSelectMovie}
+                            onToggleMyList={handleToggleMyList}
+                            onPlayClick={handleFeaturedPlay}
+                          />
+
+                          <MovieRow
+                            title="✨ Lançamentos VHS"
+                            movies={moviesSortedByYear}
+                            watchHistory={activeProfile.watchHistory}
+                            myList={activeProfile.myList}
+                            onMovieClick={handleSelectMovie}
+                            onToggleMyList={handleToggleMyList}
+                            onPlayClick={handleFeaturedPlay}
+                          />
+
+                          <MovieRow
+                            title="⭐ Melhores Avaliações"
+                            movies={moviesSortedByLikes.filter(m => (m.rating || 0) >= 8.0)} // or sortedByRating
+                            watchHistory={activeProfile.watchHistory}
+                            myList={activeProfile.myList}
+                            onMovieClick={handleSelectMovie}
+                            onToggleMyList={handleToggleMyList}
+                            onPlayClick={handleFeaturedPlay}
+                          />
+                        </div>
                       );
                     } else {
                       // activeTab === 'mylist'
@@ -965,7 +1160,7 @@ export default function App() {
                             movies={listMovies}
                             watchHistory={activeProfile.watchHistory}
                             myList={activeProfile.myList}
-                            onMovieClick={setSelectedMovie}
+                            onMovieClick={handleSelectMovie}
                             onToggleMyList={handleToggleMyList}
                             onPlayClick={handleFeaturedPlay}
                           />
@@ -996,7 +1191,7 @@ export default function App() {
                             {filteredMovies.map(movie => (
                               <div
                                 key={movie.id}
-                                onClick={() => setSelectedMovie(movie)}
+                                onClick={() => handleSelectMovie(movie)}
                                 className="relative bg-zinc-950 border border-zinc-900 rounded-lg overflow-hidden hover:border-rose-500 hover:shadow-xl hover:shadow-rose-600/10 transition-all cursor-pointer group"
                                 id={`search-grid-card-${movie.id}`}
                               >
@@ -1041,7 +1236,7 @@ export default function App() {
                               movies={categoryMovies}
                               watchHistory={activeProfile.watchHistory}
                               myList={activeProfile.myList}
-                              onMovieClick={setSelectedMovie}
+                              onMovieClick={handleSelectMovie}
                               onToggleMyList={handleToggleMyList}
                               onPlayClick={handleFeaturedPlay}
                             />
@@ -1112,6 +1307,8 @@ export default function App() {
             watchHistory={activeProfile ? activeProfile.watchHistory : {}}
             onUpdateProgress={handleUpdateWatchProgress}
             adguardEnabled={adguardEnabled}
+            onVoteMovie={handleVoteMovie}
+            activeProfileId={activeProfile ? activeProfile.id : ''}
           />
 
           {/* --- SISTEMA DE TOAST DE NOTIFICAÇÃO AO VIVO RETRÔ --- */}
