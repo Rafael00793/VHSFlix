@@ -15,7 +15,7 @@ interface AdminPanelProps {
   allProfiles: { [userId: string]: Profile[] };
   tmdbApiKey: string;
   onUpdateTmdbApiKey: (key: string) => void;
-  onAddMovie: (movie: Omit<Movie, 'id'>) => void;
+  onAddMovie: (movie: Omit<Movie, 'id'>) => boolean | void;
   onEditMovie: (movie: Movie) => void;
   onDeleteMovie: (movieId: string) => void;
   onResetCatalog: () => void;
@@ -172,11 +172,15 @@ export default function AdminPanel({
 
     if (editingMovie) {
       onEditMovie({ ...movieData, id: editingMovie.id });
+      setIsFormOpen(false);
+      resetForm();
     } else {
-      onAddMovie(movieData);
+      const success = onAddMovie(movieData);
+      if (success !== false) {
+        setIsFormOpen(false);
+        resetForm();
+      }
     }
-    setIsFormOpen(false);
-    resetForm();
   };
 
   // Manipulador de busca do TMDB

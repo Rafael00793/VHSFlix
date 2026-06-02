@@ -51,7 +51,23 @@ export default function App() {
   const [movies, setMovies] = useState<Movie[]>(() => {
     const saved = localStorage.getItem('vhsflix_movies');
     const base = saved ? JSON.parse(saved) : INITIAL_MOVIES;
-    return base.map((m: Movie, idx: number) => {
+    
+    // Remove qualquer duplicata histórica persistida no localStorage por Title+Type ou TMDBID+Type
+    const uniqueMovies: Movie[] = [];
+    const seen = new Set<string>();
+    for (const m of base) {
+      if (!m) continue;
+      const type = m.type || 'movie';
+      const key = m.tmdbId 
+        ? `tmdb_${m.tmdbId}_${type}` 
+        : `title_${(m.title || '').trim().toLowerCase()}_${type}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        uniqueMovies.push(m);
+      }
+    }
+
+    return uniqueMovies.map((m: Movie, idx: number) => {
       const seed = (m.title?.length || 10) + idx * 7;
       return {
         ...m,
@@ -645,6 +661,28 @@ export default function App() {
 
   // --- TRATADORES DO PAINEL ADMIN CORADOS GERAIS ---
   const handleAddMovie = (newMovieData: Omit<Movie, 'id'>) => {
+    // Verificar se já existe um filme ou série com o mesmo título ou mesmo tmdbId e mesmo tipo
+    const isDuplicate = movies.some(m => {
+      if (newMovieData.tmdbId && m.tmdbId === newMovieData.tmdbId && m.type === newMovieData.type) {
+        return true;
+      }
+      const existingTitle = (m.title || '').trim().toLowerCase();
+      const incomingTitle = (newMovieData.title || '').trim().toLowerCase();
+      return existingTitle === incomingTitle && m.type === newMovieData.type;
+    });
+
+    if (isDuplicate) {
+      // Disparar uma notificação elegante de erro do sistema
+      const tipo = newMovieData.type === 'series' ? 'Série' : 'Filme';
+      triggerNotification(
+        '⚠️ Título Duplicado!',
+        `Este(a) ${tipo} ("${newMovieData.title}") já está adicionado(a) no acervo retrô do VHSFLIX!`,
+        '',
+        'system'
+      );
+      return false; // Retorna falso para avisar o caller que falhou
+    }
+
     const newMovieId = 'm_' + Date.now();
     const newMovie: Movie = {
       ...newMovieData,
@@ -660,6 +698,7 @@ export default function App() {
       newMovieId,
       isSeries ? 'series' : 'movie'
     );
+    return true; // Sucesso ao adicionar
   };
 
   const handleEditMovie = (editedMovie: Movie) => {
