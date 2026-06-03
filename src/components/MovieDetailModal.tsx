@@ -134,10 +134,7 @@ export default function MovieDetailModal({
   const [totalDuration, setTotalDuration] = useState(120 * 60); // Default 2 horas em segundos
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1); // Retro 1x, 2x, 4x rewind index
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [selectedPlayer, setSelectedPlayer] = useState<'embedmovies' | 'megaembed'>(() => {
-    const last = localStorage.getItem('vhsflix_last_player');
-    return (last === 'megaembed' ? 'megaembed' : 'embedmovies');
-  });
+  const [selectedPlayer] = useState<'embedmovies' | 'megaembed'>('embedmovies');
   const [isConfiguringPlayer, setIsConfiguringPlayer] = useState(false);
   const [season, setSeason] = useState<number>(1);
   const [episode, setEpisode] = useState<number>(1);
@@ -387,7 +384,7 @@ export default function MovieDetailModal({
     if (isPlaying) {
       setIsPlaying(false);
     } else {
-      setIsConfiguringPlayer(true);
+      handleStartPlayback();
     }
   };
 
@@ -442,13 +439,9 @@ export default function MovieDetailModal({
                 {/* Player Real do VHSFLIX */}
                 <div className="absolute inset-0 w-full h-full z-10 bg-black">
                   <iframe
-                    src={selectedPlayer === 'embedmovies'
-                      ? (movie.type === 'series' 
-                          ? `https://myembed.biz/serie/${movie.tmdbId || '1396'}/${season}/${episode}`
-                          : `https://myembed.biz/filme/${movie.tmdbId || '105'}`)
-                      : (movie.type === 'series'
-                          ? `https://mgeb.top/embed/${movie.tmdbId || '1396'}/${season}/${episode}`
-                          : `https://mgeb.top/embed/${movie.tmdbId || '105'}`)
+                    src={movie.type === 'series' 
+                      ? `https://myembed.biz/serie/${movie.tmdbId || '1396'}/${season}/${episode}`
+                      : `https://myembed.biz/filme/${movie.tmdbId || '105'}`
                     }
                     title={`Reproduzindo ${movie.title}`}
                     className="w-full h-full border-0 video-player-iframe animate-fade-in"
@@ -462,20 +455,22 @@ export default function MovieDetailModal({
                 </div>
 
                 {/* Botão de alternar player - canto superior esquerdo para trocar de player sem sair da página */}
-                <div className="absolute top-2 left-2 sm:top-4 sm:left-4 z-50 flex items-center gap-2">
-                  <button
-                    onClick={() => {
-                      setIsPlaying(false);
-                      setIsConfiguringPlayer(true);
-                    }}
-                    className="bg-black/95 hover:bg-zinc-900 text-rose-500 hover:text-rose-400 font-mono text-[9px] sm:text-xs font-black uppercase tracking-wider px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-lg border border-rose-500/30 flex items-center gap-1.5 shadow-2xl hover:scale-105 active:scale-95 transition-all cursor-pointer active:bg-rose-950/20"
-                    title="Alternar Servidor de Player ou Episódio"
-                    id="btn-switch-player"
-                  >
-                    <RefreshCw className="w-3.5 h-3.5 text-rose-500 animate-spin" style={{ animationDuration: '6s' }} />
-                    <span>Trocar Player (Canal)</span>
-                  </button>
-                </div>
+                {movie.type === 'series' && (
+                  <div className="absolute top-2 left-2 sm:top-4 sm:left-4 z-50 flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        setIsPlaying(false);
+                        setIsConfiguringPlayer(true);
+                      }}
+                      className="bg-black/95 hover:bg-zinc-900 text-rose-500 hover:text-rose-400 font-mono text-[9px] sm:text-xs font-black uppercase tracking-wider px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-lg border border-rose-500/30 flex items-center gap-1.5 shadow-2xl hover:scale-105 active:scale-95 transition-all cursor-pointer active:bg-rose-950/20"
+                      title="Sintonizar Temporada e Episódio"
+                      id="btn-switch-player"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5 text-rose-500 animate-spin" style={{ animationDuration: '6s' }} />
+                      <span>Sintonizar Episódio</span>
+                    </button>
+                  </div>
+                )}
 
                 {/* Botão de fechar player - posicionado no canto superior direito para cobrir marca d'água e exibir um 'X' vermelho pequeno */}
                 <div className="absolute top-2 right-2 sm:top-4 sm:right-4 z-50 bg-black/95 p-1 rounded-full shadow-2xl border border-zinc-800">
@@ -544,73 +539,7 @@ export default function MovieDetailModal({
                     </div>
                   </div>
 
-                  {/* SELEÇÃO DO PLAYER */}
-                  <div className="flex flex-col gap-2.5 text-left">
-                    <span className="text-[10px] text-zinc-400 uppercase tracking-wider font-extrabold flex items-center gap-1.5">
-                      <Sliders className="w-3.5 h-3.5 text-rose-500" />
-                      Selecione o Reprodutor (Player)
-                    </span>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {/* Player 1: EmbedMovies */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedPlayer('embedmovies');
-                          localStorage.setItem('vhsflix_last_player', 'embedmovies');
-                        }}
-                        className={`p-4 rounded-xl border text-left cursor-pointer transition-all flex flex-col justify-between h-28 relative overflow-hidden group ${
-                          selectedPlayer === 'embedmovies'
-                            ? 'bg-rose-950/20 border-rose-600 shadow-lg shadow-rose-950/40 text-white'
-                            : 'bg-zinc-900/40 border-zinc-900 hover:border-zinc-800 text-zinc-400 hover:text-zinc-200'
-                        }`}
-                      >
-                        <div className="flex justify-between items-start w-full">
-                          <span className="text-xs font-black uppercase tracking-wider flex items-center gap-1.5">
-                            📽️ EmbedMovies
-                          </span>
-                          <span className="text-[8px] sm:text-[9px] font-black tracking-widest bg-emerald-500 text-black px-1.5 py-0.5 rounded uppercase flex items-center gap-1 shadow-sm">
-                            <Star className="w-2.5 h-2.5 fill-black text-black" />
-                            RECOMENDADO
-                          </span>
-                        </div>
-                        <div className="mt-2 text-[10px] leading-relaxed text-zinc-400 group-hover:text-zinc-300">
-                          Servidor primário em alta velocidade e legendado.
-                        </div>
-                        <div className="absolute bottom-1.5 right-2 text-[9px] text-rose-500 font-bold tracking-widest uppercase opacity-80">
-                          {selectedPlayer === 'embedmovies' && "✔️ Ativo"}
-                        </div>
-                      </button>
 
-                      {/* Player 2: MegaEmbed */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedPlayer('megaembed');
-                          localStorage.setItem('vhsflix_last_player', 'megaembed');
-                        }}
-                        className={`p-4 rounded-xl border text-left cursor-pointer transition-all flex flex-col justify-between h-28 relative overflow-hidden group ${
-                          selectedPlayer === 'megaembed'
-                            ? 'bg-rose-950/20 border-rose-600 shadow-lg shadow-rose-950/40 text-white'
-                            : 'bg-zinc-900/40 border-zinc-900 hover:border-zinc-805 text-zinc-400 hover:text-zinc-200'
-                        }`}
-                      >
-                        <div className="flex justify-between items-start w-full">
-                          <span className="text-xs font-black uppercase tracking-wider flex items-center gap-1.5">
-                            📡 MegaEmbed
-                          </span>
-                          <span className="text-[8px] sm:text-[9px] font-black tracking-widest bg-blue-500 text-white px-1.5 py-0.5 rounded uppercase">
-                            BACKUP
-                          </span>
-                        </div>
-                        <div className="mt-2 text-[10px] leading-relaxed text-zinc-400 group-hover:text-zinc-300">
-                          Servidor alternativo altamente redundante. Ideal se o principal falhar.
-                        </div>
-                        <div className="absolute bottom-1.5 right-2 text-[9px] text-rose-500 font-bold tracking-widest uppercase opacity-80">
-                          {selectedPlayer === 'megaembed' && "✔️ Ativo"}
-                        </div>
-                      </button>
-                    </div>
-                  </div>
 
                   {/* SELEÇÃO DE TEMPORADA / EPISÓDIO PARA SÉRIES */}
                   {movie.type === 'series' && (
