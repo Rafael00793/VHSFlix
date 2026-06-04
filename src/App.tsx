@@ -57,6 +57,10 @@ export default function App() {
     const seen = new Set<string>();
     for (const m of base) {
       if (!m) continue;
+      // Ignorar filmes adicionados automaticamente pelo TMDB no passado para limpar o catálogo
+      if (m.id && m.id.startsWith('m_tmdb_auto_')) {
+        continue;
+      }
       const type = m.type || 'movie';
       const key = m.tmdbId 
         ? `tmdb_${m.tmdbId}_${type}` 
@@ -318,87 +322,9 @@ export default function App() {
   }, [featuredHighlights]);
 
   // --- BUSCADOR AUTOMÁTICO DE TENDÊNCIAS TMDB (LANÇAMENTOS DO ANO CORRENTE) ---
+  // DESATIVADO: Apenas filmes e séries adicionados manualmente pelo administrador entram no acervo
   useEffect(() => {
-    if (!tmdbApiKey || tmdbApiKey === 'MY_GEMINI_API_KEY' || tmdbApiKey.trim() === '') return;
-
-    const fetchCurrentYearTrending = async () => {
-      try {
-        const currentYear = new Date().getFullYear();
-        
-        // Descoberta rápida de populares do ano corrente
-        const movieUrl = `https://api.themoviedb.org/3/discover/movie?api_key=${encodeURIComponent(tmdbApiKey)}&language=pt-BR&sort_by=popularity.desc&primary_release_year=${currentYear}&vote_count.gte=10`;
-        const tvUrl = `https://api.themoviedb.org/3/discover/tv?api_key=${encodeURIComponent(tmdbApiKey)}&language=pt-BR&sort_by=popularity.desc&first_air_date_year=${currentYear}&vote_count.gte=10`;
-
-        const [movieData, tvData] = await Promise.all([
-          fetch(movieUrl).then(res => res.ok ? res.json() : null).catch(() => null),
-          fetch(tvUrl).then(res => res.ok ? res.json() : null).catch(() => null)
-        ]);
-
-        const incomingItems: any[] = [];
-        if (movieData && movieData.results) {
-          movieData.results.slice(0, 5).forEach((item: any) => incomingItems.push({ ...item, mediaType: 'movie' }));
-        }
-        if (tvData && tvData.results) {
-          tvData.results.slice(0, 5).forEach((item: any) => incomingItems.push({ ...item, mediaType: 'tv' }));
-        }
-
-        if (incomingItems.length === 0) return;
-
-        const newMoviesToAdd: Movie[] = [];
-
-        for (const item of incomingItems) {
-          const type = item.mediaType === 'tv' ? 'series' : 'movie';
-          const alreadyExists = movies.some(m => m.tmdbId === item.id && m.type === type);
-          if (alreadyExists) continue;
-
-          const details = await getMovieDetailsTMDB(item.id, item.mediaType, tmdbApiKey);
-          if (details && details.title) {
-            newMoviesToAdd.push({
-              id: 'm_tmdb_auto_' + item.id,
-              title: details.title,
-              description: details.description || '',
-              posterUrl: details.posterUrl || '',
-              backdropUrl: details.backdropUrl || '',
-              category: details.category || (type === 'series' ? 'Séries' : 'Destaque'),
-              year: details.year || currentYear,
-              duration: details.duration || '2h 10m',
-              type: type,
-              rating: details.rating || 7.5,
-              trailerUrl: details.trailerUrl || 'https://www.youtube.com/embed/qvsgGtIvCBY',
-              isFeatured: true,
-              vhsTapeColor: ['#e11d48', '#2563eb', '#9333ea', '#16a34a', '#ca8a04', '#059669'][Math.floor(Math.random() * 6)],
-              tmdbId: item.id
-            });
-          }
-        }
-
-        if (newMoviesToAdd.length > 0) {
-          setMovies(prev => {
-            const preserved = prev.filter(p => !newMoviesToAdd.some(n => n.tmdbId === p.tmdbId && n.type === p.type));
-            return [...newMoviesToAdd, ...preserved];
-          });
-          
-          // Dispara as notificações e toasts na tela de maneira elegante e escalonada para cada novo conteúdo sincronizado
-          newMoviesToAdd.forEach((n, idx) => {
-            setTimeout(() => {
-              const isSeries = n.type === 'series';
-              triggerNotification(
-                isSeries ? '📺 Nova Série Sincronizada!' : '📼 Novo Filme Sincronizado!',
-                `O lançamento de ${n.year} "${n.title}" acaba de ser adicionado automaticamente via TMDB! Assista agora em VHS.`,
-                n.id,
-                isSeries ? 'series' : 'movie'
-              );
-            }, idx * 2500); // escalonado a cada 2.5s para visualização perfeita dos popups
-          });
-
-          console.log(`[Auto Highlights] Sincronizados ${newMoviesToAdd.length} lançamentos automáticos de ${currentYear}.`);
-        }
-      } catch (err) {
-        console.error('Erro de sincronização dinâmica do TMDB:', err);
-      }
-    };
-
-    fetchCurrentYearTrending();
+    // Sincronização automática desativada para manter o controle exclusivo do acervo com você
   }, [tmdbApiKey]);
 
   // Filtra catálogo com base em busca e na aba ativa
@@ -706,11 +632,45 @@ export default function App() {
   };
 
   const handleDeleteMovie = (movieId: string) => {
+    // Apenas o Administrador Rafael (rafaelguaruja09@gmail.com) tem permissão de excluir
+    const userEmail = activeUser?.email || '';
+    if (userEmail !== 'rafaelguaruja09@gmail.com') {
+      triggerNotification(
+        '⚠️ Acesso Negado!',
+        'Apenas o administrador master (Rafael Gusmão) tem permissão para excluir filmes ou séries.',
+        '',
+        'system'
+      );
+      return;
+    }
     setMovies(prev => prev.filter(m => m.id !== movieId));
+    triggerNotification(
+      '📼 Item Excluído',
+      'O item foi removido com sucesso do catálogo sob o seu comando.',
+      '',
+      'system'
+    );
   };
 
   const handleResetCatalog = () => {
+    // Apenas o Administrador Rafael (rafaelguaruja09@gmail.com) tem permissão de restaurar
+    const userEmail = activeUser?.email || '';
+    if (userEmail !== 'rafaelguaruja09@gmail.com') {
+      triggerNotification(
+        '⚠️ Acesso Negado!',
+        'Apenas o administrador master (Rafael Gusmão) tem permissão para redefinir o catálogo.',
+        '',
+        'system'
+      );
+      return;
+    }
     setMovies(INITIAL_MOVIES);
+    triggerNotification(
+      '📼 Catálogo Redefinido',
+      'O catálogo do acervo original foi totalmente restaurada!',
+      '',
+      'system'
+    );
   };
 
   const handleNotificationClick = (movieId: string, notificationId: string) => {
