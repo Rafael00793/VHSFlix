@@ -66,3 +66,14 @@ export interface AppNotification {
   type: 'movie' | 'series' | 'system';
 }
 
+export interface MovieRequest {
+  id: string;
+  title: string;
+  type: 'movie' | 'series';
+  userId: string;
+  userName: string;
+  profileName: string;
+  createdAt: string;
+  status: 'pending' | 'fulfilled';
+}
+

@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Bell, Shield, LogOut, RefreshCw, UserCheck, Film, Tv, List, Sliders, ChevronDown } from 'lucide-react';
+import { Search, Bell, Shield, LogOut, RefreshCw, UserCheck, Film, Tv, List, Sliders, ChevronDown, MessageSquare } from 'lucide-react';
 import { User, Profile, AppNotification } from '../types';
 import { GENRE_CATEGORIES } from '../data';
 import { motion, AnimatePresence } from 'motion/react';
@@ -18,8 +18,8 @@ interface NavbarProps {
   onSwitchUser: () => void;
   searchVal: string;
   onSearchChange: (val: string) => void;
-  activeTab: 'all' | 'movies' | 'series' | 'mylist';
-  onTabChange: (tab: 'all' | 'movies' | 'series' | 'mylist') => void;
+  activeTab: 'all' | 'movies' | 'series' | 'mylist' | 'requests';
+  onTabChange: (tab: 'all' | 'movies' | 'series' | 'mylist' | 'requests') => void;
   isAdminView: boolean;
   onToggleAdminView: (val: boolean) => void;
   vhsMode: boolean;
@@ -155,6 +155,17 @@ export default function Navbar({
                   className={`transition-colors py-1 flex items-center gap-1 focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none rounded px-1.5 ${activeTab === 'mylist' ? 'text-white font-bold border-b-2 border-rose-600' : 'hover:text-zinc-400'}`}
                 >
                   <List className="w-3.5 h-3.5" /> Minha Lista
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => {
+                    onSelectCategory(null);
+                    onTabChange('requests');
+                  }}
+                  className={`transition-colors py-1 flex items-center gap-1 focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none rounded px-1.5 ${activeTab === 'requests' ? 'text-white font-bold border-b-2 border-rose-600' : 'hover:text-zinc-400'}`}
+                >
+                  <MessageSquare className="w-3.5 h-3.5" /> Pedidos
                 </button>
               </li>
               <li className="relative" ref={genresRef}>
@@ -526,6 +537,15 @@ export default function Navbar({
             className={`py-1 flex-1 text-center font-semibold relative ${activeTab === 'mylist' ? 'text-rose-500 font-extrabold' : ''}`}
           >
             Lista
+          </button>
+          <button
+            onClick={() => {
+              onSelectCategory(null);
+              onTabChange('requests');
+            }}
+            className={`py-1 flex-1 text-center font-semibold relative ${activeTab === 'requests' ? 'text-rose-500 font-extrabold' : ''}`}
+          >
+            Pedidos
           </button>
           <button
             onClick={() => setShowGenresDropdown(!showGenresDropdown)}

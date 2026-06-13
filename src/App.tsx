@@ -4,13 +4,14 @@
  */
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Movie, User, Profile, WatchProgress, AppNotification } from './types';
+import { Movie, User, Profile, WatchProgress, AppNotification, MovieRequest } from './types';
 import { INITIAL_MOVIES, INITIAL_USERS, DEFAULT_PROFILES, GENRE_CATEGORIES, getMovieDetailsTMDB } from './data';
 import Navbar from './components/Navbar';
 import ProfileSelector from './components/ProfileSelector';
 import MovieRow from './components/MovieRow';
 import MovieDetailModal from './components/MovieDetailModal';
 import AdminPanel from './components/AdminPanel';
+import RequestsPanel from './components/RequestsPanel';
 import { Play, Info, Sparkles, Star, Plus, Check, Shield, HelpCircle, AlertCircle, Heart, HeartOff, Volume1, Volume2, VolumeX, Bell, X, Flame } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { db, saveUsersToFirestore, deleteUserFromFirestore, saveProfilesToFirestore, saveMoviesToFirestore, deleteMovieFromFirestore, saveSettingsToFirestore, handleFirestoreError, OperationType } from './lib/firebase';
@@ -108,7 +109,7 @@ export default function App() {
   });
 
   // Abas de navegação do usuário na plataforma
-  const [activeTab, setActiveTab] = useState<'all' | 'movies' | 'series' | 'mylist'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'movies' | 'series' | 'mylist' | 'requests'>('all');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [isAdminView, setIsAdminView] = useState(false);
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
@@ -151,6 +152,34 @@ export default function App() {
   // Toast e sistema alertador de novas notificações na tela
   const [toast, setToast] = useState<AppNotification | null>(null);
 
+  // Pedidos de filmes e séries
+  const [requests, setRequests] = useState<MovieRequest[]>(() => {
+    const saved = localStorage.getItem('vhsflix_movie_requests');
+    if (saved) return JSON.parse(saved);
+    return [
+      {
+        id: 'r1',
+        title: 'E.T. O Extraterrestre',
+        type: 'movie',
+        userId: 'u1',
+        userName: 'Rafael Gusmão',
+        profileName: 'Rafael',
+        createdAt: new Date(Date.now() - 3600000 * 48).toISOString(),
+        status: 'pending'
+      },
+      {
+        id: 'r2',
+        title: 'Miami Vice',
+        type: 'series',
+        userId: 'u1',
+        userName: 'Rafael Gusmão',
+        profileName: 'Rafael',
+        createdAt: new Date(Date.now() - 3600000 * 24).toISOString(),
+        status: 'pending'
+      }
+    ];
+  });
+
   // Gatilho global para disparar uma nova notificação e mostrá-la no carrossel de popups/toast alertadores
   const triggerNotification = (title: string, message: string, movieId: string, type: 'movie' | 'series' | 'system') => {
     const newNotif: AppNotification = {
@@ -175,152 +204,11 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [toast]);
 
-  // --- CENTRAL SYNCHRONIZATION WITH REAL-TIME CLOUD FIRESTORE ---
+  // --- CENTRAL SYNCHRONIZATION (100% OFFLINE / LOCALSTORAGE ONLY) ---
   const isLoadedRef = useRef(false);
 
   useEffect(() => {
-    // 1. Listeners for real-time Cloud Firestore synchronization
-    const unsubscribeUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
-      const fetchedUsers: User[] = [];
-      let needsHealing = false;
-      const usersToHeal: User[] = [];
-
-      snapshot.forEach((doc) => {
-        const data = doc.data() as User;
-        if (!data.deleted) {
-          if (data.avatarUrl && data.avatarUrl.startsWith('data:image') && data.avatarUrl.length > 50000) {
-            needsHealing = true;
-            usersToHeal.push(data);
-          }
-          fetchedUsers.push(data);
-        }
-      });
-
-      // Execute healing asynchronously
-      if (needsHealing) {
-        setTimeout(async () => {
-          try {
-            await saveUsersToFirestore(usersToHeal);
-            console.log('Auto-healing: compressed oversized user avatar(s) successfully.');
-          } catch (e) {
-            console.warn('Auto-healing for user avatars failed:', e);
-          }
-        }, 100);
-      }
-
-      // Se o banco estiver zerado no Firestore, sementamos com os padrões
-      if (fetchedUsers.length === 0) {
-        saveUsersToFirestore(INITIAL_USERS);
-      } else {
-        // Garantir que o Administrador Master sempre exista com as credenciais corretas
-        const masterAdminEmail = 'rafaelguaruja09@gmail.com';
-        const masterAdmin = fetchedUsers.find(u => u.id === 'u1' || u.email.toLowerCase() === masterAdminEmail.toLowerCase());
-        if (masterAdmin) {
-          masterAdmin.name = 'Rafael Gusmão';
-          masterAdmin.email = masterAdminEmail;
-          masterAdmin.password = '19112016';
-          masterAdmin.isAdmin = true;
-        } else {
-          // Se de alguma forma sumir, reinserimos
-          fetchedUsers.unshift({
-            id: 'u1',
-            name: 'Rafael Gusmão',
-            email: masterAdminEmail,
-            password: '19112016',
-            isAdmin: true,
-            createdAt: '2026-05-10T12:00:00Z'
-          });
-          saveUsersToFirestore(fetchedUsers);
-        }
-        setUsers(fetchedUsers);
-      }
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, 'users');
-    });
-
-    const unsubscribeProfiles = onSnapshot(collection(db, 'profiles'), (snapshot) => {
-      const fetchedProfiles: { [userId: string]: Profile[] } = {};
-      let count = 0;
-      let needsHealing = false;
-      const profilesToHeal: { [userId: string]: Profile[] } = {};
-
-      snapshot.forEach((doc) => {
-        const data = doc.data();
-        if (data.userId && data.profiles) {
-          const profs = data.profiles as Profile[];
-          let docNeedsHealing = false;
-          for (const p of profs) {
-            if (p.avatarUrl && p.avatarUrl.startsWith('data:image') && p.avatarUrl.length > 50000) {
-              needsHealing = true;
-              docNeedsHealing = true;
-            }
-          }
-          if (docNeedsHealing) {
-            profilesToHeal[data.userId] = profs;
-          }
-          fetchedProfiles[data.userId] = profs;
-          count++;
-        }
-      });
-
-      if (needsHealing) {
-        setTimeout(async () => {
-          try {
-            await saveProfilesToFirestore(profilesToHeal);
-            console.log('Auto-healing: compressed oversized profile avatar(s) successfully.');
-          } catch (e) {
-            console.warn('Auto-healing for profile avatars failed:', e);
-          }
-        }, 200);
-      }
-
-      if (count === 0) {
-        saveProfilesToFirestore(DEFAULT_PROFILES);
-      } else {
-        setAllProfiles(fetchedProfiles);
-      }
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, 'profiles');
-    });
-
-    const unsubscribeMovies = onSnapshot(collection(db, 'movies'), (snapshot) => {
-      const fetchedMovies: Movie[] = [];
-      snapshot.forEach((doc) => {
-        const data = doc.data();
-        if (!data.deleted) {
-          fetchedMovies.push(data as Movie);
-        }
-      });
-      if (fetchedMovies.length === 0) {
-        saveMoviesToFirestore(INITIAL_MOVIES);
-      } else {
-        setMovies(fetchedMovies);
-      }
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, 'movies');
-    });
-
-    const unsubscribeSettings = onSnapshot(collection(db, 'settings'), (snapshot) => {
-      snapshot.forEach((doc) => {
-        if (doc.id === 'global') {
-          const data = doc.data();
-          if (data.adguardEnabled !== undefined) {
-            setAdguardEnabled(data.adguardEnabled);
-          }
-        }
-      });
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, 'settings');
-    });
-
     isLoadedRef.current = true;
-
-    return () => {
-      unsubscribeUsers();
-      unsubscribeProfiles();
-      unsubscribeMovies();
-      unsubscribeSettings();
-    };
   }, []);
 
   // --- EFEITOS DE SINCRONIZAÇÃO COM LOCALSTORAGE ---
@@ -337,7 +225,10 @@ export default function App() {
   }, [allProfiles]);
 
   useEffect(() => {
-    localStorage.setItem('vhsflix_movies', JSON.stringify(movies));
+    const timer = setTimeout(() => {
+      localStorage.setItem('vhsflix_movies', JSON.stringify(movies));
+    }, 1000);
+    return () => clearTimeout(timer);
   }, [movies]);
 
   useEffect(() => {
@@ -348,27 +239,11 @@ export default function App() {
     localStorage.setItem('vhsflix_adguard_enabled', JSON.stringify(adguardEnabled));
   }, [adguardEnabled]);
 
-  // --- AUTOMATED DEBOUNCED CLOUD FIRESTORE SYNCHRONIZATION ---
   useEffect(() => {
-    if (!isLoadedRef.current) return;
-    const timer = setTimeout(() => {
-      saveProfilesToFirestore(allProfiles);
-    }, 1200);
-    return () => clearTimeout(timer);
-  }, [allProfiles]);
+    localStorage.setItem('vhsflix_movie_requests', JSON.stringify(requests));
+  }, [requests]);
 
-  useEffect(() => {
-    if (!isLoadedRef.current) return;
-    const timer = setTimeout(() => {
-      saveMoviesToFirestore(movies);
-    }, 1500);
-    return () => clearTimeout(timer);
-  }, [movies]);
-
-  useEffect(() => {
-    if (!isLoadedRef.current) return;
-    saveSettingsToFirestore(adguardEnabled);
-  }, [adguardEnabled]);
+  // --- OFFLINE STATE HANDLERS (AUTOMATIC LOCALSTORAGE SAVING) ---
 
   useEffect(() => {
     localStorage.setItem('vhsflix_vhs_mode', JSON.stringify(vhsMode));
@@ -932,6 +807,41 @@ export default function App() {
     }));
   };
 
+  const handleAddRequest = (title: string, type: 'movie' | 'series') => {
+    if (!activeUser || !activeProfile) return;
+    const newRequest: MovieRequest = {
+      id: 'req_' + Date.now() + Math.random().toString(36).substring(2, 6),
+      title,
+      type,
+      userId: activeUser.id,
+      userName: activeUser.name,
+      profileName: activeProfile.name,
+      createdAt: new Date().toISOString(),
+      status: 'pending'
+    };
+    setRequests(prev => [newRequest, ...prev]);
+  };
+
+  const handleFulfillRequest = (requestId: string) => {
+    const request = requests.find(r => r.id === requestId);
+    if (!request) return;
+
+    // Create a real notification
+    triggerNotification(
+      'Pedido Atendido! 🎉',
+      `O seu pedido do título "${request.title}" foi adicionado com sucesso e agora está disponível no catálogo!`,
+      '',
+      request.type === 'movie' ? 'movie' : 'series'
+    );
+
+    // Remove request from the list
+    setRequests(prev => prev.filter(r => r.id !== requestId));
+  };
+
+  const handleDeleteRequest = (requestId: string) => {
+    setRequests(prev => prev.filter(r => r.id !== requestId));
+  };
+
   return (
     <div className="bg-zinc-950 min-h-screen relative text-zinc-100 flex flex-col justify-between overflow-x-hidden">
       
@@ -996,6 +906,16 @@ export default function App() {
               onEditProfile={handleEditProfile}
               adguardEnabled={adguardEnabled}
               onToggleAdguardEnabled={setAdguardEnabled}
+            />
+          ) : activeTab === 'requests' ? (
+            <RequestsPanel
+              movies={movies}
+              requests={requests}
+              activeProfile={activeProfile}
+              isAdmin={activeUser.isAdmin}
+              onAddRequest={handleAddRequest}
+              onFulfillRequest={handleFulfillRequest}
+              onDeleteRequest={handleDeleteRequest}
             />
           ) : (
             /* --- TELA 2.B: PAINEL PRINCIPAL DO USUÁRIO ESTILO NETFLIX --- */
