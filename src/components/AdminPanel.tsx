@@ -1200,8 +1200,8 @@ export default function AdminPanel({
                         return;
                       }
 
-                      if (password && password.length < 8) {
-                        setUserFormError('A senha deve conter no mínimo 8 dígitos/caracteres!');
+                      if (password && password.length < 6) {
+                        setUserFormError('A senha deve conter no mínimo 6 dígitos/caracteres!');
                         return;
                       }
 
@@ -1498,8 +1498,8 @@ export default function AdminPanel({
                   setMyAccountError('Senha é obrigatória');
                   return;
                 }
-                if (myAccountPassword.trim().length < 8) {
-                  setMyAccountError('A senha deve conter no mínimo 8 dígitos/caracteres!');
+                if (myAccountPassword.trim().length < 6) {
+                  setMyAccountError('A senha deve conter no mínimo 6 dígitos/caracteres!');
                   return;
                 }
 
