@@ -182,12 +182,31 @@ export default function App() {
     // 1. Listeners for real-time Cloud Firestore synchronization
     const unsubscribeUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
       const fetchedUsers: User[] = [];
+      let needsHealing = false;
+      const usersToHeal: User[] = [];
+
       snapshot.forEach((doc) => {
-        const data = doc.data();
+        const data = doc.data() as User;
         if (!data.deleted) {
-          fetchedUsers.push(data as User);
+          if (data.avatarUrl && data.avatarUrl.startsWith('data:image') && data.avatarUrl.length > 50000) {
+            needsHealing = true;
+            usersToHeal.push(data);
+          }
+          fetchedUsers.push(data);
         }
       });
+
+      // Execute healing asynchronously
+      if (needsHealing) {
+        setTimeout(async () => {
+          try {
+            await saveUsersToFirestore(usersToHeal);
+            console.log('Auto-healing: compressed oversized user avatar(s) successfully.');
+          } catch (e) {
+            console.warn('Auto-healing for user avatars failed:', e);
+          }
+        }, 100);
+      }
 
       // Se o banco estiver zerado no Firestore, sementamos com os padrões
       if (fetchedUsers.length === 0) {
@@ -222,13 +241,39 @@ export default function App() {
     const unsubscribeProfiles = onSnapshot(collection(db, 'profiles'), (snapshot) => {
       const fetchedProfiles: { [userId: string]: Profile[] } = {};
       let count = 0;
+      let needsHealing = false;
+      const profilesToHeal: { [userId: string]: Profile[] } = {};
+
       snapshot.forEach((doc) => {
         const data = doc.data();
         if (data.userId && data.profiles) {
-          fetchedProfiles[data.userId] = data.profiles;
+          const profs = data.profiles as Profile[];
+          let docNeedsHealing = false;
+          for (const p of profs) {
+            if (p.avatarUrl && p.avatarUrl.startsWith('data:image') && p.avatarUrl.length > 50000) {
+              needsHealing = true;
+              docNeedsHealing = true;
+            }
+          }
+          if (docNeedsHealing) {
+            profilesToHeal[data.userId] = profs;
+          }
+          fetchedProfiles[data.userId] = profs;
           count++;
         }
       });
+
+      if (needsHealing) {
+        setTimeout(async () => {
+          try {
+            await saveProfilesToFirestore(profilesToHeal);
+            console.log('Auto-healing: compressed oversized profile avatar(s) successfully.');
+          } catch (e) {
+            console.warn('Auto-healing for profile avatars failed:', e);
+          }
+        }, 200);
+      }
+
       if (count === 0) {
         saveProfilesToFirestore(DEFAULT_PROFILES);
       } else {

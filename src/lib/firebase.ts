@@ -51,6 +51,52 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   throw new Error(JSON.stringify(errInfo));
 }
 
+// Helper function to compress large Base64 images to avoid exceeding Firestore's 1MB document limit
+export function compressImage(base64Str: string, maxWidth = 150, maxHeight = 150): Promise<string> {
+  return new Promise((resolve) => {
+    if (!base64Str || !base64Str.startsWith('data:image')) {
+      resolve(base64Str);
+      return;
+    }
+    const img = new Image();
+    img.src = base64Str;
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      let width = img.width;
+      let height = img.height;
+
+      if (width > height) {
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+      } else {
+        if (height > maxHeight) {
+          width = Math.round((width * maxHeight) / height);
+          height = maxHeight;
+        }
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve(base64Str);
+        return;
+      }
+
+      ctx.drawImage(img, 0, 0, width, height);
+      // Compress as JPEG 70% quality, which is extremely lightweight (~10KB-15KB)
+      const compressed = canvas.toDataURL('image/jpeg', 0.7);
+      resolve(compressed);
+    };
+    img.onerror = () => {
+      resolve(base64Str);
+    };
+  });
+}
+
 // Helper function to save users, profiles, and catalog persistently to Firestore
 export async function saveUsersToFirestore(users: any[]) {
   const path = 'users';
@@ -58,13 +104,23 @@ export async function saveUsersToFirestore(users: any[]) {
     for (const u of users) {
       if (!u || !u.id) continue;
       const docRef = doc(db, 'users', u.id);
+      
+      let avatarUrl = u.avatarUrl || '';
+      if (avatarUrl && avatarUrl.startsWith('data:image') && avatarUrl.length > 50000) {
+        try {
+          avatarUrl = await compressImage(avatarUrl);
+        } catch (e) {
+          console.warn('Failsafe compression failed for user', u.id, e);
+        }
+      }
+
       await setDoc(docRef, {
         id: u.id,
         name: u.name || '',
         email: (u.email || '').toLowerCase().trim(),
         password: (u.password || '').toString(),
         isAdmin: !!u.isAdmin,
-        avatarUrl: u.avatarUrl || '',
+        avatarUrl: avatarUrl,
         createdAt: u.createdAt || new Date().toISOString()
       }, { merge: true });
     }
@@ -90,9 +146,26 @@ export async function saveProfilesToFirestore(allProfiles: { [userId: string]: a
     for (const [userId, profiles] of Object.entries(allProfiles)) {
       if (!userId) continue;
       const docRef = doc(db, 'profiles', userId);
+      
+      const processedProfiles = [];
+      for (const p of profiles) {
+        let avatarUrl = p.avatarUrl || '';
+        if (avatarUrl && avatarUrl.startsWith('data:image') && avatarUrl.length > 50000) {
+          try {
+            avatarUrl = await compressImage(avatarUrl);
+          } catch (e) {
+            console.warn('Failsafe compression failed for profile', userId, e);
+          }
+        }
+        processedProfiles.push({
+          ...p,
+          avatarUrl
+        });
+      }
+
       await setDoc(docRef, {
         userId,
-        profiles: profiles || []
+        profiles: processedProfiles || []
       }, { merge: true });
     }
   } catch (err) {

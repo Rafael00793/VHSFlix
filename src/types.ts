@@ -48,6 +48,7 @@ export interface User {
   avatarUrl?: string;
   isAdmin: boolean;
   createdAt: string;
+  deleted?: boolean;
 }
 
 export interface TMDBConfig {

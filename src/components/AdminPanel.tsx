@@ -8,6 +8,7 @@ import { Movie, User, Profile } from '../types';
 import { GENRE_CATEGORIES, searchMoviesTMDB, getMovieDetailsTMDB, PROFILE_AVATARS } from '../data';
 import { Trash, Edit, Plus, Users, Library, Settings, Search, Import, Download, Star, Shield, Film, Tv, Play, AlertTriangle, ShieldAlert, RefreshCw, Check, LayoutDashboard, Activity, Clock, TrendingUp, User as UserIcon, Lock as LockIcon, Eye, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { compressImage } from '../lib/firebase';
 
 interface AdminPanelProps {
   movies: any[]; // para maior flexibilidade se houver types
@@ -1397,9 +1398,15 @@ export default function AdminPanel({
                               const file = e.target.files?.[0];
                               if (file) {
                                 const reader = new FileReader();
-                                reader.onloadend = () => {
+                                reader.onloadend = async () => {
                                   if (typeof reader.result === 'string') {
-                                    setUserFormAvatarUrl(reader.result);
+                                    try {
+                                      const compressed = await compressImage(reader.result);
+                                      setUserFormAvatarUrl(compressed);
+                                    } catch (err) {
+                                      console.error('Erro comprimindo imagem:', err);
+                                      setUserFormAvatarUrl(reader.result);
+                                    }
                                   }
                                 };
                                 reader.readAsDataURL(file);
@@ -1911,9 +1918,15 @@ export default function AdminPanel({
                         const file = e.target.files?.[0];
                         if (file) {
                           const reader = new FileReader();
-                          reader.onloadend = () => {
+                          reader.onloadend = async () => {
                             if (typeof reader.result === 'string') {
-                              setAdminCustomAvatarUrl(reader.result);
+                              try {
+                                const compressed = await compressImage(reader.result);
+                                setAdminCustomAvatarUrl(compressed);
+                              } catch (err) {
+                                console.error('Erro comprimindo imagem de admin:', err);
+                                setAdminCustomAvatarUrl(reader.result);
+                              }
                             }
                           };
                           reader.readAsDataURL(file);

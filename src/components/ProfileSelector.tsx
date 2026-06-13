@@ -10,6 +10,7 @@ import { Plus, Trash, Edit, UserCheck, Shield, ChevronRight, LogOut, Film, Eye, 
 import { motion, AnimatePresence } from 'motion/react';
 // @ts-ignore
 import loginBgImage from '../assets/images/netflix_grid_bg_1780072882191.png';
+import { compressImage } from '../lib/firebase';
 
 const NETFLIX_MOCK_POSTERS = [
   // Linha 1
@@ -117,12 +118,22 @@ export default function ProfileSelector({
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => {
+      reader.onloadend = async () => {
         if (typeof reader.result === 'string') {
-          if (isEdit) {
-            setEditCustomAvatarUrl(reader.result);
-          } else {
-            setCustomAvatarUrl(reader.result);
+          try {
+            const compressed = await compressImage(reader.result);
+            if (isEdit) {
+              setEditCustomAvatarUrl(compressed);
+            } else {
+              setCustomAvatarUrl(compressed);
+            }
+          } catch (err) {
+            console.error('Erro ao comprimir imagem:', err);
+            if (isEdit) {
+              setEditCustomAvatarUrl(reader.result);
+            } else {
+              setCustomAvatarUrl(reader.result);
+            }
           }
         }
       };
