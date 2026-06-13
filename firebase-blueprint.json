@@ -1,0 +1,71 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "VHSFLIX registered user account",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "password": { "type": "string" },
+        "isAdmin": { "type": "boolean" },
+        "avatarUrl": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name", "email", "password"]
+    },
+    "UserProfileCollection": {
+      "title": "UserProfileCollection",
+      "description": "Container for user profiles per account",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "profiles": { "type": "array" }
+      },
+      "required": ["userId", "profiles"]
+    },
+    "Movie": {
+      "title": "Movie",
+      "description": "Catalog movie or TV series representation",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "type": { "type": "string" },
+        "category": { "type": "string" },
+        "tmdbId": { "type": "string" }
+      },
+      "required": ["id", "title", "type"]
+    },
+    "Settings": {
+      "title": "Settings",
+      "description": "Global VHSFLIX application settings",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "adguardEnabled": { "type": "boolean" }
+      },
+      "required": ["id", "adguardEnabled"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Individual account details"
+    },
+    "/profiles/{userId}": {
+      "schema": "UserProfileCollection",
+      "description": "Profiles for a user key"
+    },
+    "/movies/{movieId}": {
+      "schema": "Movie",
+      "description": "Media titles in the custom catalog"
+    },
+    "/settings/{settingsId}": {
+      "schema": "Settings",
+      "description": "System defaults configuration settings"
+    }
+  }
+}

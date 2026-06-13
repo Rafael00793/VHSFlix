@@ -242,6 +242,21 @@ export const INITIAL_MOVIES: Movie[] = [
     trailerUrl: 'https://www.youtube.com/embed/Wb1MreR3b_M',
     vhsTapeColor: '#16a34a', // Green
     tmdbId: 308505
+  },
+  {
+    id: 'm13',
+    title: 'Depois Daquele Ano',
+    description: 'Depois Daquele Ano, de Carley Fortune, é um romance nostálgico sobre primeiros amores e sobre as pessoas e escolhas que nos marcam para sempre.',
+    posterUrl: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?auto=format&fit=crop&w=780&q=80',
+    backdropUrl: 'https://images.unsplash.com/photo-1475503572774-15a45e5d60b9?auto=format&fit=crop&w=1200&q=80',
+    category: 'Romance',
+    year: 2026,
+    duration: '1 Temporada',
+    type: 'series',
+    rating: 8.8,
+    trailerUrl: 'https://www.youtube.com/embed/CRRlbK5w8AE',
+    vhsTapeColor: '#e11d48', // Red
+    tmdbId: 215151
   }
 ];
 

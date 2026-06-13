@@ -1,0 +1,29 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default fallback: deny all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+    
+    // Users collection: Allow read, write for authentication purposes
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+    
+    // Profiles collection: Allow read, write
+    match /profiles/{userId} {
+      allow read, write: if true;
+    }
+    
+    // Movies catalog collection: Anyone can read, writes can be made
+    match /movies/{movieId} {
+      allow read, write: if true;
+    }
+    
+    // Settings configuration
+    match /settings/{settingsId} {
+      allow read, write: if true;
+    }
+  }
+}

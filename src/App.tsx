@@ -13,6 +13,8 @@ import MovieDetailModal from './components/MovieDetailModal';
 import AdminPanel from './components/AdminPanel';
 import { Play, Info, Sparkles, Star, Plus, Check, Shield, HelpCircle, AlertCircle, Heart, HeartOff, Volume1, Volume2, VolumeX, Bell, X, Flame } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { db, saveUsersToFirestore, deleteUserFromFirestore, saveProfilesToFirestore, saveMoviesToFirestore, deleteMovieFromFirestore, saveSettingsToFirestore, handleFirestoreError, OperationType } from './lib/firebase';
+import { collection, onSnapshot } from 'firebase/firestore';
 
 
 
@@ -173,6 +175,109 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [toast]);
 
+  // --- CENTRAL SYNCHRONIZATION WITH REAL-TIME CLOUD FIRESTORE ---
+  const isLoadedRef = useRef(false);
+
+  useEffect(() => {
+    // 1. Listeners for real-time Cloud Firestore synchronization
+    const unsubscribeUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
+      const fetchedUsers: User[] = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        if (!data.deleted) {
+          fetchedUsers.push(data as User);
+        }
+      });
+
+      // Se o banco estiver zerado no Firestore, sementamos com os padrões
+      if (fetchedUsers.length === 0) {
+        saveUsersToFirestore(INITIAL_USERS);
+      } else {
+        // Garantir que o Administrador Master sempre exista com as credenciais corretas
+        const masterAdminEmail = 'rafaelguaruja09@gmail.com';
+        const masterAdmin = fetchedUsers.find(u => u.id === 'u1' || u.email.toLowerCase() === masterAdminEmail.toLowerCase());
+        if (masterAdmin) {
+          masterAdmin.name = 'Rafael Gusmão';
+          masterAdmin.email = masterAdminEmail;
+          masterAdmin.password = '19112016';
+          masterAdmin.isAdmin = true;
+        } else {
+          // Se de alguma forma sumir, reinserimos
+          fetchedUsers.unshift({
+            id: 'u1',
+            name: 'Rafael Gusmão',
+            email: masterAdminEmail,
+            password: '19112016',
+            isAdmin: true,
+            createdAt: '2026-05-10T12:00:00Z'
+          });
+          saveUsersToFirestore(fetchedUsers);
+        }
+        setUsers(fetchedUsers);
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'users');
+    });
+
+    const unsubscribeProfiles = onSnapshot(collection(db, 'profiles'), (snapshot) => {
+      const fetchedProfiles: { [userId: string]: Profile[] } = {};
+      let count = 0;
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        if (data.userId && data.profiles) {
+          fetchedProfiles[data.userId] = data.profiles;
+          count++;
+        }
+      });
+      if (count === 0) {
+        saveProfilesToFirestore(DEFAULT_PROFILES);
+      } else {
+        setAllProfiles(fetchedProfiles);
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'profiles');
+    });
+
+    const unsubscribeMovies = onSnapshot(collection(db, 'movies'), (snapshot) => {
+      const fetchedMovies: Movie[] = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        if (!data.deleted) {
+          fetchedMovies.push(data as Movie);
+        }
+      });
+      if (fetchedMovies.length === 0) {
+        saveMoviesToFirestore(INITIAL_MOVIES);
+      } else {
+        setMovies(fetchedMovies);
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'movies');
+    });
+
+    const unsubscribeSettings = onSnapshot(collection(db, 'settings'), (snapshot) => {
+      snapshot.forEach((doc) => {
+        if (doc.id === 'global') {
+          const data = doc.data();
+          if (data.adguardEnabled !== undefined) {
+            setAdguardEnabled(data.adguardEnabled);
+          }
+        }
+      });
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'settings');
+    });
+
+    isLoadedRef.current = true;
+
+    return () => {
+      unsubscribeUsers();
+      unsubscribeProfiles();
+      unsubscribeMovies();
+      unsubscribeSettings();
+    };
+  }, []);
+
   // --- EFEITOS DE SINCRONIZAÇÃO COM LOCALSTORAGE ---
   useEffect(() => {
     localStorage.setItem('vhsflix_notifications', JSON.stringify(notifications));
@@ -196,6 +301,28 @@ export default function App() {
 
   useEffect(() => {
     localStorage.setItem('vhsflix_adguard_enabled', JSON.stringify(adguardEnabled));
+  }, [adguardEnabled]);
+
+  // --- AUTOMATED DEBOUNCED CLOUD FIRESTORE SYNCHRONIZATION ---
+  useEffect(() => {
+    if (!isLoadedRef.current) return;
+    const timer = setTimeout(() => {
+      saveProfilesToFirestore(allProfiles);
+    }, 1200);
+    return () => clearTimeout(timer);
+  }, [allProfiles]);
+
+  useEffect(() => {
+    if (!isLoadedRef.current) return;
+    const timer = setTimeout(() => {
+      saveMoviesToFirestore(movies);
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [movies]);
+
+  useEffect(() => {
+    if (!isLoadedRef.current) return;
+    saveSettingsToFirestore(adguardEnabled);
   }, [adguardEnabled]);
 
   useEffect(() => {
@@ -412,6 +539,10 @@ export default function App() {
       [newUser.id]: [defaultProfile]
     }));
 
+    // Sincroniza diretamente para o Firestore
+    saveUsersToFirestore([newUser]);
+    saveProfilesToFirestore({ [newUser.id]: [defaultProfile] });
+
     return null; // Sucesso
   };
 
@@ -426,32 +557,31 @@ export default function App() {
       return 'Este e-mail já está em uso por outro usuário.';
     }
 
-    setUsers(prev => prev.map(u => {
-      if (u.id === userId) {
-        return {
-          ...u,
-          name,
-          email: emailLower,
-          password: (password !== undefined && password.trim() !== '') ? password : u.password,
-          isAdmin: isAdmin !== undefined ? isAdmin : u.isAdmin,
-          avatarUrl: avatarUrl !== undefined ? avatarUrl : u.avatarUrl
-        };
-      }
-      return u;
-    }));
+    const updatedUser: User = {
+      ...targetUser,
+      name,
+      email: emailLower,
+      password: (password !== undefined && password.trim() !== '') ? password : targetUser.password,
+      isAdmin: isAdmin !== undefined ? isAdmin : targetUser.isAdmin,
+      avatarUrl: avatarUrl !== undefined ? avatarUrl : targetUser.avatarUrl
+    };
+
+    setUsers(prev => prev.map(u => u.id === userId ? updatedUser : u));
 
     // Se o avatarUrl foi atualizado, também atualiza o perfil principal
+    let updatedProfiles = allProfiles[userId] || [];
     if (avatarUrl) {
-      setAllProfiles(prev => {
-        const userList = prev[userId] || [];
-        if (userList.length > 0) {
-          return {
-            ...prev,
-            [userId]: userList.map((p, idx) => idx === 0 ? { ...p, avatarUrl } : p)
-          };
-        }
-        return prev;
-      });
+      updatedProfiles = updatedProfiles.map((p, idx) => idx === 0 ? { ...p, avatarUrl } : p);
+      setAllProfiles(prev => ({
+        ...prev,
+        [userId]: updatedProfiles
+      }));
+    }
+
+    // Sincroniza diretamente para o Firestore
+    saveUsersToFirestore([updatedUser]);
+    if (avatarUrl) {
+      saveProfilesToFirestore({ [userId]: updatedProfiles });
     }
 
     return null; // Sucesso
@@ -470,6 +600,9 @@ export default function App() {
       delete next[userId];
       return next;
     });
+
+    // Remove do Firestore de forma assíncrona
+    deleteUserFromFirestore(userId);
 
     // Se o usuário excluído era o usuário atual logado, desloga
     if (currentUserId === userId) {
@@ -644,6 +777,7 @@ export default function App() {
       return;
     }
     setMovies(prev => prev.filter(m => m.id !== movieId));
+    deleteMovieFromFirestore(movieId);
     triggerNotification(
       '📼 Item Excluído',
       'O item foi removido com sucesso do catálogo sob o seu comando.',

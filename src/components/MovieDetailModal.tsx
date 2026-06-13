@@ -5,8 +5,286 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Movie, WatchProgress } from '../types';
-import { X, Play, Pause, Plus, Check, Star, RefreshCw, Tv, Clock, HelpCircle, Film, Sparkles, AlertCircle, ExternalLink, Maximize, Shield, Sliders, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { X, Play, Pause, Plus, Check, Star, RefreshCw, Tv, Clock, HelpCircle, Film, Sparkles, AlertCircle, ExternalLink, Maximize, Shield, Sliders, ThumbsUp, ThumbsDown, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { INITIAL_MOVIES } from '../data';
+
+export interface Episode {
+  number: number;
+  title: string;
+  description: string;
+  duration: string;
+  releaseDate: string;
+  ratingCode: string;
+  thumbnailUrl: string;
+}
+
+export function getEpisodesForSeries(movie: Movie, seasonNumber: number): Episode[] {
+  const seasons = getSeriesSeasonsData(movie);
+  const foundSeason = seasons.find(s => s.seasonNumber === seasonNumber);
+  const epCount = foundSeason ? foundSeason.episodesCount : 8;
+
+  const episodes: Episode[] = [];
+
+  // For Depois Daquele Ano
+  if (movie.id === 'm13') {
+    const titles = [
+      "Depois Daquele Verão",
+      "Sangue Novo",
+      "Brincando com Fogo",
+      "Anatomia de um Romance",
+      "Segredos Sob o Sol",
+      "Cinzas do Passado",
+      "Desencontros no Cais",
+      "O Último Ponto de Partida"
+    ];
+    const descs = [
+      "A morte de Sue Florek, quase uma segunda mãe para Percy Fraser, a leva de volta a um reencontro nostálgico repleto de memórias e segredos na casa do lago nos arredores da cidade.",
+      "O Tavern causa atrito entre os irmãos. Jordie apresenta Chantal à vida pacata do lago e pega todos de surpresa com uma notícia que mexe com o coração de todos.",
+      "Delilah conta seu segredo para Jordie. Chantal pede ajuda a Charlie para resolver um desentendimento familiar doloroso que ameaça a paz de todos na antiga cabana.",
+      "O testamento de Sue deixa todos em choque. Enquanto Sam e Charlie estão furiosos, Percy tenta encontrar conforto em seus sentimentos remanescentes do passado.",
+      "Um acampamento de verão reserva grandes surpresas e revelações que ameaçam separar o jovem casal antes da temporada de calor terminar nas margens do cais.",
+      "Uma antiga carta de amor é encontrada nas ruínas da cabana, abrindo velhas feridas que precisam ser tratadas e curadas com urgência.",
+      "Mal-entendidos colocam a lealdade de Sam à prova enquanto Percy tenta reconectar suas memórias mais profundas do passado com a nova realidade de sua vida no lago.",
+      "A decisão final sobre o destino das propriedades de Sue é tomada, unindo todos em um emocionante reencontro às margens do eterno lago azul."
+    ];
+    const unsplashes = [
+      "https://images.unsplash.com/photo-1510972527409-cac236c5341a?auto=format&fit=crop&w=500&q=80",
+      "https://images.unsplash.com/photo-1475503572774-15a45e5d60b9?auto=format&fit=crop&w=500&q=80",
+      "https://images.unsplash.com/photo-1504280390367-361c6d9f38f4?auto=format&fit=crop&w=500&q=80",
+      "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?auto=format&fit=crop&w=500&q=80",
+      "https://images.unsplash.com/photo-1498855926480-d98e83099315?auto=format&fit=crop&w=500&q=80",
+      "https://images.unsplash.com/photo-1455390582262-044cdead277a?auto=format&fit=crop&w=500&q=80",
+      "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=500&q=80",
+      "https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&w=500&q=80"
+    ];
+
+    for (let i = 1; i <= epCount; i++) {
+      const idx = (i - 1) % titles.length;
+      episodes.push({
+        number: i,
+        title: titles[idx],
+        description: descs[idx],
+        duration: idx % 2 === 0 ? "55 min" : "43 min",
+        releaseDate: "9 de jun. de 2026",
+        ratingCode: "A14",
+        thumbnailUrl: unsplashes[idx]
+      });
+    }
+    return episodes;
+  }
+
+  // For Stranger Things
+  if (movie.tmdbId === 66732) {
+    const epData: { [season: number]: { titles: string[], descs: string[] } } = {
+      1: {
+        titles: [
+          "O Desaparecimento de Will Byers",
+          "A Estranha da Maple Street",
+          "Caras de Natal",
+          "O Corpo",
+          "A Pulga e o Acrobata",
+          "O Monstro",
+          "A Banheira",
+          "O Mundo Invertido"
+        ],
+        descs: [
+          "No fito de volta para casa, Will vê algo terrível que desafia a razão humana. Perto dali, um segredo sinistro está escondido no laboratório governamental.",
+          "Lucas, Mike e Dustin tentam interagir com a misteriosa menina que encontraram sob a chuva na floresta. Hopper investiga um estranho relato de Joyce.",
+          "Uma Joyce cada vez mais ansiosa tenta se comunicar com seu filho Will usando luzes natalinas na parede da sala. Nancy descobre uma criatura bizarra.",
+          "Recusando-se terminantemente a aceitar que o corpo encontrado no lago seja de Will, Joyce insiste. Os meninos dão um banho de loja em Eleven.",
+          "Hopper arrisca sua vida ao invadir as dependências ocultas do laboratório. Dustin teoriza sobre um portal dimensional usando sua bússola.",
+          "Em busca de respostas Nancy e Jonathan vão à floresta profunda e acham algo assombroso. Eleven recorda as torturas psíquicas.",
+          "Com as viaturas do governo cercando a escola, os garotos organizam um aparato sensorial com sal de cozinha para Eleven contatar Will.",
+          "Hopper e Joyce são impiedosamente interrogados. Enquanto isso, Nancy e Jonathan montam barreiras para conter a criatura na casa."
+        ]
+      },
+      2: {
+        titles: [
+          "Madmax",
+          "Gostosuras ou travessuras, aberração",
+          "O Girino",
+          "Will, o Sábio",
+          "Dig Dug",
+          "O Espião",
+          "A irmã perdida",
+          "O Devorador de Mentes",
+          "O Portal"
+        ],
+        descs: [
+          "Com a aproximação do Halloween, uma nova jogadora agita o fliperama local. Hopper investiga um campo de abóboras apodrecidas.",
+          "Will vê algo perturbador no fliperama. Mike não consegue esquecer Eleven. Dustin adota um animal de estimação incomum.",
+          "Dustin abriga um misterioso ser que logo demonstra um apetite insaciável. Eleven se sente frustrada de viver escondida.",
+          "As visões de Will pioram cada vez mais, deixando Joyce em pânico. Hopper pesquisa a origem dos misteriosos túneis.",
+          "Eleven realiza uma jornada pessoal de autodescoberta. Dustin recruta Steve para conter seu ex-animal de estimação.",
+          "A ligação de Will com o monstro se aprofunda, e ele fornece coordenadas suspeitas para as equipes do governo.",
+          "Levada por lembranças de sua infância, Eleven viaja para Chicago onde conhece uma gangue de marginais com poderes parecidos.",
+          "O laboratório é invadido por monstros caninos famintos. Hopper, Joyce e Mike salvam Will antes do bloqueio definitivo.",
+          "Eleven retorna triunfante pronta para fechar o portal. Jonathan, Nancy e Steve usam calor intenso para libertar Will."
+        ]
+      },
+      3: {
+        titles: [
+          "Está me ouvindo, Suzie?",
+          "O Caso dos Ratos",
+          "A Salvação de uma Salva-vidas",
+          "A Prova da Sauna",
+          "O Devorado",
+          "E Pluribus Unum",
+          "A Mordida",
+          "A Batalha de Starcourt"
+        ],
+        descs: [
+          "O verão traz romance e um colossal novo shopping para Hawkins. Dustin sintoniza um rádio amador de altíssimo alcance.",
+          "Nancy e Jonathan seguem uma pista jornalística sobre ratos enlouquecidos. Steve e Robin tentam traduzir uma rádio russa.",
+          "Eleven e Max procuram Billy no clube de natação. Dustin e Erica infiltram-se nos respiradores do Starcourt.",
+          "O grupo testa a sensibilidade de Billy ao calor intenso. Nancy encontra uma resposta monstruosa na redação.",
+          "Uma criatura repulsiva cresce ao devorar corpos e se desenvolve nos subterrâneos. Dustin assume o controle da missão.",
+          "Eleven reencontra o monstro em uma projeção mental de tirar o fôlego. O exército soviético prepara a super-arma cilíndrica.",
+          "Fugindo do Devorador de Mentes no shopping, Eleven sofre um sério ferimento infeccionado pela garra do monstro.",
+          "Em um confronto final de proporções épicas no shopping, Billy se sacrifica e Billy se redime enquanto Hopper vira herói."
+        ]
+      },
+      4: {
+        titles: [
+          "O Clube de Hellfire",
+          "A Maldição de Vecna",
+          "O Monstro e a Super-heroína",
+          "Querido Billy",
+          "O Projeto Nina",
+          "Mergulho no Escuro",
+          "Massacre no Laboratório de Hawkins",
+          "Papai",
+          "O Plano"
+        ],
+        descs: [
+          "Na nova escola na Califórnia, Eleven se sente excluída. Em Hawkins, o carismático mestre Eddie Munson organiza o Hellfire.",
+          "Uma tragédia inexplicável abala Hawkins e mobiliza a polícia local. Eleven é alvo de terrível bullying escolar.",
+          "Joyce viaja ao Alasca acompanhada por Murray para resgatar Hopper na Rússia. Eleven toma uma dramática iniciativa.",
+          "Max corre contra o tempo sob o letal feitiço de Vecna, encontrando refúgio na audição intensa de sua música favorita para resistir.",
+          "Eleven mergulha em uma banheira profunda para reativar suas memórias traumáticas e recuperar seus poderes perdidos.",
+          "Os garotos mergulham no lago dos amantes e atravessam o novo portal dimensional nas profundezas aquáticas.",
+          "O terrível segredo sobre a origem do temido vilão Vecna é finalmente revelado através das visões e lembranças de Eleven.",
+          "Com as tropas governamentais cercando o silo do deserto, Eleven defende sua vida contra jatos e blindados.",
+          "O grupo de Hawkins se infiltra no Mundo Invertido para o confronto final definitivo com Vecna em sua própria mente."
+        ]
+      },
+      5: {
+        titles: [
+          "O Portal Aberto",
+          "Hawkins em Ruínas",
+          "A Aliança Vermelha",
+          "Sombras na Escola",
+          "Teste do Silo",
+          "Eco das Luzes",
+          "Batalha pelo Vale",
+          "Conclusão Épica"
+        ],
+        descs: [
+          "Com os portais convergindo e rachando a cidade, Eleven planeja uma contraofensiva maciça nos limites de Hawkins.",
+          "Joyce e Hopper ajudam a organizar centros de evacuação enquanto a névoa tóxica do Mundo Invertido avança rápido.",
+          "Robin e Nancy buscam pistas nos arquivos para selar as frestas subterrâneas usando impulsos eletromagnéticos.",
+          "Vecna inicia seu assalto final às mentes vulneráveis, forçando os adolescentes a encarar seus piores pesadelos.",
+          "Sob orientação científica, Eleven alcança seu potencial definitivo ao canalizar toda a energia residual retro.",
+          "As luzes residenciais piscam num ritmo frenético sinalizando uma grande batalha de Eleven nos limites dimensionais.",
+          "O exército de criaturas das trevas avança pelas ruas de Hawkins. Steve e Dustin lideram a linha de frente defensiva.",
+          "A emocionante e definitiva batalha entre Eleven e o Upside Down. O destino de Hawkins e do mundo é selado de vez."
+        ]
+      }
+    };
+
+    const sData = epData[seasonNumber] || epData[1];
+    const unsplashes = [
+      "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=500&q=80",
+      "https://images.unsplash.com/photo-1549490349-8643362247b5?auto=format&fit=crop&w=500&q=80",
+      "https://images.unsplash.com/photo-1626814026160-2237a95fc5a0?auto=format&fit=crop&w=500&q=80",
+      "https://images.unsplash.com/photo-1533928298208-27ff66555d8d?auto=format&fit=crop&w=500&q=80",
+      "https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?auto=format&fit=crop&w=500&q=80",
+      "https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?auto=format&fit=crop&w=500&q=80",
+      "https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=500&q=80",
+      "https://images.unsplash.com/photo-1538481199705-c710c4e965fc?auto=format&fit=crop&w=500&q=80",
+      "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=500&q=80"
+    ];
+
+    for (let i = 1; i <= epCount; i++) {
+      const idx = (i - 1) % sData.titles.length;
+      const title = sData.titles[idx] || `Capítulo ${i}: Revelação`;
+      const desc = sData.descs[idx] || `A tensão aumenta consideravelmente à medida que a turma enfrenta novas faces do horror psicológico em Hawkins.`;
+      const releaseYear = movie.year ? movie.year : 2016;
+
+      episodes.push({
+        number: i,
+        title,
+        description: desc,
+        duration: "52 min",
+        releaseDate: `15 de jul. de ${releaseYear}`,
+        ratingCode: "A16",
+        thumbnailUrl: unsplashes[idx % unsplashes.length]
+      });
+    }
+    return episodes;
+  }
+
+  // General series or user-created series dynamic procedural episode generator
+  const keywords = ['retro', 'vintage', 'synthwave', 'tv', 'show', 'friends', 'city', 'night', 'neon', 'computer'];
+  const baseSeed = movie.id ? movie.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) : 42;
+  
+  const genTitles = [
+    "Começo de uma Longa Jornada",
+    "Conexões Inesperadas no Subúrbio",
+    "Sinais de Alerta no Aparelho VHS",
+    "Segredos Revelados por Acaso",
+    "O Ponto Sem Retorno",
+    "Encontros e Desencontros Marcados",
+    "Decisões Sob Pressão",
+    "Conclusão Eletrizante do Capítulo",
+    "Novos Começos sob o Neon",
+    "Descobertas Cruciais no Cais",
+    "O Enigma Adicional Solucionado",
+    "Destinos Cruzados na Grande Cidade"
+  ];
+  
+  const genDescs = [
+    "Os primeiros mistérios começam a se desenvolver de forma instigante neste episódio inicial cheio de reviravoltas emocionais para o elenco.",
+    "O grupo principal lida com as consequências imediatas de uma descoberta impactante que muda todas as suas estratégias vigentes.",
+    "Uma antiga gravação em fita magnética serve como a pista perfeita para desvendar uma conspiração de alta tecnologia retro.",
+    "Conversas sinceras revelam um segredo familiar profundo que estava soterrado há mais de duas décadas em completo silêncio.",
+    "A tensão se estende aos limites emocionais de todos os envolvidos, forçando uma dramática e inevitável escolha pessoal.",
+    "Alianças surpreendentes são costuradas na surdina para enfrentar a imensa ameaça corporativa que paira sobre toda a região.",
+    "Em um teste supremo de lealdade e afeto, os protagonistas correm freneticamente contra o relógio para evitar o pior desenlace.",
+    "Os fios soltos da temporada começam a se amarrar de forma sublime, preparando o palco para o grandioso clímax de suspense."
+  ];
+
+  const fallbackUnsplashes = [
+    "https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&w=500&q=80",
+    "https://images.unsplash.com/photo-1478760329108-5c3ed9d495a0?auto=format&fit=crop&w=500&q=80",
+    "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=500&q=80",
+    "https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=500&q=80",
+    "https://images.unsplash.com/photo-1533928298208-27ff66555d8d?auto=format&fit=crop&w=500&q=80",
+    "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=500&q=80",
+    "https://images.unsplash.com/photo-1541963463532-d68292c34b19?auto=format&fit=crop&w=500&q=80",
+    "https://images.unsplash.com/photo-1485846234645-a62644f84728?auto=format&fit=crop&w=500&q=80",
+    "https://images.unsplash.com/photo-1505686994434-e3cc5abf1330?auto=format&fit=crop&w=500&q=80"
+  ];
+
+  for (let i = 1; i <= epCount; i++) {
+    const tIdx = (baseSeed + i * 3) % genTitles.length;
+    const dIdx = (baseSeed + i * 7) % genDescs.length;
+    const thumbIdx = (baseSeed + i) % fallbackUnsplashes.length;
+    
+    episodes.push({
+      number: i,
+      title: genTitles[tIdx],
+      description: genDescs[dIdx],
+      duration: `${40 + ((baseSeed + i) % 20)} min`,
+      releaseDate: `10 de mai. de ${movie.year || 2026}`,
+      ratingCode: movie.category === 'Terror' ? 'A16' : 'A14',
+      thumbnailUrl: fallbackUnsplashes[thumbIdx]
+    });
+  }
+
+  return episodes;
+}
 
 interface MovieDetailModalProps {
   movie: Movie | null;
@@ -138,6 +416,8 @@ export default function MovieDetailModal({
   const [isConfiguringPlayer, setIsConfiguringPlayer] = useState(false);
   const [season, setSeason] = useState<number>(1);
   const [episode, setEpisode] = useState<number>(1);
+  const [activeTab, setActiveTab] = useState<'episodes' | 'related' | 'details'>('episodes');
+  const [isSeasonDropdownOpen, setIsSeasonDropdownOpen] = useState(false);
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const currentTimeRef = useRef(currentTime);
@@ -267,6 +547,8 @@ export default function MovieDetailModal({
       setSeason(1);
       setEpisode(1);
       setPlaybackSpeed(1);
+      setIsSeasonDropdownOpen(false);
+      setActiveTab(movie.type === 'series' ? 'episodes' : 'details');
       
       let seconds = 110 * 60; // default 1h 50m
       if (movie.duration.includes('h')) {
@@ -397,6 +679,16 @@ export default function MovieDetailModal({
     }, 1800); // Simulador de encaixar fita VCR
   };
 
+  const handleEpisodeClick = (epNumber: number) => {
+    setEpisode(epNumber);
+    setIsConfiguringPlayer(false);
+    setIsTapeLoading(true);
+    setTimeout(() => {
+      setIsTapeLoading(false);
+      setIsPlaying(true);
+    }, 1800); // Simulador de encaixar fita VCR
+  };
+
   const handleScrubChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!movie) return;
     const targetSecs = parseInt(e.target.value);
@@ -430,7 +722,11 @@ export default function MovieDetailModal({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 15 }}
             transition={{ duration: 0.25 }}
-            className="relative z-20 w-full max-w-4xl bg-zinc-950 border-0 md:border border-zinc-800 rounded-none md:rounded-xl overflow-hidden shadow-2xl flex flex-col h-[100dvh] md:h-auto md:max-h-[92vh]"
+            className={`relative z-20 bg-zinc-950 overflow-hidden shadow-2xl flex flex-col transition-all duration-300 ${
+              isPlaying && !isTapeLoading
+                ? "w-screen h-screen md:h-screen max-w-none max-h-none rounded-none border-0 m-0 p-0"
+                : "w-full max-w-4xl border-0 md:border border-zinc-800 rounded-none md:rounded-xl h-[100dvh] md:h-auto md:max-h-[92vh]"
+            }`}
             id={`detail-modal-${movie.id}`}
           >
             {/* REPRODUÇÃO DO PLAYER DE VÍDEO COMPLETO E REAL (OCUPA TODO O MODAL EM REPRODUÇÃO) */}
@@ -454,23 +750,7 @@ export default function MovieDetailModal({
                   />
                 </div>
 
-                {/* Botão de alternar player - canto superior esquerdo para trocar de player sem sair da página */}
-                {movie.type === 'series' && (
-                  <div className="absolute top-2 left-2 sm:top-4 sm:left-4 z-50 flex items-center gap-2">
-                    <button
-                      onClick={() => {
-                        setIsPlaying(false);
-                        setIsConfiguringPlayer(true);
-                      }}
-                      className="bg-black/95 hover:bg-zinc-900 text-rose-500 hover:text-rose-400 font-mono text-[9px] sm:text-xs font-black uppercase tracking-wider px-3.5 py-2 sm:px-4 sm:py-2.5 rounded-lg border border-rose-500/30 flex items-center gap-1.5 shadow-2xl hover:scale-105 active:scale-95 transition-all cursor-pointer active:bg-rose-950/20"
-                      title="Sintonizar Temporada e Episódio"
-                      id="btn-switch-player"
-                    >
-                      <RefreshCw className="w-3.5 h-3.5 text-rose-500 animate-spin" style={{ animationDuration: '6s' }} />
-                      <span>Sintonizar Episódio</span>
-                    </button>
-                  </div>
-                )}
+
 
                 {/* Botão de fechar player - posicionado no canto superior direito para cobrir marca d'água e exibir um 'X' vermelho pequeno */}
                 <div className="absolute top-2 right-2 sm:top-4 sm:right-4 z-50 bg-black/95 p-1 rounded-full shadow-2xl border border-zinc-800">
@@ -754,184 +1034,386 @@ export default function MovieDetailModal({
             </div>
 
             {/* --- ÁREA INFERIOR: ABAS DE DETALHES E TRAILER EMBED --- */}
-            <div className="flex-1 overflow-y-auto p-5 sm:p-8 text-left grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-10 bg-zinc-950 font-sans">
+            <div className="flex-1 overflow-y-auto p-5 sm:p-8 text-left bg-[#0f171e] text-zinc-300 font-sans border-t border-zinc-900">
               
-              {/* Lado Esquerdo/Centro: Sinopse, Ano, Duração, Progresso */}
-              <div className="md:col-span-2 flex flex-col gap-5 sm:gap-6">
-                
-                {/* Meta Dados Rápidos */}
-                <div className="flex flex-wrap items-center gap-4 text-xs sm:text-sm text-zinc-400 font-mono">
-                  <span className="flex items-center gap-1.5 text-yellow-400 font-bold bg-yellow-400/5 px-2 py-1 rounded border border-yellow-400/20">
-                    <Star className="w-3.5 h-3.5 fill-yellow-400" /> {movie.rating} de TMDB
-                  </span>
-                  <span className="flex items-center gap-1 bg-zinc-900 px-2 py-1 rounded border border-zinc-800">
-                    <Clock className="w-3.5 h-3.5 text-rose-500" /> {movie.duration}
-                  </span>
-                  <span className="text-zinc-300 font-semibold">{movie.year}</span>
-                  <span className="border border-zinc-700 px-1.5 py-0.5 rounded text-[10px] font-bold text-zinc-300 uppercase leading-none">
-                    {movie.type === 'movie' ? 'Filme' : 'Série'}
-                  </span>
-                </div>
-
-                {/* --- SEÇÃO VOTAÇÃO POPULAR RESISTENTE (JOINHA E DISLIKE REAL) --- */}
-                <div className="bg-zinc-900/40 border border-zinc-800/60 p-4 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-4 select-none">
-                  <div className="flex flex-col items-center sm:items-start text-center sm:text-left">
-                    <span className="text-[10px] uppercase font-mono font-bold tracking-widest text-[#10b981]">Opinião do Espectador</span>
-                    <h4 className="text-[12px] font-bold text-zinc-300 mt-0.5">Você curtiu esta fita de vídeo retro?</h4>
-                  </div>
-                  
-                  <div className="flex items-center gap-2.5">
-                    {/* Joinha (Like) */}
+              {/* Menu de Abas Estilo Prime Video */}
+              <div className="flex items-center justify-between border-b border-zinc-800 pb-3 mb-6">
+                <div className="flex gap-6 sm:gap-8 font-sans font-medium text-sm">
+                  {movie.type === 'series' && (
                     <button
-                      onClick={() => onVoteMovie && onVoteMovie(movie.id, 'like')}
-                      className={`px-3.5 py-2 rounded-lg border text-xs font-mono font-bold flex items-center gap-2 transition-all active:scale-95 cursor-pointer ${
-                        localStorage.getItem(`vote_${activeProfileId}_${movie.id}`) === 'like'
-                          ? 'bg-emerald-500/10 border-emerald-500 text-emerald-400 font-black'
-                          : 'border-zinc-805 bg-zinc-950/60 text-zinc-400 hover:text-emerald-400 hover:border-emerald-500/40'
+                      onClick={() => setActiveTab('episodes')}
+                      className={`relative pb-3 text-sm transition-all focus:outline-none cursor-pointer ${
+                        activeTab === 'episodes' 
+                          ? 'text-white font-bold' 
+                          : 'text-zinc-500 hover:text-zinc-300'
                       }`}
-                      title="Gostei dessa fita"
                     >
-                      <ThumbsUp className={`w-3.5 h-3.5 ${localStorage.getItem(`vote_${activeProfileId}_${movie.id}`) === 'like' ? 'fill-current text-emerald-400' : ''}`} />
-                      <span>{movie.votesLikes || 0} gostaram</span>
+                      Episódios
+                      {activeTab === 'episodes' && (
+                        <motion.div layoutId="activeTabUnderline" className="absolute bottom-0 left-0 right-0 h-0.5 bg-rose-500 rounded-full" />
+                      )}
                     </button>
-
-                    {/* Dislike */}
-                    <button
-                      onClick={() => onVoteMovie && onVoteMovie(movie.id, 'dislike')}
-                      className={`px-3.5 py-2 rounded-lg border text-xs font-mono font-bold flex items-center gap-2 transition-all active:scale-95 cursor-pointer ${
-                        localStorage.getItem(`vote_${activeProfileId}_${movie.id}`) === 'dislike'
-                          ? 'bg-rose-500/10 border-rose-500 text-rose-400 font-black'
-                          : 'border-zinc-805 bg-zinc-950/60 text-zinc-400 hover:text-rose-400 hover:border-rose-500/40'
+                  )}
+                  <button
+                    onClick={() => setActiveTab('related')}
+                    className={`relative pb-3 text-sm transition-all focus:outline-none cursor-pointer ${
+                        activeTab === 'related' 
+                          ? 'text-white font-bold' 
+                          : 'text-zinc-500 hover:text-zinc-300'
                       }`}
-                      title="Não gostei dessa fita"
-                    >
-                      <ThumbsDown className={`w-3.5 h-3.5 ${localStorage.getItem(`vote_${activeProfileId}_${movie.id}`) === 'dislike' ? 'fill-current text-rose-400' : ''}`} />
-                      <span>{movie.votesDislikes || 0} não curtiram</span>
-                    </button>
-                  </div>
+                  >
+                    Relacionados
+                    {activeTab === 'related' && (
+                      <motion.div layoutId="activeTabUnderline" className="absolute bottom-0 left-0 right-0 h-0.5 bg-rose-500 rounded-full" />
+                    )}
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('details')}
+                    className={`relative pb-3 text-sm transition-all focus:outline-none cursor-pointer ${
+                        activeTab === 'details' 
+                          ? 'text-white font-bold' 
+                          : 'text-zinc-500 hover:text-zinc-300'
+                      }`}
+                  >
+                    Detalhes
+                    {activeTab === 'details' && (
+                      <motion.div layoutId="activeTabUnderline" className="absolute bottom-0 left-0 right-0 h-0.5 bg-rose-500 rounded-full" />
+                    )}
+                  </button>
                 </div>
 
-                {/* Caixa VHS de estojo físico decorativa com cor baseada na categoria */}
-                <div 
-                  className="p-3.5 rounded-lg border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
-                  style={{ borderColor: `${tapeColor}30`, backgroundColor: `${tapeColor}08` }}
-                >
-                  <div className="flex items-center gap-2.5 font-mono">
-                    <span className="w-3.5 h-3.5 rounded-full inline-block" style={{ backgroundColor: tapeColor }}></span>
-                    <div>
-                      <p className="text-zinc-200 font-bold uppercase tracking-wider">Edição Especial - Fita Videocassete</p>
-                      <p className="text-zinc-400 text-[10px]">Gênero: <span className="font-bold" style={{ color: tapeColor }}>{movie.category}</span></p>
-                    </div>
-                  </div>
-                  <div className="font-mono text-[10px] text-zinc-400">
-                    <span>Cor: </span>
-                    <span className="capitalize font-bold" style={{ color: tapeColor }}>{tapeLabel}</span>
-                  </div>
+                {/* Rating Badge */}
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] sm:text-[11px] font-mono px-2 py-0.5 bg-zinc-900 border border-zinc-800 rounded-md text-zinc-400">
+                    TMDB {movie.rating}
+                  </span>
                 </div>
-
-                {/* Descrição Sinopse */}
-                <div>
-                  <h3 className="text-zinc-500 text-xs font-mono font-bold uppercase mb-2 tracking-wider">Sinopse da Obra</h3>
-                  <p className="text-sm sm:text-base text-zinc-300 leading-relaxed font-sans font-normal">
-                    {movie.description}
-                  </p>
-                </div>
-
-                {/* Notificador de Progresso Ativo */}
-                {progressState && progressState.progress > 0 && (
-                  <div className="bg-zinc-900/60 p-4 rounded-lg border border-zinc-900 flex justify-between items-center text-xs">
-                    <div>
-                      <p className="text-zinc-300 font-bold font-mono">ESTADO DA FITA</p>
-                      <p className="text-zinc-500 text-[11px] mt-0.5">
-                        Parou em <span className="text-rose-400">{formatVCRTime(progressState.currentTime)}</span> de {formatVCRTime(totalDuration)}. ({Math.round(progressState.progress)}% concluído).
-                      </p>
-                    </div>
-                    <button
-                      onClick={handlePlayClick}
-                      className="bg-rose-600/10 hover:bg-rose-600 text-rose-500 hover:text-white px-3 py-1.5 rounded transition-all text-xs font-bold font-mono flex items-center gap-1.5"
-                    >
-                      <Play className="w-3 h-3 fill-current" /> Retomar fita
-                    </button>
-                  </div>
-                )}
               </div>
 
-              {/* Lado Direito: Mais Infos de Catalogação */}
-              <div className="flex flex-col gap-5 border-t md:border-t-0 md:border-l border-zinc-900 pt-6 md:pt-0 md:pl-6">
-                <h3 className="text-zinc-500 text-xs font-mono font-bold uppercase mb-1 tracking-wider flex items-center gap-1.5">
-                  Ficha de Catalogação
-                </h3>
-                
-                <div className="flex flex-col gap-4 text-xs sm:text-sm font-sans">
-                  <div>
-                    <span className="text-zinc-500 font-mono uppercase font-bold text-[10px] block mb-1 tracking-wider">Gênero / Categoria</span>
-                    <span className="text-rose-400 font-semibold font-sans">{movie.category}</span>
-                  </div>
+              {/* CONTEÚDO DAS ABAS */}
+              {activeTab === 'episodes' && movie.type === 'series' && (
+                <div className="space-y-6">
+                  {/* Seletor de Temporadas Style Prime Video com Dropdown List */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="relative">
+                      <button
+                        onClick={() => setIsSeasonDropdownOpen(!isSeasonDropdownOpen)}
+                        className="flex items-center justify-between gap-3 px-4.5 py-2.5 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-lg text-white font-bold text-sm transition-all focus:ring-2 focus:ring-rose-500 cursor-pointer"
+                      >
+                        <span className="font-sans">Temporada {season}</span>
+                        <ChevronDown className={`w-4 h-4 text-zinc-500 transition-transform duration-300 ${isSeasonDropdownOpen ? 'rotate-180' : ''}`} />
+                      </button>
 
-                  <div>
-                    <span className="text-zinc-500 font-mono uppercase font-bold text-[10px] block mb-1 tracking-wider">Lançamento VHS</span>
-                    <span className="text-zinc-300 font-medium font-sans">{movie.year} ({movie.type === 'movie' ? 'Fita Cinematográfica' : 'Televisivo'})</span>
-                  </div>
-
-                  {movie.type === 'series' && (
-                    <div className="border-t border-zinc-850 pt-3 mt-1">
-                      <span className="text-zinc-500 font-mono uppercase font-bold text-[10px] block mb-2 tracking-wider flex items-center gap-1.5">
-                        <Tv className="w-3.5 h-3.5 text-rose-500" /> Catalogação de Temporadas
-                      </span>
-                      
-                      {(() => {
-                        const seasonsData = getSeriesSeasonsData(movie);
-                        const totalEpisodes = seasonsData.reduce((acc, s) => acc + s.episodesCount, 0);
-                        return (
-                          <div className="space-y-2.5">
-                            <p className="text-[11px] text-zinc-400 leading-relaxed font-sans">
-                              Sinal sintonizado com <span className="text-rose-500 font-black">{seasonsData.length} temporada(s)</span> e <span className="text-emerald-400 font-bold">{totalEpisodes} episódios</span> no total:
-                            </p>
+                      {/* Dropdown Box (Segunda Foto do User - Prime Video Dropdown List) */}
+                      <AnimatePresence>
+                        {isSeasonDropdownOpen && (
+                          <>
+                            {/* Overlay invisível para fechar ao clicar fora */}
+                            <div className="fixed inset-0 z-40" onClick={() => setIsSeasonDropdownOpen(false)} />
                             
-                            <div className="flex flex-col gap-1.5 font-mono">
-                              {seasonsData.map((s) => (
-                                <div 
-                                  key={s.seasonNumber} 
-                                  className="flex items-center justify-between p-1.5 px-2.5 bg-zinc-950/90 rounded border border-zinc-900 text-[10px] sm:text-[11px]"
+                            <motion.div
+                              initial={{ opacity: 0, y: -5 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0, y: -5 }}
+                              transition={{ duration: 0.15 }}
+                              className="absolute left-0 mt-2 w-52 bg-[#1a242f] border border-zinc-800 rounded-xl shadow-2xl overflow-hidden py-1.5 z-50 font-sans"
+                            >
+                              {getSeriesSeasonsData(movie).map((s) => (
+                                <button
+                                  key={s.seasonNumber}
+                                  onClick={() => {
+                                    setSeason(s.seasonNumber);
+                                    setEpisode(1); // Reset ep to 1 on season switch
+                                    setIsSeasonDropdownOpen(false);
+                                  }}
+                                  className={`w-full text-left px-4 py-2.5 text-xs sm:text-sm transition-all flex items-center justify-between cursor-pointer ${
+                                    season === s.seasonNumber
+                                      ? 'text-white font-black bg-rose-600/20 hover:bg-rose-600/30'
+                                      : 'text-zinc-300 hover:text-white hover:bg-zinc-855'
+                                  }`}
                                 >
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
-                                    <span className="text-zinc-200 font-bold">Temporada {s.seasonNumber}</span>
-                                  </div>
-                                  <div className="text-emerald-400 font-bold">
-                                    {s.episodesCount} episódios
-                                  </div>
-                                </div>
+                                  <span>Temporada {s.seasonNumber}</span>
+                                  <span className="text-[10px] text-zinc-500 font-mono">({s.episodesCount} eps)</span>
+                                </button>
                               ))}
+                            </motion.div>
+                          </>
+                        )}
+                      </AnimatePresence>
+                    </div>
+
+                    <div className="text-zinc-500 text-xs font-mono lowercase tracking-wider">
+                      {getSeriesSeasonsData(movie).find(s => s.seasonNumber === season)?.episodesCount || 8} episódios • Canal Sintonizado
+                    </div>
+                  </div>
+
+                  {/* Grid de Episódios (Prime Video Quadrículas Format) */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mt-4">
+                    {getEpisodesForSeries(movie, season).map((ep) => (
+                      <div
+                        key={ep.number}
+                        onClick={() => handleEpisodeClick(ep.number)}
+                        className="group flex flex-col bg-[#1a242f]/30 border border-zinc-850 hover:border-rose-500/40 rounded-xl overflow-hidden cursor-pointer hover:shadow-lg hover:shadow-black/60 hover:scale-[1.02] transition-all duration-300 relative"
+                      >
+                        {/* Imagem do Capítulo (Thumbnail) */}
+                        <div className="relative aspect-[16/9] w-full bg-zinc-950 overflow-hidden">
+                          <img
+                            src={ep.thumbnailUrl}
+                            alt={`Episódio ${ep.number}`}
+                            referrerPolicy="no-referrer"
+                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                          />
+                          {/* Play HUD Overlay */}
+                          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all duration-300">
+                            <div className="w-10 h-10 rounded-full bg-rose-600 flex items-center justify-center text-white shadow-xl transform scale-75 group-hover:scale-100 transition-transform duration-300">
+                              <Play className="w-5 h-5 fill-current ml-0.5" />
                             </div>
                           </div>
-                        );
-                      })()}
+
+                          {/* Duração Badge */}
+                          <div className="absolute bottom-2 right-2 px-1.5 py-0.5 bg-black/80 rounded text-[9px] font-bold font-mono text-zinc-300">
+                            {ep.duration}
+                          </div>
+
+                          {/* Número do Episódio Header Badge */}
+                          <div className="absolute top-2 left-2 px-2 py-0.5 bg-black/80 rounded font-serif text-[10px] font-black italic tracking-widest text-[#10b981]">
+                            EP {ep.number}
+                          </div>
+                        </div>
+
+                        {/* Detalhes do Episódio */}
+                        <div className="p-4 flex-1 flex flex-col justify-between">
+                          <div className="space-y-1.5">
+                            <h4 className="font-bold text-sm text-zinc-100 group-hover:text-rose-400 transition-colors leading-snug line-clamp-1">
+                              {ep.number}. {ep.title}
+                            </h4>
+                            <p className="text-zinc-400 text-xs leading-relaxed font-sans font-normal line-clamp-2">
+                              {ep.description}
+                            </p>
+                          </div>
+
+                          {/* Labels e stamps do episódio no rodapé do card */}
+                          <div className="flex items-center gap-2 mt-4 pt-4 border-t border-zinc-900 text-[10px] text-zinc-500 font-mono font-semibold">
+                            <span className="px-1 bg-zinc-900 border border-zinc-800 text-zinc-400 rounded text-[9px] font-bold">
+                              {ep.ratingCode}
+                            </span>
+                            <span>CC</span>
+                            <span>•</span>
+                            <span className="truncate">{ep.releaseDate}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Aba de Títulos Relacionados */}
+              {activeTab === 'related' && (
+                <div className="space-y-6">
+                  <div className="flex flex-col">
+                    <h3 className="text-zinc-400 text-xs font-mono font-bold uppercase mb-1 tracking-wider flex items-center gap-1.5">
+                      <Film className="w-3.5 h-3.5 text-rose-500" /> Tópicos e Fitas Recomendadas no Mesmo Segmento
+                    </h3>
+                    <p className="text-xs text-zinc-500 font-sans mt-0.5">Espécimes catalogados na mesma categoria: <span className="text-rose-400 font-bold">{movie.category}</span></p>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6">
+                    {INITIAL_MOVIES.filter(m => m.category === movie.category && m.id !== movie.id).slice(0, 4).length > 0 ? (
+                      INITIAL_MOVIES.filter(m => m.category === movie.category && m.id !== movie.id).slice(0, 4).map((rMovie) => (
+                        <div 
+                          key={rMovie.id}
+                          className="group relative cursor-pointer overflow-hidden rounded-xl bg-zinc-900 border border-zinc-850 hover:border-zinc-650 transition-all duration-300"
+                        >
+                          <div className="relative aspect-[16/9] w-full bg-zinc-950 overflow-hidden">
+                            <img 
+                              src={rMovie.backdropUrl || rMovie.posterUrl} 
+                              alt={rMovie.title} 
+                              referrerPolicy="no-referrer"
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent flex items-end p-2.5 sm:p-3.5 bg-black/40">
+                              <div>
+                                <span className="text-[9px] font-bold uppercase tracking-wider text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/20">{rMovie.type === 'movie' ? 'Filme' : 'Série'}</span>
+                                <h4 className="text-white font-bold text-xs mt-1 font-sans truncate drop-shadow">{rMovie.title}</h4>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="col-span-full py-10 bg-zinc-900/10 rounded-xl border border-dashed border-zinc-850 text-center text-zinc-500 text-xs font-mono uppercase">
+                        Nenhuma outra fita cadastrada nesta categoria
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Aba de Detalhes Completo */}
+              {activeTab === 'details' && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-10">
+                  
+                  {/* Lado Esquerdo/Centro: Sinopse, Opinião */}
+                  <div className="md:col-span-2 flex flex-col gap-6">
+                    
+                    {/* Opinião do Espectador */}
+                    <div className="bg-zinc-900/40 border border-zinc-800/60 p-4.5 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-4 select-none">
+                      <div className="flex flex-col items-center sm:items-start text-center sm:text-left">
+                        <span className="text-[10px] uppercase font-mono font-bold tracking-widest text-[#10b981]">Feedback Relevante</span>
+                        <h4 className="text-[12px] font-bold text-zinc-300 mt-0.5">O que você acha desta fita de vídeo retro?</h4>
+                      </div>
+                      
+                      <div className="flex items-center gap-2.5">
+                        <button
+                          onClick={() => onVoteMovie && onVoteMovie(movie.id, 'like')}
+                          className={`px-3.5 py-2 rounded-lg border text-xs font-mono font-bold flex items-center gap-2 transition-all active:scale-95 cursor-pointer ${
+                            localStorage.getItem(`vote_${activeProfileId}_${movie.id}`) === 'like'
+                              ? 'bg-[#10b981]/10 border-[#10b981] text-[#10b981] font-black'
+                              : 'border-zinc-805 bg-zinc-950/60 text-zinc-400 hover:text-[#10b981] hover:border-[#10b981]/40'
+                          }`}
+                        >
+                          <ThumbsUp className={`w-3.5 h-3.5 ${localStorage.getItem(`vote_${activeProfileId}_${movie.id}`) === 'like' ? 'fill-current text-[#10b981]' : ''}`} />
+                          <span>{movie.votesLikes || 0}</span>
+                        </button>
+
+                        <button
+                          onClick={() => onVoteMovie && onVoteMovie(movie.id, 'dislike')}
+                          className={`px-3.5 py-2 rounded-lg border text-xs font-mono font-bold flex items-center gap-2 transition-all active:scale-95 cursor-pointer ${
+                            localStorage.getItem(`vote_${activeProfileId}_${movie.id}`) === 'dislike'
+                              ? 'bg-rose-500/10 border-rose-500 text-rose-400 font-black'
+                              : 'border-zinc-805 bg-zinc-950/60 text-zinc-400 hover:text-rose-400 hover:border-rose-500/40'
+                          }`}
+                        >
+                          <ThumbsDown className={`w-3.5 h-3.5 ${localStorage.getItem(`vote_${activeProfileId}_${movie.id}`) === 'dislike' ? 'fill-current text-rose-400' : ''}`} />
+                          <span>{movie.votesDislikes || 0}</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Fita Estojo */}
+                    <div 
+                      className="p-3.5 rounded-lg border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-mono"
+                      style={{ borderColor: `${tapeColor}30`, backgroundColor: `${tapeColor}08` }}
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <span className="w-3.5 h-3.5 rounded-full inline-block animate-pulse" style={{ backgroundColor: tapeColor }}></span>
+                        <div>
+                          <p className="text-zinc-200 font-bold uppercase tracking-wider">Edição Especial - Fita Videocassete</p>
+                          <p className="text-zinc-400 text-[10px]">Gênero: <span className="font-bold" style={{ color: tapeColor }}>{movie.category}</span></p>
+                        </div>
+                      </div>
+                      <div className="text-[10px] text-zinc-400">
+                        <span>Cor: </span>
+                        <span className="capitalize font-bold" style={{ color: tapeColor }}>{tapeLabel}</span>
+                      </div>
+                    </div>
+
+                    {/* Sinopse */}
+                    <div>
+                      <h3 className="text-zinc-500 text-xs font-mono font-bold uppercase mb-2 tracking-wider">Sinopse da Obra</h3>
+                      <p className="text-sm sm:text-base text-zinc-300 leading-relaxed font-sans font-normal">
+                        {movie.description}
+                      </p>
+                    </div>
+
+                    {/* Progresso */}
+                    {progressState && progressState.progress > 0 && (
+                      <div className="bg-zinc-900/50 p-4 rounded-xl border border-zinc-850 flex justify-between items-center text-xs font-mono">
+                        <div>
+                          <p className="text-zinc-300 font-bold">ESTADO DE EXECUÇÃO VHS</p>
+                          <p className="text-zinc-500 text-[11px] mt-0.5">
+                            Parou em <span className="text-rose-400">{formatVCRTime(progressState.currentTime)}</span> de {formatVCRTime(totalDuration)}. ({Math.round(progressState.progress)}% concluído).
+                          </p>
+                        </div>
+                        <button
+                          onClick={handlePlayClick}
+                          className="bg-rose-600/10 hover:bg-rose-600 text-rose-500 hover:text-white px-3 py-1.5 rounded transition-all text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <Play className="w-3 h-3 fill-current" /> Retomar fita
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Lado Direito: Especificações e Elenco */}
+                  <div className="flex flex-col gap-6 border-t md:border-t-0 md:border-l border-zinc-900 pt-6 md:pt-0 md:pl-6">
+                    <div>
+                      <h3 className="text-zinc-500 text-xs font-mono font-bold uppercase mb-3.5 tracking-wider">
+                        Ficha de Catalogação
+                      </h3>
+                      <div className="flex flex-col gap-4 text-xs sm:text-sm font-sans">
+                        <div>
+                          <span className="text-zinc-500 font-mono uppercase font-bold text-[10px] block mb-1 tracking-wider">Gênero / Categoria</span>
+                          <span className="text-rose-400 font-semibold font-sans">{movie.category}</span>
+                        </div>
+
+                        <div>
+                          <span className="text-zinc-500 font-mono uppercase font-bold text-[10px] block mb-1 tracking-wider">Lançamento VHS</span>
+                          <span className="text-zinc-300 font-medium font-sans">{movie.year} ({movie.type === 'movie' ? 'Fita Cinematográfica' : 'Televisivo'})</span>
+                        </div>
+
+                        {movie.type === 'series' && (
+                          <div className="border-t border-zinc-850 pt-3 mt-1">
+                            <span className="text-zinc-500 font-mono uppercase font-bold text-[10px] block mb-2 tracking-wider flex items-center gap-1.5">
+                              <Tv className="w-3.5 h-3.5 text-rose-500" /> Catalogação de Temporadas
+                            </span>
+                            
+                            {(() => {
+                              const seasonsData = getSeriesSeasonsData(movie);
+                              const totalEpisodes = seasonsData.reduce((acc, s) => acc + s.episodesCount, 0);
+                              return (
+                                <div className="space-y-2.5">
+                                  <p className="text-[11px] text-zinc-400 leading-relaxed">
+                                    Sinal sintonizado com <span className="text-rose-500 font-black">{seasonsData.length} temporada(s)</span> e <span className="text-[#10b981] font-bold">{totalEpisodes} episódios</span> no total.
+                                  </p>
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        )}
+                        
+                        {/* Elenco Fictício ou Real com base nas imagens do Prime Video */}
+                        <div className="border-t border-zinc-850 pt-3">
+                          <span className="text-zinc-500 font-mono uppercase font-bold text-[10px] block mb-2.5 tracking-wider">
+                            Elenco Principal
+                          </span>
+                          <p className="text-xs text-zinc-300 leading-relaxed">
+                            {movie.id === 'm13' ? (
+                              "Sadie Soverall, Matt Cornett, Michael Bradway"
+                            ) : movie.tmdbId === 66732 ? (
+                              "Millie Bobby Brown, Winona Ryder, David Harbour, Finn Wolfhard"
+                            ) : (
+                              "Atores da fita, Diretores independentes, Equipe de gravação VHS"
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Seção Widescreen para o Trailer - Ampla, Grande e Imersiva! */}
+                  {!isPlaying && (
+                    <div className="col-span-full border-t border-zinc-900 pt-6 mt-4">
+                      <h3 className="text-zinc-400 text-xs font-mono font-bold uppercase mb-4 tracking-wider flex items-center gap-1.5 justify-center sm:justify-start font-bold">
+                        <Film className="w-4 h-4 text-rose-500" /> Assistir Prévias / Trailer Oficial
+                      </h3>
+                      <div className="relative aspect-[16/9] w-full max-w-4xl mx-auto rounded-xl overflow-hidden border border-zinc-850 shadow-2xl shadow-black/90 bg-zinc-900">
+                        <iframe
+                          src={`${movie.trailerUrl}?controls=1&autoplay=0&mute=0&vq=hd1080&rel=0`}
+                          title={`Trailer de ${movie.title}`}
+                          className="w-full h-full border-0 absolute inset-0 font-sans"
+                          allowFullScreen
+                          webkitallowfullscreen="true"
+                          mozallowfullscreen="true"
+                          allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
+                        />
+                      </div>
+                      <span className="text-[11px] text-zinc-500 font-mono mt-4 block text-center uppercase tracking-wider">
+                        Alterne para Tela Cheia no player para melhor experiência cinematográfica
+                      </span>
                     </div>
                   )}
-                </div>
-              </div>
-
-              {/* Seção Widescreen para o Trailer - Ampla, Grande e Imersiva! */}
-              {!isPlaying && (
-                <div className="col-span-full border-t border-zinc-900 pt-6 mt-4">
-                  <h3 className="text-zinc-400 text-xs font-mono font-bold uppercase mb-4 tracking-wider flex items-center gap-1.5 justify-center sm:justify-start">
-                    <Film className="w-4 h-4 text-rose-500" /> Assistir Prévias / Trailer Oficial em Alta Definição
-                  </h3>
-                  <div className="relative aspect-[16/9] w-full max-w-4xl mx-auto rounded-xl overflow-hidden border border-zinc-800 shadow-2xl shadow-black/90 bg-zinc-900">
-                    <iframe
-                      src={`${movie.trailerUrl}?controls=1&autoplay=0&mute=0&vq=hd1080&rel=0`}
-                      title={`Trailer de ${movie.title}`}
-                      className="w-full h-full border-0 absolute inset-0"
-                      allowFullScreen
-                      webkitallowfullscreen="true"
-                      mozallowfullscreen="true"
-                      allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
-                    />
-                  </div>
-                  <span className="text-[11px] text-zinc-500 font-mono mt-4 block text-center uppercase tracking-wider">
-                    Suporta Alta Definição (HD) • Alterne para Tela Cheia no player para melhor experiência cinematográfica
-                  </span>
                 </div>
               )}
             </div>

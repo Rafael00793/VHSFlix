@@ -94,16 +94,16 @@ export default function ProfileSelector({
     setLoginError('');
 
     const emailInput = loginEmail.trim().toLowerCase();
-    const passwordInput = loginPassword;
+    const passwordInput = loginPassword.trim();
 
     // Encontra o usuário por e-mail exato ou por nome de usuário (tratando espaços e letras maiúsculas/minúsculas)
     const matchedUser = users.find(u => {
-      const emailMatch = u.email.trim().toLowerCase() === emailInput;
-      const usernameMatch = u.name.trim().toLowerCase() === emailInput;
+      const emailMatch = (u.email || '').trim().toLowerCase() === emailInput;
+      const usernameMatch = (u.name || '').trim().toLowerCase() === emailInput;
       return emailMatch || usernameMatch;
     });
 
-    if (!matchedUser || (matchedUser.password && matchedUser.password !== passwordInput)) {
+    if (!matchedUser || (matchedUser.password && (matchedUser.password || '').toString().trim() !== passwordInput)) {
       setLoginError('Usuário ou senha inválidos');
       return;
     }
