@@ -14,7 +14,7 @@ import AdminPanel from './components/AdminPanel';
 import RequestsPanel from './components/RequestsPanel';
 import { Play, Info, Sparkles, Star, Plus, Check, Shield, HelpCircle, AlertCircle, Heart, HeartOff, Volume1, Volume2, VolumeX, Bell, X, Flame } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { db, saveUsersToFirestore, deleteUserFromFirestore, saveProfilesToFirestore, saveMoviesToFirestore, deleteMovieFromFirestore, saveSettingsToFirestore, handleFirestoreError, OperationType } from './lib/firebase';
+import { db, saveUsersToFirestore, deleteUserFromFirestore, saveProfilesToFirestore, saveMoviesToFirestore, deleteMovieFromFirestore, saveSettingsToFirestore, saveRequestsToFirestore, deleteRequestFromFirestore, handleFirestoreError, OperationType } from './lib/firebase';
 import { collection, onSnapshot } from 'firebase/firestore';
 
 
@@ -211,37 +211,184 @@ export default function App() {
     isLoadedRef.current = true;
   }, []);
 
-  // --- EFEITOS DE SINCRONIZAÇÃO COM LOCALSTORAGE ---
+  // --- EFEITOS DE SINCRONIZAÇÃO COM LOCALSTORAGE E FIRESTORE ---
+  const isFirstSyncRef = useRef(true);
+
+  // 1. Ouvintes de Firestore em Tempo Real (Download do Banco em Nuvem)
+  useEffect(() => {
+    if (!db) return;
+
+    let isFirstUsers = true;
+    const unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
+      const dbUsers: User[] = [];
+      snapshot.forEach((doc) => {
+        dbUsers.push(doc.data() as User);
+      });
+      if (dbUsers.length > 0) {
+        setUsers(dbUsers);
+      } else if (isFirstUsers) {
+        saveUsersToFirestore(INITIAL_USERS);
+        isFirstUsers = false;
+      }
+    });
+
+    let isFirstProfiles = true;
+    const unsubProfiles = onSnapshot(collection(db, 'profiles'), (snapshot) => {
+      const dbProfiles: { [userId: string]: Profile[] } = {};
+      let hasData = false;
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        if (data && data.userId && data.profiles) {
+          dbProfiles[data.userId] = data.profiles;
+          hasData = true;
+        }
+      });
+      if (hasData) {
+        setAllProfiles(prev => ({ ...prev, ...dbProfiles }));
+      } else if (isFirstProfiles) {
+        saveProfilesToFirestore(DEFAULT_PROFILES);
+        isFirstProfiles = false;
+      }
+    });
+
+    let isFirstMovies = true;
+    const unsubMovies = onSnapshot(collection(db, 'movies'), (snapshot) => {
+      const dbMovies: Movie[] = [];
+      snapshot.forEach((doc) => {
+        dbMovies.push(doc.data() as Movie);
+      });
+      if (dbMovies.length > 0) {
+        setMovies(dbMovies);
+      } else if (isFirstMovies) {
+        saveMoviesToFirestore(INITIAL_MOVIES);
+        isFirstMovies = false;
+      }
+    });
+
+    let isFirstRequests = true;
+    const unsubRequests = onSnapshot(collection(db, 'requests'), (snapshot) => {
+      const dbRequests: MovieRequest[] = [];
+      snapshot.forEach((doc) => {
+        dbRequests.push(doc.data() as MovieRequest);
+      });
+      if (dbRequests.length > 0) {
+        setRequests(dbRequests.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+      } else if (isFirstRequests) {
+        const defaultRequests: MovieRequest[] = [
+          {
+            id: 'r1',
+            title: 'E.T. O Extraterrestre',
+            type: 'movie',
+            userId: 'u1',
+            userName: 'Rafael Gusmão',
+            profileName: 'Rafael',
+            createdAt: new Date(Date.now() - 3600000 * 48).toISOString(),
+            status: 'pending'
+          },
+          {
+            id: 'r2',
+            title: 'Miami Vice',
+            type: 'series',
+            userId: 'u1',
+            userName: 'Rafael Gusmão',
+            profileName: 'Rafael',
+            createdAt: new Date(Date.now() - 3600000 * 24).toISOString(),
+            status: 'pending'
+          }
+        ];
+        saveRequestsToFirestore(defaultRequests);
+        isFirstRequests = false;
+      }
+    });
+
+    const unsubSettings = onSnapshot(collection(db, 'settings'), (snapshot) => {
+      snapshot.forEach((doc) => {
+        if (doc.id === 'global') {
+          const data = doc.data();
+          if (data && data.adguardEnabled !== undefined) {
+            setAdguardEnabled(data.adguardEnabled);
+          }
+        }
+      });
+    });
+
+    // Pequena margem antes de ativar os salvamentos locais em nuvem por segurança
+    const syncTimer = setTimeout(() => {
+      isFirstSyncRef.current = false;
+    }, 2500);
+
+    return () => {
+      unsubUsers();
+      unsubProfiles();
+      unsubMovies();
+      unsubRequests();
+      unsubSettings();
+      clearTimeout(syncTimer);
+    };
+  }, [db]);
+
+  // 2. Gravadores Periódicos Otimizados (Upload de Alterações para o Firestore)
+  useEffect(() => {
+    localStorage.setItem('vhsflix_users', JSON.stringify(users));
+    if (!db || isFirstSyncRef.current) return;
+    const timer = setTimeout(() => {
+      saveUsersToFirestore(users);
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [users]);
+
+  useEffect(() => {
+    localStorage.setItem('vhsflix_profiles', JSON.stringify(allProfiles));
+    if (!db || isFirstSyncRef.current || !currentUserId) return;
+    const timer = setTimeout(() => {
+      const userProfs = allProfiles[currentUserId];
+      if (userProfs && userProfs.length > 0) {
+        saveProfilesToFirestore({ [currentUserId]: userProfs });
+      }
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [allProfiles, currentUserId]);
+
+  useEffect(() => {
+    const timerLS = setTimeout(() => {
+      localStorage.setItem('vhsflix_movies', JSON.stringify(movies));
+    }, 1000);
+    
+    let timerFS: NodeJS.Timeout | null = null;
+    if (db && !isFirstSyncRef.current) {
+      timerFS = setTimeout(() => {
+        saveMoviesToFirestore(movies);
+      }, 5000);
+    }
+
+    return () => {
+      clearTimeout(timerLS);
+      if (timerFS) clearTimeout(timerFS);
+    };
+  }, [movies]);
+
+  useEffect(() => {
+    localStorage.setItem('vhsflix_movie_requests', JSON.stringify(requests));
+    if (!db || isFirstSyncRef.current) return;
+    const timer = setTimeout(() => {
+      saveRequestsToFirestore(requests);
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [requests]);
+
+  useEffect(() => {
+    localStorage.setItem('vhsflix_adguard_enabled', JSON.stringify(adguardEnabled));
+    if (!db || isFirstSyncRef.current) return;
+    saveSettingsToFirestore(adguardEnabled);
+  }, [adguardEnabled]);
+
   useEffect(() => {
     localStorage.setItem('vhsflix_notifications', JSON.stringify(notifications));
   }, [notifications]);
 
   useEffect(() => {
-    localStorage.setItem('vhsflix_users', JSON.stringify(users));
-  }, [users]);
-
-  useEffect(() => {
-    localStorage.setItem('vhsflix_profiles', JSON.stringify(allProfiles));
-  }, [allProfiles]);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      localStorage.setItem('vhsflix_movies', JSON.stringify(movies));
-    }, 1000);
-    return () => clearTimeout(timer);
-  }, [movies]);
-
-  useEffect(() => {
     localStorage.setItem('vhsflix_tmdb_key', tmdbApiKey);
   }, [tmdbApiKey]);
-
-  useEffect(() => {
-    localStorage.setItem('vhsflix_adguard_enabled', JSON.stringify(adguardEnabled));
-  }, [adguardEnabled]);
-
-  useEffect(() => {
-    localStorage.setItem('vhsflix_movie_requests', JSON.stringify(requests));
-  }, [requests]);
 
   // --- OFFLINE STATE HANDLERS (AUTOMATIC LOCALSTORAGE SAVING) ---
 
@@ -836,10 +983,12 @@ export default function App() {
 
     // Remove request from the list
     setRequests(prev => prev.filter(r => r.id !== requestId));
+    deleteRequestFromFirestore(requestId);
   };
 
   const handleDeleteRequest = (requestId: string) => {
     setRequests(prev => prev.filter(r => r.id !== requestId));
+    deleteRequestFromFirestore(requestId);
   };
 
   return (
@@ -1413,6 +1562,7 @@ export default function App() {
             adguardEnabled={adguardEnabled}
             onVoteMovie={handleVoteMovie}
             activeProfileId={activeProfile ? activeProfile.id : ''}
+            tmdbApiKey={tmdbApiKey}
           />
 
           {/* --- SISTEMA DE TOAST DE NOTIFICAÇÃO AO VIVO RETRÔ --- */}

@@ -195,15 +195,15 @@ export function getEpisodesForSeries(movie: Movie, seasonNumber: number): Episod
 
     const sData = epData[seasonNumber] || epData[1];
     const unsplashes = [
-      "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=500&q=80",
-      "https://images.unsplash.com/photo-1549490349-8643362247b5?auto=format&fit=crop&w=500&q=80",
-      "https://images.unsplash.com/photo-1626814026160-2237a95fc5a0?auto=format&fit=crop&w=500&q=80",
-      "https://images.unsplash.com/photo-1533928298208-27ff66555d8d?auto=format&fit=crop&w=500&q=80",
-      "https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?auto=format&fit=crop&w=500&q=80",
-      "https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?auto=format&fit=crop&w=500&q=80",
-      "https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=500&q=80",
-      "https://images.unsplash.com/photo-1538481199705-c710c4e965fc?auto=format&fit=crop&w=500&q=80",
-      "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=500&q=80"
+      "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=500&q=80", // Starry night/woods dark road
+      "https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?auto=format&fit=crop&w=500&q=80", // Foggy creepy road/woods
+      "https://images.unsplash.com/photo-1578301978018-3005759f48f7?auto=format&fit=crop&w=500&q=80", // 80s neon synthwave bedroom
+      "https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=500&q=80", // Retro TV and shelf (basement vibes)
+      "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=500&q=80", // Glowing neon rift/portal red
+      "https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=500&q=80", // 1980s Arcade cabinet
+      "https://images.unsplash.com/photo-1505686994434-e3cc5abf1330?auto=format&fit=crop&w=500&q=80", // Cozy wood cabin deep in deep fog forest
+      "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?auto=format&fit=crop&w=500&q=80", // Moody dark film spotlight
+      "https://images.unsplash.com/photo-1533928298208-27ff66555d8d?auto=format&fit=crop&w=500&q=80"  // Old tech/rotary phone and walkie-talkies
     ];
 
     for (let i = 1; i <= epCount; i++) {
@@ -226,7 +226,6 @@ export function getEpisodesForSeries(movie: Movie, seasonNumber: number): Episod
   }
 
   // General series or user-created series dynamic procedural episode generator
-  const keywords = ['retro', 'vintage', 'synthwave', 'tv', 'show', 'friends', 'city', 'night', 'neon', 'computer'];
   const baseSeed = movie.id ? movie.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) : 42;
   
   const genTitles = [
@@ -250,22 +249,57 @@ export function getEpisodesForSeries(movie: Movie, seasonNumber: number): Episod
     "Uma antiga gravação em fita magnética serve como a pista perfeita para desvendar uma conspiração de alta tecnologia retro.",
     "Conversas sinceras revelam um segredo familiar profundo que estava soterrado há mais de duas décadas em completo silêncio.",
     "A tensão se estende aos limites emocionais de todos os envolvidos, forçando uma dramática e inevitável escolha pessoal.",
-    "Alianças surpreendentes são costuradas na surdina para enfrentar a imensa ameaça corporativa que paira sobre toda a região.",
+    "Alianças surpreendentes são costuradas na surdina para enfrentar a imensa ameaça corporativa que paina sobre toda a região.",
     "Em um teste supremo de lealdade e afeto, os protagonistas correm freneticamente contra o relógio para evitar o pior desenlace.",
     "Os fios soltos da temporada começam a se amarrar de forma sublime, preparando o palco para o grandioso clímax de suspense."
   ];
 
-  const fallbackUnsplashes = [
-    "https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&w=500&q=80",
-    "https://images.unsplash.com/photo-1478760329108-5c3ed9d495a0?auto=format&fit=crop&w=500&q=80",
-    "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=500&q=80",
-    "https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=500&q=80",
-    "https://images.unsplash.com/photo-1533928298208-27ff66555d8d?auto=format&fit=crop&w=500&q=80",
-    "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=500&q=80",
-    "https://images.unsplash.com/photo-1541963463532-d68292c34b19?auto=format&fit=crop&w=500&q=80",
-    "https://images.unsplash.com/photo-1485846234645-a62644f84728?auto=format&fit=crop&w=500&q=80",
-    "https://images.unsplash.com/photo-1505686994434-e3cc5abf1330?auto=format&fit=crop&w=500&q=80"
-  ];
+  let fallbackUnsplashes: string[] = [];
+  if (movie.category === 'Terror') {
+    fallbackUnsplashes = [
+      movie.backdropUrl || "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=500&q=80",
+      "https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?auto=format&fit=crop&w=500&q=80", // creepy foggy road
+      "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=500&q=80", // dark starry woods
+      "https://images.unsplash.com/photo-1505686994434-e3cc5abf1330?auto=format&fit=crop&w=500&q=80", // wooden cabin
+      "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=500&q=80", // red neon scary glow
+      "https://images.unsplash.com/photo-1533928298208-27ff66555d8d?auto=format&fit=crop&w=500&q=80", // old phone
+      "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?auto=format&fit=crop&w=500&q=80", // stage spotlight
+      "https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&w=500&q=80"
+    ];
+  } else if (movie.category === 'Cristão') {
+    fallbackUnsplashes = [
+      movie.backdropUrl || "https://images.unsplash.com/photo-1447005497901-b3e9ee359e6a?auto=format&fit=crop&w=500&q=80",
+      "https://images.unsplash.com/photo-1548625361-155deee223d5?auto=format&fit=crop&w=500&q=80", // desert hills
+      "https://images.unsplash.com/photo-1447005497901-b3e9ee359e6a?auto=format&fit=crop&w=500&q=80", // candle light
+      "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=500&q=80", // majestic mountains
+      "https://images.unsplash.com/photo-1439853949127-fa647821ebb0?auto=format&fit=crop&w=500&q=80", // serene ocean
+      "https://images.unsplash.com/photo-1518005020951-eccb494ad742?auto=format&fit=crop&w=500&q=80", // columns
+      "https://images.unsplash.com/photo-1519817650390-64a93db51149?auto=format&fit=crop&w=500&q=80", // ancient sky/stars
+      "https://images.unsplash.com/photo-1490730141103-6cac27aaab94?auto=format&fit=crop&w=500&q=80"  // sunset field
+    ];
+  } else if (movie.category === 'Ficção Científica') {
+    fallbackUnsplashes = [
+      movie.backdropUrl || "https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=500&q=80",
+      "https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=500&q=80", // cyberspace
+      "https://images.unsplash.com/photo-1506318137071-a8e063b4bec0?auto=format&fit=crop&w=500&q=80", // starry galaxy
+      "https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?auto=format&fit=crop&w=500&q=80", // earth horizon space
+      "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=500&q=80", // celestial dark sky
+      "https://images.unsplash.com/photo-1578301978018-3005759f48f7?auto=format&fit=crop&w=500&q=80", // futuristic retro cabin
+      "https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=500&q=80", // wireframe grid
+      "https://images.unsplash.com/photo-1626814026160-2237a95fc5a0?auto=format&fit=crop&w=500&q=80"  // glowing pink cyberpunk grid
+    ];
+  } else {
+    fallbackUnsplashes = [
+      movie.backdropUrl || "https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&w=500&q=80",
+      "https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=500&q=80", // nostalgic 80s room/tv
+      "https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&w=500&q=80", // film project
+      "https://images.unsplash.com/photo-1478760329108-5c3ed9d495a0?auto=format&fit=crop&w=500&q=80", // film projector rays shadow
+      "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?auto=format&fit=crop&w=500&q=80", // spotlight stage
+      "https://images.unsplash.com/photo-1485846234645-a62644f84728?auto=format&fit=crop&w=500&q=80", // reel cutter edit
+      "https://images.unsplash.com/photo-1533928298208-27ff66555d8d?auto=format&fit=crop&w=500&q=80", // tape tech
+      "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=500&q=80"  // starry darkness
+    ];
+  }
 
   for (let i = 1; i <= epCount; i++) {
     const tIdx = (baseSeed + i * 3) % genTitles.length;
@@ -297,6 +331,7 @@ interface MovieDetailModalProps {
   adguardEnabled?: boolean;
   onVoteMovie?: (movieId: string, voteType: 'like' | 'dislike') => void;
   activeProfileId?: string;
+  tmdbApiKey?: string;
 }
 
 const CATEGORY_COLORS: { [key: string]: string } = {
@@ -404,7 +439,8 @@ export default function MovieDetailModal({
   onUpdateProgress,
   adguardEnabled = true,
   onVoteMovie,
-  activeProfileId = ''
+  activeProfileId = '',
+  tmdbApiKey
 }: MovieDetailModalProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isTapeLoading, setIsTapeLoading] = useState(false);
@@ -419,9 +455,77 @@ export default function MovieDetailModal({
   const [activeTab, setActiveTab] = useState<'episodes' | 'related' | 'details'>('episodes');
   const [isSeasonDropdownOpen, setIsSeasonDropdownOpen] = useState(false);
   
+  // Real-time episode mapping from TMDB if applicable
+  const [tmdbEpisodes, setTmdbEpisodes] = useState<{ [key: string]: Episode[] }>({});
+  const [isLoadingEpisodes, setIsLoadingEpisodes] = useState(false);
+  
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const currentTimeRef = useRef(currentTime);
   const playerContainerRef = useRef<HTMLDivElement>(null);
+
+  // Monitor e atualiza episódios ativos do TMDB ou cache
+  useEffect(() => {
+    if (!movie || movie.type !== 'series' || !movie.tmdbId) {
+      return;
+    }
+
+    const cacheKey = `${movie.id}_s${season}`;
+    if (tmdbEpisodes[cacheKey]) return;
+
+    let isCancelled = false;
+    const fetchTmdbEpisodes = async () => {
+      // Use the received API key or a robust known default fallback key
+      const apiKey = tmdbApiKey || '9ba478ffe785bbc34fa2b10c46296580';
+      if (!apiKey || apiKey === 'MY_GEMINI_API_KEY') return;
+      
+      setIsLoadingEpisodes(true);
+      try {
+        const url = `https://api.themoviedb.org/3/tv/${movie.tmdbId}/season/${season}?api_key=${encodeURIComponent(apiKey)}&language=pt-BR`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('Falha ao buscar episódios no TMDB');
+        const data = await res.json();
+        
+        if (data && data.episodes && !isCancelled) {
+          const eps: Episode[] = data.episodes.map((ep: any) => {
+            const fallbackPic = movie.backdropUrl || 'https://image.tmdb.org/t/p/original/vKof7jZ50vS2pYgO569ofCidG9y.jpg';
+            const imageUrl = ep.still_path 
+              ? `https://image.tmdb.org/t/p/w500${ep.still_path}`
+              : fallbackPic;
+
+            const releaseDateFormatted = ep.air_date
+              ? new Date(ep.air_date).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: 'numeric' })
+              : `15 de jul. de ${movie.year || 2026}`;
+
+            return {
+              number: ep.episode_number || ep.order || 1,
+              title: ep.name || `Episódio ${ep.episode_number}`,
+              description: ep.overview || 'Sem descrição cadastrada nesta fita documental.',
+              duration: ep.runtime ? `${ep.runtime} min` : '50 min',
+              releaseDate: releaseDateFormatted,
+              ratingCode: movie.category === 'Terror' ? 'A16' : 'A14',
+              thumbnailUrl: imageUrl
+            };
+          });
+
+          setTmdbEpisodes(prev => ({
+            ...prev,
+            [cacheKey]: eps
+          }));
+        }
+      } catch (err) {
+        console.warn('Erro ao trazer dados de episódios dinâmicos do TMDB:', err);
+      } finally {
+        if (!isCancelled) {
+          setIsLoadingEpisodes(false);
+        }
+      }
+    };
+
+    fetchTmdbEpisodes();
+    return () => {
+      isCancelled = true;
+    };
+  }, [movie, season, tmdbApiKey, tmdbEpisodes]);
 
   // Monitorar se mudou o estado de Fullscreen para sincronizar os ícones
   useEffect(() => {
@@ -1148,63 +1252,70 @@ export default function MovieDetailModal({
                   </div>
 
                   {/* Grid de Episódios (Prime Video Quadrículas Format) */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mt-4">
-                    {getEpisodesForSeries(movie, season).map((ep) => (
-                      <div
-                        key={ep.number}
-                        onClick={() => handleEpisodeClick(ep.number)}
-                        className="group flex flex-col bg-[#1a242f]/30 border border-zinc-850 hover:border-rose-500/40 rounded-xl overflow-hidden cursor-pointer hover:shadow-lg hover:shadow-black/60 hover:scale-[1.02] transition-all duration-300 relative"
-                      >
-                        {/* Imagem do Capítulo (Thumbnail) */}
-                        <div className="relative aspect-[16/9] w-full bg-zinc-950 overflow-hidden">
-                          <img
-                            src={ep.thumbnailUrl}
-                            alt={`Episódio ${ep.number}`}
-                            referrerPolicy="no-referrer"
-                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                          />
-                          {/* Play HUD Overlay */}
-                          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all duration-300">
-                            <div className="w-10 h-10 rounded-full bg-rose-600 flex items-center justify-center text-white shadow-xl transform scale-75 group-hover:scale-100 transition-transform duration-300">
-                              <Play className="w-5 h-5 fill-current ml-0.5" />
+                  {isLoadingEpisodes ? (
+                    <div className="flex flex-col items-center justify-center py-20 text-center w-full space-y-3">
+                      <RefreshCw className="w-8 h-8 text-rose-500 animate-spin" />
+                      <p className="text-sm text-zinc-400 font-mono uppercase tracking-widest">Sintonizando episódios da fita...</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mt-4">
+                      {(tmdbEpisodes[`${movie.id}_s${season}`] || getEpisodesForSeries(movie, season)).map((ep) => (
+                        <div
+                          key={ep.number}
+                          onClick={() => handleEpisodeClick(ep.number)}
+                          className="group flex flex-col bg-[#1a242f]/30 border border-zinc-850 hover:border-rose-500/40 rounded-xl overflow-hidden cursor-pointer hover:shadow-lg hover:shadow-black/60 hover:scale-[1.02] transition-all duration-300 relative"
+                        >
+                          {/* Imagem do Capítulo (Thumbnail) */}
+                          <div className="relative aspect-[16/9] w-full bg-zinc-950 overflow-hidden">
+                            <img
+                              src={ep.thumbnailUrl}
+                              alt={`Episódio ${ep.number}`}
+                              referrerPolicy="no-referrer"
+                              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                            />
+                            {/* Play HUD Overlay */}
+                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all duration-300">
+                              <div className="w-10 h-10 rounded-full bg-rose-600 flex items-center justify-center text-white shadow-xl transform scale-75 group-hover:scale-100 transition-transform duration-300">
+                                <Play className="w-5 h-5 fill-current ml-0.5" />
+                              </div>
+                            </div>
+
+                            {/* Duração Badge */}
+                            <div className="absolute bottom-2 right-2 px-1.5 py-0.5 bg-black/80 rounded text-[9px] font-bold font-mono text-zinc-300">
+                              {ep.duration}
+                            </div>
+
+                            {/* Número do Episódio Header Badge */}
+                            <div className="absolute top-2 left-2 px-2 py-0.5 bg-black/80 rounded font-serif text-[10px] font-black italic tracking-widest text-[#10b981]">
+                              EP {ep.number}
                             </div>
                           </div>
 
-                          {/* Duração Badge */}
-                          <div className="absolute bottom-2 right-2 px-1.5 py-0.5 bg-black/80 rounded text-[9px] font-bold font-mono text-zinc-300">
-                            {ep.duration}
-                          </div>
+                          {/* Detalhes do Episódio */}
+                          <div className="p-4 flex-1 flex flex-col justify-between">
+                            <div className="space-y-1.5">
+                              <h4 className="font-bold text-sm text-zinc-100 group-hover:text-rose-400 transition-colors leading-snug line-clamp-1">
+                                {ep.number}. {ep.title}
+                              </h4>
+                              <p className="text-zinc-400 text-xs leading-relaxed font-sans font-normal line-clamp-2">
+                                {ep.description}
+                              </p>
+                            </div>
 
-                          {/* Número do Episódio Header Badge */}
-                          <div className="absolute top-2 left-2 px-2 py-0.5 bg-black/80 rounded font-serif text-[10px] font-black italic tracking-widest text-[#10b981]">
-                            EP {ep.number}
+                            {/* Labels e stamps do episódio no rodapé do card */}
+                            <div className="flex items-center gap-2 mt-4 pt-4 border-t border-zinc-900 text-[10px] text-zinc-500 font-mono font-semibold">
+                              <span className="px-1 bg-zinc-900 border border-zinc-800 text-zinc-400 rounded text-[9px] font-bold">
+                                {ep.ratingCode}
+                              </span>
+                              <span>CC</span>
+                              <span>•</span>
+                              <span className="truncate">{ep.releaseDate}</span>
+                            </div>
                           </div>
                         </div>
-
-                        {/* Detalhes do Episódio */}
-                        <div className="p-4 flex-1 flex flex-col justify-between">
-                          <div className="space-y-1.5">
-                            <h4 className="font-bold text-sm text-zinc-100 group-hover:text-rose-400 transition-colors leading-snug line-clamp-1">
-                              {ep.number}. {ep.title}
-                            </h4>
-                            <p className="text-zinc-400 text-xs leading-relaxed font-sans font-normal line-clamp-2">
-                              {ep.description}
-                            </p>
-                          </div>
-
-                          {/* Labels e stamps do episódio no rodapé do card */}
-                          <div className="flex items-center gap-2 mt-4 pt-4 border-t border-zinc-900 text-[10px] text-zinc-500 font-mono font-semibold">
-                            <span className="px-1 bg-zinc-900 border border-zinc-800 text-zinc-400 rounded text-[9px] font-bold">
-                              {ep.ratingCode}
-                            </span>
-                            <span>CC</span>
-                            <span>•</span>
-                            <span className="truncate">{ep.releaseDate}</span>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 

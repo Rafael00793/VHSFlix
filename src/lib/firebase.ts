@@ -1,3 +1,13 @@
+import { initializeApp } from 'firebase/app';
+import { getAuth } from 'firebase/auth';
+import { getFirestore, doc, setDoc, deleteDoc, collection, getDoc, getDocs } from 'firebase/firestore';
+import firebaseConfig from '../../firebase-applet-config.json';
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+export const auth = getAuth();
+
 export enum OperationType {
   CREATE = 'create',
   UPDATE = 'update',
@@ -28,17 +38,20 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
-      userId: null,
-      email: null,
-      emailVerified: null,
-      isAnonymous: null,
-      tenantId: null,
-      providerInfo: []
+      userId: auth?.currentUser?.uid || null,
+      email: auth?.currentUser?.email || null,
+      emailVerified: auth?.currentUser?.emailVerified || null,
+      isAnonymous: auth?.currentUser?.isAnonymous || null,
+      tenantId: auth?.currentUser?.tenantId || null,
+      providerInfo: auth?.currentUser?.providerData?.map(provider => ({
+        providerId: provider.providerId,
+        email: provider.email,
+      })) || []
     },
     operationType,
     path
   };
-  console.error('Offline Database: ', JSON.stringify(errInfo));
+  console.error('Firestore Database: ', JSON.stringify(errInfo));
   throw new Error(JSON.stringify(errInfo));
 }
 
@@ -88,29 +101,84 @@ export function compressImage(base64Str: string, maxWidth = 150, maxHeight = 150
   });
 }
 
-// Stub mock functions since Firebase is removed. They immediately resolve.
+// Concrete Firestore operations connected to real Firebase DB
 export async function saveUsersToFirestore(users: any[]) {
-  return Promise.resolve();
+  try {
+    for (const user of users) {
+      if (!user.id) continue;
+      await setDoc(doc(db, 'users', user.id), user);
+    }
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, 'users');
+  }
 }
 
 export async function deleteUserFromFirestore(userId: string) {
-  return Promise.resolve();
+  try {
+    await deleteDoc(doc(db, 'users', userId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `users/${userId}`);
+  }
 }
 
 export async function saveProfilesToFirestore(allProfiles: { [userId: string]: any[] }) {
-  return Promise.resolve();
+  try {
+    for (const [userId, profiles] of Object.entries(allProfiles)) {
+      await setDoc(doc(db, 'profiles', userId), {
+        userId,
+        profiles
+      });
+    }
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, `profiles`);
+  }
 }
 
 export async function saveMoviesToFirestore(movies: any[]) {
-  return Promise.resolve();
+  try {
+    for (const movie of movies) {
+      if (!movie.id) continue;
+      await setDoc(doc(db, 'movies', movie.id), movie);
+    }
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, 'movies');
+  }
 }
 
 export async function deleteMovieFromFirestore(movieId: string) {
-  return Promise.resolve();
+  try {
+    await deleteDoc(doc(db, 'movies', movieId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `movies/${movieId}`);
+  }
 }
 
 export async function saveSettingsToFirestore(adguardEnabled: boolean) {
-  return Promise.resolve();
+  try {
+    await setDoc(doc(db, 'settings', 'global'), {
+      id: 'global',
+      adguardEnabled
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, 'settings/global');
+  }
 }
 
-export const db = null as any;
+export async function saveRequestsToFirestore(requests: any[]) {
+  try {
+    for (const req of requests) {
+      if (!req.id) continue;
+      await setDoc(doc(db, 'requests', req.id), req);
+    }
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, 'requests');
+  }
+}
+
+export async function deleteRequestFromFirestore(requestId: string) {
+  try {
+    await deleteDoc(doc(db, 'requests', requestId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `requests/${requestId}`);
+  }
+}

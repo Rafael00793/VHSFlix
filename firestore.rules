@@ -25,5 +25,10 @@ service cloud.firestore {
     match /settings/{settingsId} {
       allow read, write: if true;
     }
+    
+    // Requests collection: Allow read, write
+    match /requests/{requestId} {
+      allow read, write: if true;
+    }
   }
 }
