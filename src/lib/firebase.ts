@@ -101,12 +101,32 @@ export function compressImage(base64Str: string, maxWidth = 150, maxHeight = 150
   });
 }
 
+// Helper to recursively strip undefined properties so Firestore never crashes
+export function sanitizeForFirestore<T>(obj: T): T {
+  if (obj === null || obj === undefined) {
+    return null as unknown as T;
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(item => sanitizeForFirestore(item)) as unknown as T;
+  }
+  if (typeof obj === 'object') {
+    const clean: any = {};
+    for (const [key, value] of Object.entries(obj as Record<string, any>)) {
+      if (value !== undefined) {
+        clean[key] = sanitizeForFirestore(value);
+      }
+    }
+    return clean as T;
+  }
+  return obj;
+}
+
 // Concrete Firestore operations connected to real Firebase DB
 export async function saveUsersToFirestore(users: any[]) {
   try {
     for (const user of users) {
       if (!user.id) continue;
-      await setDoc(doc(db, 'users', user.id), user);
+      await setDoc(doc(db, 'users', user.id), sanitizeForFirestore(user));
     }
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, 'users');
@@ -124,10 +144,10 @@ export async function deleteUserFromFirestore(userId: string) {
 export async function saveProfilesToFirestore(allProfiles: { [userId: string]: any[] }) {
   try {
     for (const [userId, profiles] of Object.entries(allProfiles)) {
-      await setDoc(doc(db, 'profiles', userId), {
+      await setDoc(doc(db, 'profiles', userId), sanitizeForFirestore({
         userId,
         profiles
-      });
+      }));
     }
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, `profiles`);
@@ -138,7 +158,7 @@ export async function saveMoviesToFirestore(movies: any[]) {
   try {
     for (const movie of movies) {
       if (!movie.id) continue;
-      await setDoc(doc(db, 'movies', movie.id), movie);
+      await setDoc(doc(db, 'movies', movie.id), sanitizeForFirestore(movie));
     }
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, 'movies');
@@ -148,7 +168,7 @@ export async function saveMoviesToFirestore(movies: any[]) {
 export async function saveSingleMovieToFirestore(movie: any) {
   try {
     if (!movie.id) return;
-    await setDoc(doc(db, 'movies', movie.id), movie);
+    await setDoc(doc(db, 'movies', movie.id), sanitizeForFirestore(movie));
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, `movies/${movie.id}`);
   }
@@ -164,10 +184,10 @@ export async function deleteMovieFromFirestore(movieId: string) {
 
 export async function saveSettingsToFirestore(adguardEnabled: boolean) {
   try {
-    await setDoc(doc(db, 'settings', 'global'), {
+    await setDoc(doc(db, 'settings', 'global'), sanitizeForFirestore({
       id: 'global',
       adguardEnabled
-    });
+    }));
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, 'settings/global');
   }
@@ -177,7 +197,7 @@ export async function saveRequestsToFirestore(requests: any[]) {
   try {
     for (const req of requests) {
       if (!req.id) continue;
-      await setDoc(doc(db, 'requests', req.id), req);
+      await setDoc(doc(db, 'requests', req.id), sanitizeForFirestore(req));
     }
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, 'requests');

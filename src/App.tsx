@@ -978,7 +978,7 @@ export default function App() {
     saveSingleMovieToFirestore(updatedMovie);
   };
 
-  const handleAddRequest = (title: string, type: 'movie' | 'series') => {
+  const handleAddRequest = (title: string, type: 'movie' | 'series', richData?: Partial<MovieRequest>) => {
     if (!activeUser || !activeProfile) return;
     const newRequest: MovieRequest = {
       id: 'req_' + Date.now() + Math.random().toString(36).substring(2, 6),
@@ -988,7 +988,8 @@ export default function App() {
       userName: activeUser.name,
       profileName: activeProfile.name,
       createdAt: new Date().toISOString(),
-      status: 'pending'
+      status: 'pending',
+      ...richData
     };
     setRequests(prev => [newRequest, ...prev]);
   };
@@ -1089,6 +1090,7 @@ export default function App() {
               onAddRequest={handleAddRequest}
               onFulfillRequest={handleFulfillRequest}
               onDeleteRequest={handleDeleteRequest}
+              tmdbApiKey={tmdbApiKey}
             />
           ) : (
             /* --- TELA 2.B: PAINEL PRINCIPAL DO USUÁRIO ESTILO NETFLIX --- */

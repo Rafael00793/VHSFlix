@@ -75,5 +75,13 @@ export interface MovieRequest {
   profileName: string;
   createdAt: string;
   status: 'pending' | 'fulfilled';
+  posterUrl?: string;
+  backdropUrl?: string;
+  overview?: string;
+  rating?: number;
+  tmdbId?: number;
+  year?: number;
+  genres?: string[];
+  seasonsCount?: number;
 }
 
