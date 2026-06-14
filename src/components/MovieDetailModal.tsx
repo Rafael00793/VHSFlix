@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Movie, WatchProgress } from '../types';
-import { X, Play, Pause, Plus, Check, Star, RefreshCw, Tv, Clock, HelpCircle, Film, Sparkles, AlertCircle, ExternalLink, Maximize, Shield, Sliders, ThumbsUp, ThumbsDown, ChevronDown } from 'lucide-react';
+import { X, Play, Pause, Plus, Check, Star, RefreshCw, Tv, Clock, HelpCircle, Film, Sparkles, AlertCircle, ExternalLink, Maximize, Shield, Sliders, ThumbsUp, ThumbsDown, ChevronDown, ArrowLeft, Settings } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { INITIAL_MOVIES } from '../data';
 
@@ -816,7 +816,9 @@ export default function MovieDetailModal({
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-0 md:p-4 bg-black/95 backdrop-blur-md overflow-y-auto">
+        <div className={`fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-md transition-all duration-300 ${
+          isPlaying && !isTapeLoading ? 'p-0 overflow-hidden' : 'p-0 md:p-4 overflow-y-auto'
+        }`}>
           {/* Backdrop de click para fechar */}
           <div className="absolute inset-0 z-10 hidden md:block" onClick={onClose} />
 
@@ -835,16 +837,67 @@ export default function MovieDetailModal({
           >
             {/* REPRODUÇÃO DO PLAYER DE VÍDEO COMPLETO E REAL (OCUPA TODO O MODAL EM REPRODUÇÃO) */}
             {isPlaying && !isTapeLoading && (
-              <div ref={playerContainerRef} className="absolute inset-0 bg-black flex flex-col text-white font-mono z-45 animate-fade-in h-[100dvh] md:h-full w-full overflow-hidden">
-                {/* Player Real do VHSFLIX */}
-                <div className="absolute inset-0 w-full h-full z-10 bg-black">
+              <div ref={playerContainerRef} className="absolute inset-0 bg-black flex flex-col text-white font-mono z-45 animate-fade-in h-full w-full overflow-hidden">
+                {/* 1. Barra de Navegação Superior Moderna estilo Streaming (Completamente fora do iframe) */}
+                <div className="h-16 bg-zinc-950 border-b border-zinc-900/80 flex items-center justify-between px-3 sm:px-6 z-50 shrink-0 select-none">
+                  {/* Esquerda: Botão Voltar gigante, super visível e fácil de clicar no mobile */}
+                  <div className="flex items-center">
+                    <button
+                      onClick={() => setIsPlaying(false)}
+                      className="bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-sans font-bold text-xs h-11 px-4 sm:px-5 rounded-lg transition-all flex items-center gap-2 shadow-lg shadow-rose-950/50 cursor-pointer focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none"
+                      aria-label="Voltar para Detalhes"
+                      title="Voltar ao Catálogo"
+                      id="btn-close-vhs-player"
+                    >
+                      <ArrowLeft className="w-5 h-5 stroke-[2.8]" />
+                      <span className="font-black tracking-wider text-xs">VOLTAR</span>
+                    </button>
+                  </div>
+
+                  {/* Centro: Título do Conteúdo */}
+                  <div className="flex-1 text-center px-2 flex flex-col justify-center items-center overflow-hidden">
+                    <span className="text-rose-500 font-mono text-[9px] font-black uppercase tracking-widest leading-none">ASSISTINDO AGORA</span>
+                    <h2 className="text-zinc-100 text-xs sm:text-sm font-black font-sans mt-0.5 truncate uppercase tracking-wider max-w-[150px] xs:max-w-[190px] sm:max-w-md">
+                      {movie.title}
+                      {movie.type === 'series' && (
+                        <span className="text-rose-400 ml-1.5 font-mono text-[10px] font-bold bg-rose-950/80 border border-rose-500/20 px-1.5 py-0.5 rounded">
+                          S{season.toString().padStart(2, '0')}E{episode.toString().padStart(2, '0')}
+                        </span>
+                      )}
+                    </h2>
+                  </div>
+
+                  {/* Direita: Controles Adicionais / Opções */}
+                  <div className="flex items-center gap-2">
+                    {movie.type === 'series' && (
+                      <button
+                        onClick={() => {
+                          setIsPlaying(false);
+                          setIsConfiguringPlayer(true);
+                        }}
+                        className="bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 font-sans font-bold text-[10px] sm:text-xs h-10 px-2.5 sm:px-3 rounded-lg transition-all flex items-center gap-1 cursor-pointer focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none"
+                        title="Sintonizar canal (Episódio / Temporada)"
+                      >
+                        <Settings className="w-3.5 h-3.5 text-rose-500" />
+                        <span className="hidden xs:inline">MUDAR CAPÍTULO</span>
+                      </button>
+                    )}
+                    <span className="hidden md:inline-flex items-center gap-1.5 uppercase font-mono text-[9px] text-zinc-400 bg-zinc-900 border border-zinc-850 px-2.5 py-1.5 rounded-lg select-none">
+                      <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-ping"></span>
+                      VHS_HD
+                    </span>
+                  </div>
+                </div>
+
+                {/* 2. Área do Iframe com altura flex-1 restrita para nunca vazar ou rolar e evitar adoverlays de roubar cliques no topo */}
+                <div className="flex-1 w-full bg-black relative">
                   <iframe
                     src={movie.type === 'series' 
                       ? `https://myembed.biz/serie/${movie.tmdbId || '1396'}/${season}/${episode}`
                       : `https://myembed.biz/filme/${movie.tmdbId || '105'}`
                     }
                     title={`Reproduzindo ${movie.title}`}
-                    className="w-full h-full border-0 video-player-iframe animate-fade-in"
+                    className="w-full h-full border-0 absolute inset-0 video-player-iframe"
                     allowFullScreen
                     webkitallowfullscreen="true"
                     mozallowfullscreen="true"
@@ -852,21 +905,6 @@ export default function MovieDetailModal({
                     sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
                     referrerPolicy="no-referrer"
                   />
-                </div>
-
-
-
-                {/* Botão de fechar player - posicionado no canto superior direito para cobrir marca d'água e exibir um 'X' vermelho pequeno */}
-                <div className="absolute top-2 right-2 sm:top-4 sm:right-4 z-50 bg-black/95 p-1 rounded-full shadow-2xl border border-zinc-800">
-                  <button
-                    onClick={() => setIsPlaying(false)}
-                    className="bg-black hover:bg-zinc-900 text-rose-500 hover:text-rose-400 p-2 sm:p-2.5 rounded-full transition-all cursor-pointer hover:scale-110 active:scale-95 flex items-center justify-center focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none"
-                    aria-label="Voltar para Detalhes"
-                    title="Fechar Vídeo"
-                    id="btn-close-vhs-player"
-                  >
-                    <X className="w-4.5 h-4.5 sm:w-5 sm:h-5 text-rose-500 stroke-[3.5]" />
-                  </button>
                 </div>
               </div>
             )}

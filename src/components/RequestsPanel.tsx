@@ -46,7 +46,7 @@ export default function RequestsPanel({
 
     const match = checkIfExists(val);
     if (match) {
-      setError(`O título "${match.title}" já existe no site! Ele está disponível na categoria "${match.category}" como ${match.type === 'movie' ? 'Filme' : 'Série'}.`);
+      setError(`O título "${match.title}" já existe no acervo como ${match.type === 'movie' ? 'Filme' : 'Série'}. Se você deseja pedir outra versão ou ano deste mesmo título, especifique o ano no campo de pesquisa (ex: "${val} (1998)").`);
     }
   };
 
@@ -62,7 +62,7 @@ export default function RequestsPanel({
 
     const match = checkIfExists(title);
     if (match) {
-      setError(`Seu pedido não pôde ser enviado porque "${match.title}" já está disponível em nosso site.`);
+      setError(`Esse título ("${match.title}") já está disponível. Caso seja uma versão, refilmagem ou ano diferente, adicione o ano ao título para podermos registrar seu pedido (ex: "${title.trim()} (1998)").`);
       return;
     }
 

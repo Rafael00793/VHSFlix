@@ -4,6 +4,31 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>VHSFLIX - Streaming Retrô</title>
+    <script>
+      // Ignorar erros benignos do WebSocket e do Vite HMR para não interpor sobreposições ou quebras em tempo de desenvolvimento
+      window.addEventListener('unhandledrejection', function(event) {
+        if (event.reason && (
+          String(event.reason).toUpperCase().includes('WEBSOCKET') || 
+          String(event.reason).toUpperCase().includes('VITE') ||
+          String(event.reason.message || '').toUpperCase().includes('WEBSOCKET') ||
+          String(event.reason.message || '').toUpperCase().includes('VITE')
+        )) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+      }, true);
+
+      window.addEventListener('error', function(event) {
+        if (event.message && (
+          event.message.toUpperCase().includes('WEBSOCKET') || 
+          event.message.toUpperCase().includes('VITE') ||
+          event.message.toUpperCase().includes('WEBSOCKET CLOSED')
+        )) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+      }, true);
+    </script>
   </head>
   <body>
     <div id="root"></div>

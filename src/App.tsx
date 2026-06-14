@@ -65,9 +65,10 @@ export default function App() {
         continue;
       }
       const type = m.type || 'movie';
+      const yearStr = m.year ? `_${String(m.year).trim()}` : '';
       const key = m.tmdbId 
         ? `tmdb_${m.tmdbId}_${type}` 
-        : `title_${(m.title || '').trim().toLowerCase()}_${type}`;
+        : `title_${(m.title || '').trim().toLowerCase()}${yearStr}_${type}`;
       if (!seen.has(key)) {
         seen.add(key);
         uniqueMovies.push(m);
@@ -212,7 +213,11 @@ export default function App() {
   }, []);
 
   // --- EFEITOS DE SINCRONIZAÇÃO COM LOCALSTORAGE E FIRESTORE ---
-  const isFirstSyncRef = useRef(true);
+  const [hasLoadedUsers, setHasLoadedUsers] = useState(false);
+  const [hasLoadedProfiles, setHasLoadedProfiles] = useState(false);
+  const [hasLoadedMovies, setHasLoadedMovies] = useState(false);
+  const [hasLoadedRequests, setHasLoadedRequests] = useState(false);
+  const [hasLoadedSettings, setHasLoadedSettings] = useState(false);
 
   // 1. Ouvintes de Firestore em Tempo Real (Download do Banco em Nuvem)
   useEffect(() => {
@@ -230,6 +235,9 @@ export default function App() {
         saveUsersToFirestore(INITIAL_USERS);
         isFirstUsers = false;
       }
+      setHasLoadedUsers(true);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'users');
     });
 
     let isFirstProfiles = true;
@@ -249,6 +257,9 @@ export default function App() {
         saveProfilesToFirestore(DEFAULT_PROFILES);
         isFirstProfiles = false;
       }
+      setHasLoadedProfiles(true);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'profiles');
     });
 
     let isFirstMovies = true;
@@ -263,6 +274,9 @@ export default function App() {
         saveMoviesToFirestore(INITIAL_MOVIES);
         isFirstMovies = false;
       }
+      setHasLoadedMovies(true);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'movies');
     });
 
     let isFirstRequests = true;
@@ -299,6 +313,9 @@ export default function App() {
         saveRequestsToFirestore(defaultRequests);
         isFirstRequests = false;
       }
+      setHasLoadedRequests(true);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'requests');
     });
 
     const unsubSettings = onSnapshot(collection(db, 'settings'), (snapshot) => {
@@ -310,12 +327,10 @@ export default function App() {
           }
         }
       });
+      setHasLoadedSettings(true);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'settings');
     });
-
-    // Pequena margem antes de ativar os salvamentos locais em nuvem por segurança
-    const syncTimer = setTimeout(() => {
-      isFirstSyncRef.current = false;
-    }, 2500);
 
     return () => {
       unsubUsers();
@@ -323,23 +338,22 @@ export default function App() {
       unsubMovies();
       unsubRequests();
       unsubSettings();
-      clearTimeout(syncTimer);
     };
   }, [db]);
 
   // 2. Gravadores Periódicos Otimizados (Upload de Alterações para o Firestore)
   useEffect(() => {
     localStorage.setItem('vhsflix_users', JSON.stringify(users));
-    if (!db || isFirstSyncRef.current) return;
+    if (!db || !hasLoadedUsers) return;
     const timer = setTimeout(() => {
       saveUsersToFirestore(users);
     }, 3000);
     return () => clearTimeout(timer);
-  }, [users]);
+  }, [users, hasLoadedUsers]);
 
   useEffect(() => {
     localStorage.setItem('vhsflix_profiles', JSON.stringify(allProfiles));
-    if (!db || isFirstSyncRef.current || !currentUserId) return;
+    if (!db || !hasLoadedProfiles || !currentUserId) return;
     const timer = setTimeout(() => {
       const userProfs = allProfiles[currentUserId];
       if (userProfs && userProfs.length > 0) {
@@ -347,7 +361,7 @@ export default function App() {
       }
     }, 4000);
     return () => clearTimeout(timer);
-  }, [allProfiles, currentUserId]);
+  }, [allProfiles, currentUserId, hasLoadedProfiles]);
 
   useEffect(() => {
     const timerLS = setTimeout(() => {
@@ -355,7 +369,7 @@ export default function App() {
     }, 1000);
     
     let timerFS: NodeJS.Timeout | null = null;
-    if (db && !isFirstSyncRef.current) {
+    if (db && hasLoadedMovies) {
       timerFS = setTimeout(() => {
         saveMoviesToFirestore(movies);
       }, 5000);
@@ -365,22 +379,22 @@ export default function App() {
       clearTimeout(timerLS);
       if (timerFS) clearTimeout(timerFS);
     };
-  }, [movies]);
+  }, [movies, hasLoadedMovies]);
 
   useEffect(() => {
     localStorage.setItem('vhsflix_movie_requests', JSON.stringify(requests));
-    if (!db || isFirstSyncRef.current) return;
+    if (!db || !hasLoadedRequests) return;
     const timer = setTimeout(() => {
       saveRequestsToFirestore(requests);
     }, 3000);
     return () => clearTimeout(timer);
-  }, [requests]);
+  }, [requests, hasLoadedRequests]);
 
   useEffect(() => {
     localStorage.setItem('vhsflix_adguard_enabled', JSON.stringify(adguardEnabled));
-    if (!db || isFirstSyncRef.current) return;
+    if (!db || !hasLoadedSettings) return;
     saveSettingsToFirestore(adguardEnabled);
-  }, [adguardEnabled]);
+  }, [adguardEnabled, hasLoadedSettings]);
 
   useEffect(() => {
     localStorage.setItem('vhsflix_notifications', JSON.stringify(notifications));
@@ -789,12 +803,34 @@ export default function App() {
   const handleAddMovie = (newMovieData: Omit<Movie, 'id'>) => {
     // Verificar se já existe um filme ou série com o mesmo título ou mesmo tmdbId e mesmo tipo
     const isDuplicate = movies.some(m => {
-      if (newMovieData.tmdbId && m.tmdbId === newMovieData.tmdbId && m.type === newMovieData.type) {
-        return true;
+      // Se forem de tipos diferentes (filme vs série), não é duplicado
+      if (m.type !== newMovieData.type) {
+        return false;
       }
+      // Se ambos tiverem tmdbId e forem IDs diferentes, não é duplicado
+      if (newMovieData.tmdbId && m.tmdbId && newMovieData.tmdbId !== m.tmdbId) {
+        return false;
+      }
+      
       const existingTitle = (m.title || '').trim().toLowerCase();
       const incomingTitle = (newMovieData.title || '').trim().toLowerCase();
-      return existingTitle === incomingTitle && m.type === newMovieData.type;
+      
+      if (existingTitle === incomingTitle) {
+        // Mesmo título e tipo. Verificar se o ano de lançamento é diferente!
+        const y1 = m.year ? String(m.year).trim() : '';
+        const y2 = newMovieData.year ? String(newMovieData.year).trim() : '';
+        if (y1 && y2 && y1 !== y2) {
+          return false; // Anos diferentes! Permitir duplicata saudável (ex: A Múmia de 1999 e 2017)
+        }
+        return true; // Sem distinção de ano ou mesmo ano, é duplicado!
+      }
+      
+      // Se tem exatamente o mesmo tmdbId
+      if (newMovieData.tmdbId && m.tmdbId && m.tmdbId === newMovieData.tmdbId) {
+        return true;
+      }
+      
+      return false;
     });
 
     if (isDuplicate) {
