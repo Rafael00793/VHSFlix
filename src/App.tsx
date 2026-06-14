@@ -14,7 +14,7 @@ import AdminPanel from './components/AdminPanel';
 import RequestsPanel from './components/RequestsPanel';
 import { Play, Info, Sparkles, Star, Plus, Check, Shield, HelpCircle, AlertCircle, Heart, HeartOff, Volume1, Volume2, VolumeX, Bell, X, Flame } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { db, saveUsersToFirestore, deleteUserFromFirestore, saveProfilesToFirestore, saveMoviesToFirestore, deleteMovieFromFirestore, saveSettingsToFirestore, saveRequestsToFirestore, deleteRequestFromFirestore, handleFirestoreError, OperationType } from './lib/firebase';
+import { db, saveUsersToFirestore, deleteUserFromFirestore, saveProfilesToFirestore, saveMoviesToFirestore, saveSingleMovieToFirestore, deleteMovieFromFirestore, saveSettingsToFirestore, saveRequestsToFirestore, deleteRequestFromFirestore, handleFirestoreError, OperationType } from './lib/firebase';
 import { collection, onSnapshot } from 'firebase/firestore';
 
 
@@ -367,19 +367,8 @@ export default function App() {
     const timerLS = setTimeout(() => {
       localStorage.setItem('vhsflix_movies', JSON.stringify(movies));
     }, 1000);
-    
-    let timerFS: NodeJS.Timeout | null = null;
-    if (db && hasLoadedMovies) {
-      timerFS = setTimeout(() => {
-        saveMoviesToFirestore(movies);
-      }, 5000);
-    }
-
-    return () => {
-      clearTimeout(timerLS);
-      if (timerFS) clearTimeout(timerFS);
-    };
-  }, [movies, hasLoadedMovies]);
+    return () => clearTimeout(timerLS);
+  }, [movies]);
 
   useEffect(() => {
     localStorage.setItem('vhsflix_movie_requests', JSON.stringify(requests));
@@ -851,6 +840,7 @@ export default function App() {
       id: newMovieId,
     };
     setMovies(prev => [newMovie, ...prev]);
+    saveSingleMovieToFirestore(newMovie);
 
     // Gerar notificação automática toda vez que é adicionado um novo filme ou série no site
     const isSeries = newMovie.type === 'series';
@@ -865,6 +855,7 @@ export default function App() {
 
   const handleEditMovie = (editedMovie: Movie) => {
     setMovies(prev => prev.map(m => m.id === editedMovie.id ? editedMovie : m));
+    saveSingleMovieToFirestore(editedMovie);
   };
 
   const handleDeleteMovie = (movieId: string) => {
@@ -902,6 +893,7 @@ export default function App() {
       return;
     }
     setMovies(INITIAL_MOVIES);
+    saveMoviesToFirestore(INITIAL_MOVIES);
     triggerNotification(
       '📼 Catálogo Redefinido',
       'O catálogo do acervo original foi totalmente restaurada!',
@@ -930,19 +922,13 @@ export default function App() {
 
   // Abre detalhes do filme sintonizando cliques de audiência
   const handleSelectMovie = (movie: Movie) => {
-    setMovies(prev => prev.map(m => {
-      if (m.id === movie.id) {
-        return {
-          ...m,
-          clicksCount: (m.clicksCount || 0) + 1
-        };
-      }
-      return m;
-    }));
-    setSelectedMovie({
+    const updatedMovie = {
       ...movie,
       clicksCount: (movie.clicksCount || 0) + 1
-    });
+    };
+    setMovies(prev => prev.map(m => m.id === movie.id ? updatedMovie : m));
+    setSelectedMovie(updatedMovie);
+    saveSingleMovieToFirestore(updatedMovie);
   };
 
   // Contabilidade real de gostei/não-gostei profissional e preciso
@@ -951,43 +937,45 @@ export default function App() {
     const storageKey = `vote_${activeProfile.id}_${movieId}`;
     const previousVote = localStorage.getItem(storageKey);
 
-    setMovies(prev => prev.map(m => {
-      if (m.id === movieId) {
-        let likesDelta = 0;
-        let dislikesDelta = 0;
+    const m = movies.find(movie => movie.id === movieId);
+    if (!m) return;
 
-        if (previousVote === voteType) {
-          // Desfaz voto anterior de mesma opção
-          if (voteType === 'like') likesDelta = -1;
-          if (voteType === 'dislike') dislikesDelta = -1;
-          localStorage.removeItem(storageKey);
-        } else {
-          // Se mudou de ideia ou votou novo, desfaz o voto oposto velho, se houver
-          if (previousVote === 'like') likesDelta = -1;
-          if (previousVote === 'dislike') dislikesDelta = -1;
+    let likesDelta = 0;
+    let dislikesDelta = 0;
 
-          // E adiciona o novo voto
-          if (voteType === 'like') likesDelta += 1;
-          if (voteType === 'dislike') dislikesDelta += 1;
-          localStorage.setItem(storageKey, voteType);
-        }
+    if (previousVote === voteType) {
+      // Desfaz voto anterior de mesma opção
+      if (voteType === 'like') likesDelta = -1;
+      if (voteType === 'dislike') dislikesDelta = -1;
+      localStorage.removeItem(storageKey);
+    } else {
+      // Se mudou de ideia ou votou novo, desfaz o voto oposto velho, se houver
+      if (previousVote === 'like') likesDelta = -1;
+      if (previousVote === 'dislike') dislikesDelta = -1;
 
-        const newLikes = Math.max(0, (m.votesLikes || 0) + likesDelta);
-        const newDislikes = Math.max(0, (m.votesDislikes || 0) + dislikesDelta);
+      // E adiciona o novo voto
+      if (voteType === 'like') likesDelta += 1;
+      if (voteType === 'dislike') dislikesDelta += 1;
+      localStorage.setItem(storageKey, voteType);
+    }
 
-        // Atualiza o modal de detalhes ativo se estiver com o filme carregado
-        if (selectedMovie && selectedMovie.id === movieId) {
-          setSelectedMovie(curr => curr ? { ...curr, votesLikes: newLikes, votesDislikes: newDislikes } : null);
-        }
+    const newLikes = Math.max(0, (m.votesLikes || 0) + likesDelta);
+    const newDislikes = Math.max(0, (m.votesDislikes || 0) + dislikesDelta);
 
-        return {
-          ...m,
-          votesLikes: newLikes,
-          votesDislikes: newDislikes
-        };
-      }
-      return m;
-    }));
+    const updatedMovie = {
+      ...m,
+      votesLikes: newLikes,
+      votesDislikes: newDislikes
+    };
+
+    setMovies(prev => prev.map(item => item.id === movieId ? updatedMovie : item));
+
+    if (selectedMovie && selectedMovie.id === movieId) {
+      setSelectedMovie(curr => curr ? { ...curr, votesLikes: newLikes, votesDislikes: newDislikes } : null);
+    }
+
+    // Save immediately to Firestore
+    saveSingleMovieToFirestore(updatedMovie);
   };
 
   const handleAddRequest = (title: string, type: 'movie' | 'series') => {
@@ -1588,7 +1576,7 @@ export default function App() {
 
           {/* --- MODAL DE DETALHE COMPACTO --- */}
           <MovieDetailModal
-            movie={selectedMovie}
+            movie={selectedMovie ? (movies.find(m => m.id === selectedMovie.id) || selectedMovie) : null}
             isOpen={selectedMovie !== null}
             onClose={() => setSelectedMovie(null)}
             myList={activeProfile ? activeProfile.myList : []}
@@ -1599,6 +1587,8 @@ export default function App() {
             onVoteMovie={handleVoteMovie}
             activeProfileId={activeProfile ? activeProfile.id : ''}
             tmdbApiKey={tmdbApiKey}
+            movies={movies}
+            onSelectMovie={handleSelectMovie}
           />
 
           {/* --- SISTEMA DE TOAST DE NOTIFICAÇÃO AO VIVO RETRÔ --- */}

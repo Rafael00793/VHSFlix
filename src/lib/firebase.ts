@@ -145,6 +145,15 @@ export async function saveMoviesToFirestore(movies: any[]) {
   }
 }
 
+export async function saveSingleMovieToFirestore(movie: any) {
+  try {
+    if (!movie.id) return;
+    await setDoc(doc(db, 'movies', movie.id), movie);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, `movies/${movie.id}`);
+  }
+}
+
 export async function deleteMovieFromFirestore(movieId: string) {
   try {
     await deleteDoc(doc(db, 'movies', movieId));

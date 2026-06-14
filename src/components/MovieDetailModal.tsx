@@ -332,6 +332,8 @@ interface MovieDetailModalProps {
   onVoteMovie?: (movieId: string, voteType: 'like' | 'dislike') => void;
   activeProfileId?: string;
   tmdbApiKey?: string;
+  movies?: Movie[];
+  onSelectMovie?: (movie: Movie) => void;
 }
 
 const CATEGORY_COLORS: { [key: string]: string } = {
@@ -440,7 +442,9 @@ export default function MovieDetailModal({
   adguardEnabled = true,
   onVoteMovie,
   activeProfileId = '',
-  tmdbApiKey
+  tmdbApiKey,
+  movies = [],
+  onSelectMovie
 }: MovieDetailModalProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isTapeLoading, setIsTapeLoading] = useState(false);
@@ -462,6 +466,35 @@ export default function MovieDetailModal({
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const currentTimeRef = useRef(currentTime);
   const playerContainerRef = useRef<HTMLDivElement>(null);
+
+  // Reiniciar estados de reprodução e abas ativos quando altera o filme em exibição
+  useEffect(() => {
+    if (!movie) return;
+    setIsPlaying(false);
+    setSeason(1);
+    setEpisode(1);
+    setActiveTab(movie.type === 'series' ? 'episodes' : 'details');
+  }, [movie?.id]);
+
+  // Busca fitas correspondentes inteligentes sintonizadas na mesma categoria e tipo
+  const relatedList = React.useMemo(() => {
+    if (!movie) return [];
+    const referenceList = (movies && movies.length > 0) ? movies : INITIAL_MOVIES;
+    const candidates = referenceList.filter(m => m.id !== movie.id);
+    
+    const scoredList = candidates.map(m => {
+      let score = 0;
+      if (m.category === movie.category) score += 10;
+      if (m.type === movie.type) score += 5;
+      return { item: m, score };
+    });
+
+    return scoredList
+      .filter(pair => pair.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .map(pair => pair.item)
+      .slice(0, 4);
+  }, [movie, movies]);
 
   // Monitor e atualiza episódios ativos do TMDB ou cache
   useEffect(() => {
@@ -817,7 +850,7 @@ export default function MovieDetailModal({
     <AnimatePresence>
       {isOpen && (
         <div className={`fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-md transition-all duration-300 ${
-          isPlaying && !isTapeLoading ? 'p-0 overflow-hidden' : 'p-0 md:p-4 overflow-y-auto'
+          isPlaying && !isTapeLoading ? 'p-0 overflow-hidden h-[100dvh]' : 'p-0 md:p-4 overflow-y-auto'
         }`}>
           {/* Backdrop de click para fechar */}
           <div className="absolute inset-0 z-10 hidden md:block" onClick={onClose} />
@@ -830,7 +863,7 @@ export default function MovieDetailModal({
             transition={{ duration: 0.25 }}
             className={`relative z-20 bg-zinc-950 overflow-hidden shadow-2xl flex flex-col transition-all duration-300 ${
               isPlaying && !isTapeLoading
-                ? "w-screen h-screen md:h-screen max-w-none max-h-none rounded-none border-0 m-0 p-0"
+                ? "w-screen h-[100dvh] max-w-none max-h-[100dvh] rounded-none border-0 m-0 p-0"
                 : "w-full max-w-4xl border-0 md:border border-zinc-800 rounded-none md:rounded-xl h-[100dvh] md:h-auto md:max-h-[92vh]"
             }`}
             id={`detail-modal-${movie.id}`}
@@ -839,12 +872,12 @@ export default function MovieDetailModal({
             {isPlaying && !isTapeLoading && (
               <div ref={playerContainerRef} className="absolute inset-0 bg-black flex flex-col text-white font-mono z-45 animate-fade-in h-full w-full overflow-hidden">
                 {/* 1. Barra de Navegação Superior Moderna estilo Streaming (Completamente fora do iframe) */}
-                <div className="h-16 bg-zinc-950 border-b border-zinc-900/80 flex items-center justify-between px-3 sm:px-6 z-50 shrink-0 select-none">
+                <div className="min-h-[4.5rem] bg-zinc-950 border-b border-zinc-900/80 flex items-center justify-between px-3 sm:px-6 p-3 select-none shrink-0 z-50 gap-2.5 pt-[calc(env(safe-area-inset-top)+0.5rem)]">
                   {/* Esquerda: Botão Voltar gigante, super visível e fácil de clicar no mobile */}
                   <div className="flex items-center">
                     <button
                       onClick={() => setIsPlaying(false)}
-                      className="bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-sans font-bold text-xs h-11 px-4 sm:px-5 rounded-lg transition-all flex items-center gap-2 shadow-lg shadow-rose-950/50 cursor-pointer focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none"
+                      className="bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-sans font-black text-sm h-12 px-5 rounded-lg transition-all flex items-center gap-2 shadow-lg shadow-rose-950/50 cursor-pointer focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none shrink-0 border border-rose-500/10"
                       aria-label="Voltar para Detalhes"
                       title="Voltar ao Catálogo"
                       id="btn-close-vhs-player"
@@ -1066,7 +1099,7 @@ export default function MovieDetailModal({
             {(!isPlaying || isTapeLoading) && !isConfiguringPlayer && (
               <button
                 onClick={onClose}
-                className="absolute top-4 right-4 bg-black/80 hover:bg-rose-600 hover:text-white text-zinc-450 p-3 sm:p-2 rounded-full z-45 border border-zinc-800 transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none"
+                className="absolute top-[calc(env(safe-area-inset-top)+1rem)] right-4 bg-black/80 hover:bg-rose-600 hover:text-white text-zinc-300 p-4 sm:p-2.5 rounded-full z-45 border border-zinc-800 transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none"
                 id="btn-close-modal"
                 aria-label="Fechar Modal"
               >
@@ -1361,30 +1394,49 @@ export default function MovieDetailModal({
               {activeTab === 'related' && (
                 <div className="space-y-6">
                   <div className="flex flex-col">
-                    <h3 className="text-zinc-400 text-xs font-mono font-bold uppercase mb-1 tracking-wider flex items-center gap-1.5">
-                      <Film className="w-3.5 h-3.5 text-rose-500" /> Tópicos e Fitas Recomendadas no Mesmo Segmento
+                    <h3 className="text-zinc-400 text-xs font-mono font-bold uppercase mb-1 tracking-wider flex items-center gap-1.5 flex-wrap">
+                      <Film className="w-3.5 h-3.5 text-rose-500 animate-pulse" /> Tópicos e Fitas Recomendadas no Mesmo Segmento
                     </h3>
-                    <p className="text-xs text-zinc-500 font-sans mt-0.5">Espécimes catalogados na mesma categoria: <span className="text-rose-400 font-bold">{movie.category}</span></p>
+                    <p className="text-xs text-zinc-500 font-sans mt-0.5">Espécimes catalogados na mesma categoria: <span className="text-rose-400 font-semibold">{movie.category}</span></p>
                   </div>
-
+ 
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6">
-                    {INITIAL_MOVIES.filter(m => m.category === movie.category && m.id !== movie.id).slice(0, 4).length > 0 ? (
-                      INITIAL_MOVIES.filter(m => m.category === movie.category && m.id !== movie.id).slice(0, 4).map((rMovie) => (
+                    {relatedList.length > 0 ? (
+                      relatedList.map((rMovie) => (
                         <div 
                           key={rMovie.id}
-                          className="group relative cursor-pointer overflow-hidden rounded-xl bg-zinc-900 border border-zinc-850 hover:border-zinc-650 transition-all duration-300"
+                          className="group relative cursor-pointer overflow-hidden rounded-lg bg-zinc-900 border border-zinc-800 hover:border-rose-500 hover:shadow-xl hover:shadow-rose-600/15 focus-visible:ring-4 focus-visible:ring-rose-500 transition-all duration-300"
+                          onClick={() => {
+                            if (onSelectMovie) {
+                              onSelectMovie(rMovie);
+                            }
+                          }}
                         >
-                          <div className="relative aspect-[16/9] w-full bg-zinc-950 overflow-hidden">
+                          <div className="relative aspect-[2/3] w-full bg-zinc-950 overflow-hidden">
                             <img 
-                              src={rMovie.backdropUrl || rMovie.posterUrl} 
+                              src={rMovie.posterUrl || rMovie.backdropUrl || 'https://image.tmdb.org/t/p/original/vKof7jZ50vS2pYgO569ofCidG9y.jpg'} 
                               alt={rMovie.title} 
                               referrerPolicy="no-referrer"
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                              className="w-full h-full object-cover group-hover:scale-108 transition-transform duration-500"
+                              loading="lazy"
                             />
-                            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent flex items-end p-2.5 sm:p-3.5 bg-black/40">
+                            
+                            {/* Tape Sticker Badge in Card */}
+                            <div className="absolute top-1.5 right-1.5 px-1 py-0.5 rounded text-[8px] font-mono font-bold uppercase text-zinc-950 z-20 bg-rose-500 select-none">
+                              {rMovie.category}
+                            </div>
+
+                            {/* Retro Tape Overlay on Hover */}
+                            <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/20 to-transparent flex flex-col justify-end p-2.5 sm:p-3 bg-black/35 group-hover:bg-black/50 transition-all">
                               <div>
-                                <span className="text-[9px] font-bold uppercase tracking-wider text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/20">{rMovie.type === 'movie' ? 'Filme' : 'Série'}</span>
-                                <h4 className="text-white font-bold text-xs mt-1 font-sans truncate drop-shadow">{rMovie.title}</h4>
+                                <span className="text-[8px] font-mono font-black uppercase tracking-wider text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/10 inline-block">
+                                  {rMovie.type === 'movie' ? 'Filme' : 'Série'}
+                                </span>
+                                <h4 className="text-white font-bold text-[11px] sm:text-xs mt-1.5 font-sans truncate drop-shadow">{rMovie.title}</h4>
+                                <div className="flex items-center justify-between mt-1 text-[9px] text-zinc-400 font-mono">
+                                  <span>{rMovie.year}</span>
+                                  <span className="text-yellow-400 font-bold">★ {rMovie.rating || '8.2'}</span>
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -1392,7 +1444,7 @@ export default function MovieDetailModal({
                       ))
                     ) : (
                       <div className="col-span-full py-10 bg-zinc-900/10 rounded-xl border border-dashed border-zinc-850 text-center text-zinc-500 text-xs font-mono uppercase">
-                        Nenhuma outra fita cadastrada nesta categoria
+                        Nenhuma outra fita cadastrada nesta categoria ou segmento
                       </div>
                     )}
                   </div>
