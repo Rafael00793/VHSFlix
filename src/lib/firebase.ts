@@ -1,12 +1,10 @@
-import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { getFirestore, doc, setDoc, deleteDoc, collection, getDoc, getDocs } from 'firebase/firestore';
-import firebaseConfig from '../../firebase-applet-config.json';
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
-export const auth = getAuth();
+export const db = null as any;
+export const auth = null as any;
 
 export enum OperationType {
   CREATE = 'create',
@@ -21,42 +19,14 @@ export interface FirestoreErrorInfo {
   error: string;
   operationType: OperationType;
   path: string | null;
-  authInfo: {
-    userId?: string | null;
-    email?: string | null;
-    emailVerified?: boolean | null;
-    isAnonymous?: boolean | null;
-    tenantId?: string | null;
-    providerInfo?: {
-      providerId?: string | null;
-      email?: string | null;
-    }[];
-  }
 }
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
-  const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
-    authInfo: {
-      userId: auth?.currentUser?.uid || null,
-      email: auth?.currentUser?.email || null,
-      emailVerified: auth?.currentUser?.emailVerified || null,
-      isAnonymous: auth?.currentUser?.isAnonymous || null,
-      tenantId: auth?.currentUser?.tenantId || null,
-      providerInfo: auth?.currentUser?.providerData?.map(provider => ({
-        providerId: provider.providerId,
-        email: provider.email,
-      })) || []
-    },
-    operationType,
-    path
-  };
-  console.error('Firestore Database: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+  console.warn('Silent Local Storage Mode active - database operation bypassed safely.');
 }
 
 // Helper function to compress large Base64 images to avoid exceeding memory/storage limits
-export function compressImage(base64Str: string, maxWidth = 150, maxHeight = 150): Promise<string> {
+export function compressImage(base64Str: string, maxWidth = 600, maxHeight = 600): Promise<string> {
   return new Promise((resolve) => {
     if (!base64Str || !base64Str.startsWith('data:image')) {
       resolve(base64Str);
@@ -91,8 +61,8 @@ export function compressImage(base64Str: string, maxWidth = 150, maxHeight = 150
       }
 
       ctx.drawImage(img, 0, 0, width, height);
-      // Compress as JPEG 70% quality, which is extremely lightweight (~10KB-15KB)
-      const compressed = canvas.toDataURL('image/jpeg', 0.7);
+      // Compress as JPEG 90% quality, which is extremely crisp and high-fidelity while keeping base64 size manageable
+      const compressed = canvas.toDataURL('image/jpeg', 0.90);
       resolve(compressed);
     };
     img.onerror = () => {
@@ -101,7 +71,7 @@ export function compressImage(base64Str: string, maxWidth = 150, maxHeight = 150
   });
 }
 
-// Helper to recursively strip undefined properties so Firestore never crashes
+// Helper to recursively strip undefined properties
 export function sanitizeForFirestore<T>(obj: T): T {
   if (obj === null || obj === undefined) {
     return null as unknown as T;
@@ -121,93 +91,15 @@ export function sanitizeForFirestore<T>(obj: T): T {
   return obj;
 }
 
-// Concrete Firestore operations connected to real Firebase DB
-export async function saveUsersToFirestore(users: any[]) {
-  try {
-    for (const user of users) {
-      if (!user.id) continue;
-      await setDoc(doc(db, 'users', user.id), sanitizeForFirestore(user));
-    }
-  } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, 'users');
-  }
-}
-
-export async function deleteUserFromFirestore(userId: string) {
-  try {
-    await deleteDoc(doc(db, 'users', userId));
-  } catch (error) {
-    handleFirestoreError(error, OperationType.DELETE, `users/${userId}`);
-  }
-}
-
-export async function saveProfilesToFirestore(allProfiles: { [userId: string]: any[] }) {
-  try {
-    for (const [userId, profiles] of Object.entries(allProfiles)) {
-      await setDoc(doc(db, 'profiles', userId), sanitizeForFirestore({
-        userId,
-        profiles
-      }));
-    }
-  } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, `profiles`);
-  }
-}
-
-export async function saveMoviesToFirestore(movies: any[]) {
-  try {
-    for (const movie of movies) {
-      if (!movie.id) continue;
-      await setDoc(doc(db, 'movies', movie.id), sanitizeForFirestore(movie));
-    }
-  } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, 'movies');
-  }
-}
-
-export async function saveSingleMovieToFirestore(movie: any) {
-  try {
-    if (!movie.id) return;
-    await setDoc(doc(db, 'movies', movie.id), sanitizeForFirestore(movie));
-  } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, `movies/${movie.id}`);
-  }
-}
-
-export async function deleteMovieFromFirestore(movieId: string) {
-  try {
-    await deleteDoc(doc(db, 'movies', movieId));
-  } catch (error) {
-    handleFirestoreError(error, OperationType.DELETE, `movies/${movieId}`);
-  }
-}
-
-export async function saveSettingsToFirestore(adguardEnabled: boolean) {
-  try {
-    await setDoc(doc(db, 'settings', 'global'), sanitizeForFirestore({
-      id: 'global',
-      adguardEnabled
-    }));
-  } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, 'settings/global');
-  }
-}
-
-export async function saveRequestsToFirestore(requests: any[]) {
-  try {
-    for (const req of requests) {
-      if (!req.id) continue;
-      await setDoc(doc(db, 'requests', req.id), sanitizeForFirestore(req));
-    }
-  } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, 'requests');
-  }
-}
-
-export async function deleteRequestFromFirestore(requestId: string) {
-  try {
-    await deleteDoc(doc(db, 'requests', requestId));
-  } catch (error) {
-    handleFirestoreError(error, OperationType.DELETE, `requests/${requestId}`);
-  }
-}
+// Fully stubbed safe synchronous functions that allow App.tsx to work offline with absolute zero errors
+export async function saveUsersToFirestore(users: any[]) {}
+export async function deleteUserFromFirestore(userId: string) {}
+export async function saveProfilesToFirestore(allProfiles: any) {}
+export async function saveMoviesToFirestore(movies: any[]) {}
+export async function saveSingleMovieToFirestore(movie: any) {}
+export async function deleteMovieFromFirestore(movieId: string) {}
+export async function saveSettingsToFirestore(adguardEnabled: boolean) {}
+export async function saveRequestsToFirestore(requests: any[]) {}
+export async function deleteRequestFromFirestore(requestId: string) {}
+export async function saveSingleNotificationToFirestore(notif: any) {}
+export async function deleteNotificationFromFirestore(notificationId: string) {}

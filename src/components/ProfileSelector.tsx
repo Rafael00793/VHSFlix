@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import { User, Profile } from '../types';
 import { PROFILE_AVATARS, INITIAL_MOVIES } from '../data';
-import { Plus, Trash, Edit, UserCheck, Shield, ChevronRight, LogOut, Film, Eye, EyeOff, User as UserIcon, Lock as LockIcon, Heart, Tv, ArrowLeft } from 'lucide-react';
+import { Plus, Trash, Edit, UserCheck, Shield, ChevronRight, LogOut, Film, Eye, EyeOff, User as UserIcon, Lock as LockIcon, Heart, Tv, ArrowLeft, Upload, Link } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 // @ts-ignore
 import loginBgImage from '../assets/images/netflix_grid_bg_1780072882191.png';
@@ -81,12 +81,14 @@ export default function ProfileSelector({
   const [newProfileName, setNewProfileName] = useState('');
   const [selectedAvatarIdx, setSelectedAvatarIdx] = useState(0);
   const [customAvatarUrl, setCustomAvatarUrl] = useState('');
+  const [uploadedFileName, setUploadedFileName] = useState('');
 
   // Estados de edição de perfil
   const [editingProfile, setEditingProfile] = useState<Profile | null>(null);
   const [editProfileName, setEditProfileName] = useState('');
   const [editSelectedAvatarIdx, setEditSelectedAvatarIdx] = useState(0);
   const [editCustomAvatarUrl, setEditCustomAvatarUrl] = useState('');
+  const [editUploadedFileName, setEditUploadedFileName] = useState('');
 
   const activeUser = users.find(u => u.id === currentUserId) || users[0];
 
@@ -124,15 +126,19 @@ export default function ProfileSelector({
             const compressed = await compressImage(reader.result);
             if (isEdit) {
               setEditCustomAvatarUrl(compressed);
+              setEditUploadedFileName(file.name);
             } else {
               setCustomAvatarUrl(compressed);
+              setUploadedFileName(file.name);
             }
           } catch (err) {
             console.error('Erro ao comprimir imagem:', err);
             if (isEdit) {
               setEditCustomAvatarUrl(reader.result);
+              setEditUploadedFileName(file.name);
             } else {
               setCustomAvatarUrl(reader.result);
+              setUploadedFileName(file.name);
             }
           }
         }
@@ -148,6 +154,7 @@ export default function ProfileSelector({
     onAddProfile(newProfileName.trim(), finalAvatarUrl);
     setNewProfileName('');
     setCustomAvatarUrl('');
+    setUploadedFileName('');
     setShowAddProfileModal(false);
   };
 
@@ -156,6 +163,7 @@ export default function ProfileSelector({
     if (!editingProfile || !editProfileName.trim()) return;
     const finalAvatarUrl = editCustomAvatarUrl.trim() !== '' ? editCustomAvatarUrl : PROFILE_AVATARS[editSelectedAvatarIdx].url;
     onEditProfile(editingProfile.id, editProfileName.trim(), finalAvatarUrl);
+    setEditUploadedFileName('');
     setEditingProfile(null);
   };
 
@@ -416,9 +424,9 @@ export default function ProfileSelector({
                       onSelectProfile(profile.id);
                     }
                   }}
-                  className={`relative w-36 h-36 sm:w-48 md:w-56 rounded-2xl overflow-hidden border-4 bg-zinc-900 transition-all cursor-pointer focus-visible:ring-4 focus-visible:ring-rose-500 focus-visible:scale-105 focus-visible:outline-none ${
+                  className={`relative w-36 h-36 sm:w-44 sm:h-44 md:w-48 md:h-48 rounded-2xl overflow-hidden border-4 bg-zinc-900 transition-all cursor-pointer focus-visible:ring-4 focus-visible:ring-rose-500 focus-visible:scale-105 focus-visible:outline-none ${
                     isManagingProfiles 
-                      ? 'border-dashed border-rose-500 scale-95 hover:border-rose-300' 
+                      ? 'border-dashed border-rose-500 scale-95 hover:border-rose-300 shadow-[0_0_15px_rgba(244,63,94,0.15)]' 
                       : 'border-zinc-800 hover:border-rose-500 group-hover:scale-105 shadow-2xl hover:shadow-rose-600/25'
                   }`}
                   id={`btn-profile-${profile.id}`}
@@ -437,8 +445,8 @@ export default function ProfileSelector({
                     </div>
                   ) : (
                     <div className="absolute inset-0 bg-black/75 flex flex-col items-center justify-center">
-                      <Edit className="w-7 h-7 text-white mb-2" />
-                      <span className="text-xs text-zinc-200 font-mono font-bold uppercase tracking-widest bg-black/50 px-2.5 py-1 rounded-md border border-zinc-800">Editar</span>
+                      <Edit className="w-7 h-7 text-white mb-2 animate-pulse" />
+                      <span className="text-xs text-zinc-200 font-mono font-bold uppercase tracking-widest bg-rose-600/20 px-2.5 py-1 rounded-md border border-rose-500/40">Editar</span>
                     </div>
                   )}
                 </button>
@@ -466,7 +474,7 @@ export default function ProfileSelector({
               >
                 <button
                   onClick={() => setShowAddProfileModal(true)}
-                  className="w-36 h-36 sm:w-48 md:w-56 rounded-2xl border-2 border-dashed border-zinc-800 hover:border-rose-500 flex flex-col justify-center items-center text-zinc-500 hover:text-rose-500 hover:bg-zinc-900/40 transition-all group scale-100 hover:scale-102 cursor-pointer"
+                  className="w-36 h-36 sm:w-44 sm:h-44 md:w-48 md:h-48 rounded-2xl border-2 border-dashed border-zinc-800 hover:border-rose-500 flex flex-col justify-center items-center text-zinc-500 hover:text-rose-500 hover:bg-zinc-900/40 transition-all group scale-100 hover:scale-102 cursor-pointer"
                   id="btn-add-profile"
                 >
                   <Plus className="w-10 h-10 group-hover:rotate-90 transition-transform duration-300" />
@@ -571,26 +579,53 @@ export default function ProfileSelector({
                   />
                 </div>
 
-                {/* Qualquer imagem no perfil - URL do usuário ou arquivo local */}
-                <div className="mb-6 p-3 bg-zinc-950 rounded-lg border border-zinc-850 space-y-3">
-                  <div>
-                    <label className="block text-[10px] font-mono text-zinc-400 mb-1 uppercase tracking-wider">URL Personalizada</label>
-                    <input
-                      type="url"
-                      placeholder="Cole qualquer link de imagem"
-                      value={customAvatarUrl}
-                      onChange={e => setCustomAvatarUrl(e.target.value)}
-                      className="w-full bg-zinc-900 border border-zinc-800 text-white px-3 py-1.5 rounded text-xs focus:outline-none focus:border-rose-500 font-sans"
-                    />
+                {/* Imagem do Perfil - Opções Personalizadas Modernas */}
+                <div className="mb-6 space-y-3.5">
+                  <span className="block text-[10px] sm:text-xs font-mono text-zinc-400 uppercase tracking-wider font-extrabold">Capa Personalizada</span>
+                  
+                  {/* Método 1: URL com Ícone */}
+                  <div className="bg-zinc-950/60 rounded-xl p-3 border border-zinc-850 focus-within:border-rose-500/50 transition-colors">
+                    <label className="block text-[9px] font-mono font-bold text-zinc-500 mb-1.5 uppercase tracking-wide">Vincular por URL da Internet</label>
+                    <div className="relative flex items-center">
+                      <Link className="absolute left-3 w-3.5 h-3.5 text-zinc-500" />
+                      <input
+                        type="url"
+                        placeholder="Ex: https://fotos.com/minha-foto.jpg"
+                        value={customAvatarUrl}
+                        onChange={e => setCustomAvatarUrl(e.target.value)}
+                        className="w-full bg-zinc-905 border border-zinc-800 text-white pl-9 pr-3 py-2 rounded-lg text-xs outline-none focus:border-rose-500/50 focus:ring-1 focus:ring-rose-500/30 transition-all font-sans font-medium"
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-[10px] font-mono text-zinc-400 mb-1 uppercase tracking-wider">Enviar do Computador</label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={e => handlePhotoUpload(e, false)}
-                      className="w-full text-xs text-zinc-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[10px] file:font-semibold file:bg-zinc-855 file:text-zinc-300 hover:file:bg-zinc-800 cursor-pointer text-ellipsis overflow-hidden"
-                    />
+
+                  {/* Divisório Estético "OU" */}
+                  <div className="flex items-center text-center justify-center gap-3 py-1 select-none">
+                    <div className="h-[1px] bg-zinc-850 flex-1" />
+                    <span className="text-[9px] text-zinc-500 font-mono font-bold uppercase tracking-widest">OU</span>
+                    <div className="h-[1px] bg-zinc-850 flex-1" />
+                  </div>
+
+                  {/* Método 2: Enviar arquivo com Dropzone Estilizado */}
+                  <div className="bg-zinc-950/60 rounded-xl p-3.5 border border-zinc-850 flex flex-col items-center">
+                    <label className="block w-full text-center text-[9px] font-mono font-bold text-zinc-500 mb-2 uppercase tracking-wide">Fazer Upload Local</label>
+                    
+                    <label className="w-full border-2 border-dashed border-zinc-800 hover:border-rose-500/50 bg-zinc-900/20 hover:bg-rose-500/5 hover:text-rose-400 text-zinc-400 rounded-xl p-4.5 transition-colors flex flex-col items-center justify-center text-center cursor-pointer group select-none">
+                      <Upload className="w-6 h-6 text-zinc-500 group-hover:text-rose-400 group-hover:scale-105 transition-all mb-2" />
+                      
+                      <span className="text-xs font-semibold font-sans mb-1 block text-zinc-200">
+                        {uploadedFileName ? 'Foto carregada!' : 'Selecione ou arraste uma foto'}
+                      </span>
+                      <span className="text-[9px] font-mono text-zinc-500 group-hover:text-rose-400 block break-all font-extrabold uppercase tracking-wide text-rose-500 max-w-full truncate px-1">
+                        {uploadedFileName ? uploadedFileName : 'Nenhum item selecionado'}
+                      </span>
+
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={e => handlePhotoUpload(e, false)}
+                        className="hidden"
+                      />
+                    </label>
                   </div>
                 </div>
 
@@ -682,26 +717,53 @@ export default function ProfileSelector({
                   />
                 </div>
 
-                {/* Qualquer imagem no perfil - URL do usuário ou arquivo local */}
-                <div className="mb-6 p-3 bg-zinc-950 rounded-lg border border-zinc-850 space-y-3">
-                  <div>
-                    <label className="block text-[10px] font-mono text-zinc-400 mb-1 uppercase tracking-wider">URL Personalizada</label>
-                    <input
-                      type="url"
-                      placeholder="Cole qualquer link de imagem"
-                      value={editCustomAvatarUrl}
-                      onChange={e => setEditCustomAvatarUrl(e.target.value)}
-                      className="w-full bg-zinc-900 border border-zinc-800 text-white px-3 py-1.5 rounded text-xs focus:outline-none focus:border-rose-500 font-sans"
-                    />
+                {/* Imagem do Perfil - Opções Personalizadas Modernas */}
+                <div className="mb-6 space-y-3.5">
+                  <span className="block text-[10px] sm:text-xs font-mono text-zinc-400 uppercase tracking-wider font-extrabold">Capa Personalizada</span>
+                  
+                  {/* Método 1: URL com Ícone */}
+                  <div className="bg-zinc-950/60 rounded-xl p-3 border border-zinc-850 focus-within:border-rose-500/50 transition-colors">
+                    <label className="block text-[9px] font-mono font-bold text-zinc-500 mb-1.5 uppercase tracking-wide">Vincular por URL da Internet</label>
+                    <div className="relative flex items-center">
+                      <Link className="absolute left-3 w-3.5 h-3.5 text-zinc-500" />
+                      <input
+                        type="url"
+                        placeholder="Ex: https://fotos.com/minha-foto.jpg"
+                        value={editCustomAvatarUrl}
+                        onChange={e => setEditCustomAvatarUrl(e.target.value)}
+                        className="w-full bg-zinc-905 border border-zinc-800 text-white pl-9 pr-3 py-2 rounded-lg text-xs outline-none focus:border-rose-500/50 focus:ring-1 focus:ring-rose-500/30 transition-all font-sans font-medium"
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-[10px] font-mono text-zinc-400 mb-1 uppercase tracking-wider">Enviar do Computador</label>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={e => handlePhotoUpload(e, true)}
-                      className="w-full text-xs text-zinc-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[10px] file:font-semibold file:bg-zinc-850 file:text-zinc-300 hover:file:bg-zinc-800 cursor-pointer text-ellipsis overflow-hidden"
-                    />
+
+                  {/* Divisório Estético "OU" */}
+                  <div className="flex items-center text-center justify-center gap-3 py-1 select-none">
+                    <div className="h-[1px] bg-zinc-855 flex-1" />
+                    <span className="text-[9px] text-zinc-500 font-mono font-bold uppercase tracking-widest">OU</span>
+                    <div className="h-[1px] bg-zinc-855 flex-1" />
+                  </div>
+
+                  {/* Método 2: Enviar arquivo com Dropzone Estilizado */}
+                  <div className="bg-zinc-950/60 rounded-xl p-3.5 border border-zinc-855 flex flex-col items-center">
+                    <label className="block w-full text-center text-[9px] font-mono font-bold text-zinc-500 mb-2 uppercase tracking-wide">Fazer Upload Local</label>
+                    
+                    <label className="w-full border-2 border-dashed border-zinc-800 hover:border-rose-500/50 bg-zinc-900/20 hover:bg-rose-500/5 hover:text-rose-400 text-zinc-400 rounded-xl p-4.5 transition-colors flex flex-col items-center justify-center text-center cursor-pointer group select-none">
+                      <Upload className="w-6 h-6 text-zinc-500 group-hover:text-rose-400 group-hover:scale-105 transition-all mb-2" />
+                      
+                      <span className="text-xs font-semibold font-sans mb-1 block text-zinc-200">
+                        {editUploadedFileName ? 'Foto carregada!' : 'Selecione ou arraste uma foto'}
+                      </span>
+                      <span className="text-[9px] font-mono text-zinc-500 group-hover:text-rose-400 block break-all font-extrabold uppercase tracking-wide text-rose-500 max-w-full truncate px-1">
+                        {editUploadedFileName ? editUploadedFileName : 'Nenhum item selecionado'}
+                      </span>
+
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={e => handlePhotoUpload(e, true)}
+                        className="hidden"
+                      />
+                    </label>
                   </div>
                 </div>
 

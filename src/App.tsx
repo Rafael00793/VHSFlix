@@ -12,10 +12,9 @@ import MovieRow from './components/MovieRow';
 import MovieDetailModal from './components/MovieDetailModal';
 import AdminPanel from './components/AdminPanel';
 import RequestsPanel from './components/RequestsPanel';
-import { Play, Info, Sparkles, Star, Plus, Check, Shield, HelpCircle, AlertCircle, Heart, HeartOff, Volume1, Volume2, VolumeX, Bell, X, Flame } from 'lucide-react';
+import { Play, Info, Sparkles, Star, Plus, Check, Shield, HelpCircle, AlertCircle, Heart, HeartOff, Volume1, Volume2, VolumeX, Bell, X, Flame, LayoutGrid, List, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { db, saveUsersToFirestore, deleteUserFromFirestore, saveProfilesToFirestore, saveMoviesToFirestore, saveSingleMovieToFirestore, deleteMovieFromFirestore, saveSettingsToFirestore, saveRequestsToFirestore, deleteRequestFromFirestore, handleFirestoreError, OperationType } from './lib/firebase';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { db, saveUsersToFirestore, deleteUserFromFirestore, saveProfilesToFirestore, saveMoviesToFirestore, saveSingleMovieToFirestore, deleteMovieFromFirestore, saveSettingsToFirestore, saveRequestsToFirestore, deleteRequestFromFirestore, handleFirestoreError, OperationType, saveSingleNotificationToFirestore, deleteNotificationFromFirestore } from './lib/firebase';
 
 
 
@@ -111,15 +110,15 @@ export default function App() {
 
   // Abas de navegação do usuário na plataforma
   const [activeTab, setActiveTab] = useState<'all' | 'movies' | 'series' | 'mylist' | 'requests'>('all');
+  const [myListViewMode, setMyListViewMode] = useState<'grid' | 'vertical_list' | 'carousel'>(() => (localStorage.getItem('vhsflix_mylist_view') as any) || 'vertical_list');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [isAdminView, setIsAdminView] = useState(false);
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
   const [searchVal, setSearchVal] = useState('');
 
-  const [notifications, setNotifications] = useState<AppNotification[]>(() => {
-    const saved = localStorage.getItem('vhsflix_notifications');
-    if (saved) return JSON.parse(saved);
-    return [
+  const [dbNotifications, setDbNotifications] = useState<AppNotification[]>(() => {
+    const saved = localStorage.getItem('vhsflix_db_notifications');
+    return saved ? JSON.parse(saved) : [
       {
         id: 'n1',
         title: '📺 Série de Sucesso',
@@ -149,6 +148,21 @@ export default function App() {
       }
     ];
   });
+  const [readNotifications, setReadNotifications] = useState<string[]>(() => {
+    const saved = localStorage.getItem('vhsflix_read_notifications');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('vhsflix_read_notifications', JSON.stringify(readNotifications));
+  }, [readNotifications]);
+
+  const notifications = useMemo(() => {
+    return dbNotifications.map(notif => ({
+      ...notif,
+      isRead: readNotifications.includes(notif.id)
+    }));
+  }, [dbNotifications, readNotifications]);
 
   // Toast e sistema alertador de novas notificações na tela
   const [toast, setToast] = useState<AppNotification | null>(null);
@@ -157,32 +171,11 @@ export default function App() {
   const [requests, setRequests] = useState<MovieRequest[]>(() => {
     const saved = localStorage.getItem('vhsflix_movie_requests');
     if (saved) return JSON.parse(saved);
-    return [
-      {
-        id: 'r1',
-        title: 'E.T. O Extraterrestre',
-        type: 'movie',
-        userId: 'u1',
-        userName: 'Rafael Gusmão',
-        profileName: 'Rafael',
-        createdAt: new Date(Date.now() - 3600000 * 48).toISOString(),
-        status: 'pending'
-      },
-      {
-        id: 'r2',
-        title: 'Miami Vice',
-        type: 'series',
-        userId: 'u1',
-        userName: 'Rafael Gusmão',
-        profileName: 'Rafael',
-        createdAt: new Date(Date.now() - 3600000 * 24).toISOString(),
-        status: 'pending'
-      }
-    ];
+    return [];
   });
 
   // Gatilho global para disparar uma nova notificação e mostrá-la no carrossel de popups/toast alertadores
-  const triggerNotification = (title: string, message: string, movieId: string, type: 'movie' | 'series' | 'system') => {
+  const triggerNotification = (title: string, message: string, movieId: string, type: 'movie' | 'series' | 'system', posterUrl?: string) => {
     const newNotif: AppNotification = {
       id: 'notif_' + Date.now() + Math.random().toString(36).substring(2, 7),
       title,
@@ -190,9 +183,10 @@ export default function App() {
       movieId,
       createdAt: new Date().toISOString(),
       isRead: false,
-      type
+      type,
+      posterUrl
     };
-    setNotifications(prev => [newNotif, ...prev]);
+    setDbNotifications(prev => [newNotif, ...prev]);
     setToast(newNotif);
   };
 
@@ -212,178 +206,37 @@ export default function App() {
     isLoadedRef.current = true;
   }, []);
 
-  // --- EFEITOS DE SINCRONIZAÇÃO COM LOCALSTORAGE E FIRESTORE ---
-  const [hasLoadedUsers, setHasLoadedUsers] = useState(false);
-  const [hasLoadedProfiles, setHasLoadedProfiles] = useState(false);
-  const [hasLoadedMovies, setHasLoadedMovies] = useState(false);
-  const [hasLoadedRequests, setHasLoadedRequests] = useState(false);
-  const [hasLoadedSettings, setHasLoadedSettings] = useState(false);
+  // --- EFEITOS DE SINCRONIZAÇÃO COM LOCALSTORAGE (100% OFFLINE E SEGURO) ---
+  const [hasLoadedUsers, setHasLoadedUsers] = useState(true);
+  const [hasLoadedProfiles, setHasLoadedProfiles] = useState(true);
+  const [hasLoadedMovies, setHasLoadedMovies] = useState(true);
+  const [hasLoadedRequests, setHasLoadedRequests] = useState(true);
+  const [hasLoadedSettings, setHasLoadedSettings] = useState(true);
 
-  // 1. Ouvintes de Firestore em Tempo Real (Download do Banco em Nuvem)
-  useEffect(() => {
-    if (!db) return;
-
-    let isFirstUsers = true;
-    const unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
-      const dbUsers: User[] = [];
-      snapshot.forEach((doc) => {
-        dbUsers.push(doc.data() as User);
-      });
-      if (dbUsers.length > 0) {
-        setUsers(dbUsers);
-      } else if (isFirstUsers) {
-        saveUsersToFirestore(INITIAL_USERS);
-        isFirstUsers = false;
-      }
-      setHasLoadedUsers(true);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'users');
-    });
-
-    let isFirstProfiles = true;
-    const unsubProfiles = onSnapshot(collection(db, 'profiles'), (snapshot) => {
-      const dbProfiles: { [userId: string]: Profile[] } = {};
-      let hasData = false;
-      snapshot.forEach((doc) => {
-        const data = doc.data();
-        if (data && data.userId && data.profiles) {
-          dbProfiles[data.userId] = data.profiles;
-          hasData = true;
-        }
-      });
-      if (hasData) {
-        setAllProfiles(prev => ({ ...prev, ...dbProfiles }));
-      } else if (isFirstProfiles) {
-        saveProfilesToFirestore(DEFAULT_PROFILES);
-        isFirstProfiles = false;
-      }
-      setHasLoadedProfiles(true);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'profiles');
-    });
-
-    let isFirstMovies = true;
-    const unsubMovies = onSnapshot(collection(db, 'movies'), (snapshot) => {
-      const dbMovies: Movie[] = [];
-      snapshot.forEach((doc) => {
-        dbMovies.push(doc.data() as Movie);
-      });
-      if (dbMovies.length > 0) {
-        setMovies(dbMovies);
-      } else if (isFirstMovies) {
-        saveMoviesToFirestore(INITIAL_MOVIES);
-        isFirstMovies = false;
-      }
-      setHasLoadedMovies(true);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'movies');
-    });
-
-    let isFirstRequests = true;
-    const unsubRequests = onSnapshot(collection(db, 'requests'), (snapshot) => {
-      const dbRequests: MovieRequest[] = [];
-      snapshot.forEach((doc) => {
-        dbRequests.push(doc.data() as MovieRequest);
-      });
-      if (dbRequests.length > 0) {
-        setRequests(dbRequests.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
-      } else if (isFirstRequests) {
-        const defaultRequests: MovieRequest[] = [
-          {
-            id: 'r1',
-            title: 'E.T. O Extraterrestre',
-            type: 'movie',
-            userId: 'u1',
-            userName: 'Rafael Gusmão',
-            profileName: 'Rafael',
-            createdAt: new Date(Date.now() - 3600000 * 48).toISOString(),
-            status: 'pending'
-          },
-          {
-            id: 'r2',
-            title: 'Miami Vice',
-            type: 'series',
-            userId: 'u1',
-            userName: 'Rafael Gusmão',
-            profileName: 'Rafael',
-            createdAt: new Date(Date.now() - 3600000 * 24).toISOString(),
-            status: 'pending'
-          }
-        ];
-        saveRequestsToFirestore(defaultRequests);
-        isFirstRequests = false;
-      }
-      setHasLoadedRequests(true);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'requests');
-    });
-
-    const unsubSettings = onSnapshot(collection(db, 'settings'), (snapshot) => {
-      snapshot.forEach((doc) => {
-        if (doc.id === 'global') {
-          const data = doc.data();
-          if (data && data.adguardEnabled !== undefined) {
-            setAdguardEnabled(data.adguardEnabled);
-          }
-        }
-      });
-      setHasLoadedSettings(true);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'settings');
-    });
-
-    return () => {
-      unsubUsers();
-      unsubProfiles();
-      unsubMovies();
-      unsubRequests();
-      unsubSettings();
-    };
-  }, [db]);
-
-  // 2. Gravadores Periódicos Otimizados (Upload de Alterações para o Firestore)
+  // Synchronize state changes to LocalStorage instantly (Professional Offline System)
   useEffect(() => {
     localStorage.setItem('vhsflix_users', JSON.stringify(users));
-    if (!db || !hasLoadedUsers) return;
-    const timer = setTimeout(() => {
-      saveUsersToFirestore(users);
-    }, 3000);
-    return () => clearTimeout(timer);
-  }, [users, hasLoadedUsers]);
+  }, [users]);
 
   useEffect(() => {
     localStorage.setItem('vhsflix_profiles', JSON.stringify(allProfiles));
-    if (!db || !hasLoadedProfiles || !currentUserId) return;
-    const timer = setTimeout(() => {
-      const userProfs = allProfiles[currentUserId];
-      if (userProfs && userProfs.length > 0) {
-        saveProfilesToFirestore({ [currentUserId]: userProfs });
-      }
-    }, 4000);
-    return () => clearTimeout(timer);
-  }, [allProfiles, currentUserId, hasLoadedProfiles]);
+  }, [allProfiles]);
 
   useEffect(() => {
-    const timerLS = setTimeout(() => {
-      localStorage.setItem('vhsflix_movies', JSON.stringify(movies));
-    }, 1000);
-    return () => clearTimeout(timerLS);
+    localStorage.setItem('vhsflix_movies', JSON.stringify(movies));
   }, [movies]);
 
   useEffect(() => {
     localStorage.setItem('vhsflix_movie_requests', JSON.stringify(requests));
-    if (!db || !hasLoadedRequests) return;
-    const timer = setTimeout(() => {
-      saveRequestsToFirestore(requests);
-    }, 3000);
-    return () => clearTimeout(timer);
-  }, [requests, hasLoadedRequests]);
+  }, [requests]);
 
   useEffect(() => {
     localStorage.setItem('vhsflix_adguard_enabled', JSON.stringify(adguardEnabled));
-    if (!db || !hasLoadedSettings) return;
-    saveSettingsToFirestore(adguardEnabled);
-  }, [adguardEnabled, hasLoadedSettings]);
+  }, [adguardEnabled]);
+
+  useEffect(() => {
+    localStorage.setItem('vhsflix_db_notifications', JSON.stringify(dbNotifications));
+  }, [dbNotifications]);
 
   useEffect(() => {
     localStorage.setItem('vhsflix_notifications', JSON.stringify(notifications));
@@ -398,6 +251,10 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('vhsflix_vhs_mode', JSON.stringify(vhsMode));
   }, [vhsMode]);
+
+  useEffect(() => {
+    localStorage.setItem('vhsflix_mylist_view', myListViewMode);
+  }, [myListViewMode]);
 
   useEffect(() => {
     localStorage.setItem('vhsflix_current_uid', currentUserId);
@@ -524,6 +381,21 @@ export default function App() {
     // Sincronização automática desativada para manter o controle exclusivo do acervo com você
   }, [tmdbApiKey]);
 
+  // Auxiliar para obter peso de ordenação: fitas recém-adicionadas (customizadas pelo admin) ficam no topo.
+  // As fitas originais (id como m_2026_x) ficam logo abaixo, mantendo sua ordem de índice original intacta.
+  const getMovieSortingWeight = (m: Movie) => {
+    if (!m.id) return 0;
+    const customMatch = m.id.match(/^m_(\d{10,})$/);
+    if (customMatch) {
+      return parseInt(customMatch[1]); // ex: timestamp Date.now() ~ 1.7e12
+    }
+    const initialMatch = m.id.match(/^m_2026_(\d+)$/);
+    if (initialMatch) {
+      return 100000 - parseInt(initialMatch[1]); // Mantém a ordem original crescente de m_2026_1, m_2026_2 abaixo dos novos
+    }
+    return 0;
+  };
+
   // Filtra catálogo com base em busca e na aba ativa
   const filteredMovies = useMemo(() => {
     let list = [...movies];
@@ -541,8 +413,10 @@ export default function App() {
     // Filtros por abas do Estilo Netflix
     if (activeTab === 'movies') {
       list = list.filter(m => m.type === 'movie');
+      list.sort((a, b) => getMovieSortingWeight(b) - getMovieSortingWeight(a));
     } else if (activeTab === 'series') {
       list = list.filter(m => m.type === 'series');
+      list.sort((a, b) => getMovieSortingWeight(b) - getMovieSortingWeight(a));
     } else if (activeTab === 'mylist' && activeProfile) {
       list = list.filter(m => activeProfile.myList.includes(m.id));
     }
@@ -553,8 +427,10 @@ export default function App() {
         list = list.sort((a, b) => (b.rating || 0) - (a.rating || 0));
       } else if (selectedCategory === 'Séries') {
         list = list.filter(m => m.type === 'series');
+        list.sort((a, b) => getMovieSortingWeight(b) - getMovieSortingWeight(a));
       } else {
         list = list.filter(m => m.category === selectedCategory);
+        list.sort((a, b) => getMovieSortingWeight(b) - getMovieSortingWeight(a));
       }
     }
 
@@ -848,7 +724,8 @@ export default function App() {
       isSeries ? '📺 Nova Série Adicionada!' : '📼 Novo Filme Adicionado!',
       `"${newMovie.title}" acaba de ser adicionado ao acervo retrô de ${newMovie.category}!`,
       newMovieId,
-      isSeries ? 'series' : 'movie'
+      isSeries ? 'series' : 'movie',
+      newMovie.posterUrl
     );
     return true; // Sucesso ao adicionar
   };
@@ -903,7 +780,9 @@ export default function App() {
   };
 
   const handleNotificationClick = (movieId: string, notificationId: string) => {
-    setNotifications(prev => prev.map(notif => notif.id === notificationId ? { ...notif, isRead: true } : notif));
+    if (!readNotifications.includes(notificationId)) {
+      setReadNotifications(prev => [...prev, notificationId]);
+    }
     const found = movies.find(m => m.id === movieId);
     if (found) {
       setSelectedMovie(found);
@@ -911,7 +790,8 @@ export default function App() {
   };
 
   const handleMarkAllNotificationsAsRead = () => {
-    setNotifications(prev => prev.map(notif => ({ ...notif, isRead: true })));
+    const allIds = dbNotifications.map(n => n.id);
+    setReadNotifications(allIds);
   };
 
   // Jogar Rápido a fita VHS
@@ -992,6 +872,15 @@ export default function App() {
       ...richData
     };
     setRequests(prev => [newRequest, ...prev]);
+
+    // Notificar todos os usuários sobre o novo pedido realizado em tempo real
+    triggerNotification(
+      '🆕 Novo Pedido Solicitado!',
+      `O perfil "${activeProfile.name}" acabou de pedir a fita de "${title}"! Apoie o pedido no painel de pedidos.`,
+      '',
+      'system',
+      richData?.posterUrl
+    );
   };
 
   const handleFulfillRequest = (requestId: string) => {
@@ -1001,9 +890,10 @@ export default function App() {
     // Create a real notification
     triggerNotification(
       'Pedido Atendido! 🎉',
-      `O seu pedido do título "${request.title}" foi adicionado com sucesso e agora está disponível no catálogo!`,
+      `O pedido de "${request.title}" foi adicionado com sucesso e agora está disponível no acervo retrô!`,
       '',
-      request.type === 'movie' ? 'movie' : 'series'
+      request.type === 'movie' ? 'movie' : 'series',
+      request.posterUrl
     );
 
     // Remove request from the list
@@ -1058,6 +948,7 @@ export default function App() {
             onMarkAllAsRead={handleMarkAllNotificationsAsRead}
             selectedCategory={selectedCategory}
             onSelectCategory={handleSelectCategory}
+            movies={movies}
           />
 
           {/* --- TELA 2.A: INTERFACE ADMINISTRATIVA --- */}
@@ -1428,21 +1319,242 @@ export default function App() {
                       
                       return (
                         <div className="animate-fade-in">
-                          <div className="px-4 sm:px-8 mb-6">
-                            <span className="text-zinc-500 font-mono text-[9px] sm:text-[10px] uppercase font-bold tracking-widest block mb-1">Coleção de Fitas Clássicas</span>
-                            <h2 className="text-xl sm:text-2xl font-black font-display text-white uppercase tracking-tight">
-                              Minha Lista <span className="text-rose-500 font-extrabold">({listMovies.length} {listMovies.length === 1 ? 'item' : 'itens'})</span>
-                            </h2>
+                          {/* Cabeçalho Refinado com Seleção de Layout */}
+                          <div className="px-4 sm:px-8 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                            <div>
+                              <span className="text-zinc-500 font-mono text-[9px] sm:text-[10px] uppercase font-bold tracking-widest block mb-1">Coleção de Fitas Clássicas</span>
+                              <h2 className="text-xl sm:text-2xl font-black font-display text-white uppercase tracking-tight">
+                                Minha Lista <span className="text-rose-500 font-extrabold">({listMovies.length} {listMovies.length === 1 ? 'item' : 'itens'})</span>
+                              </h2>
+                            </div>
+                            
+                            {/* Seletor de visualização moderna */}
+                            <div className="flex items-center gap-1.5 self-end sm:self-auto bg-zinc-950/40 p-1 rounded-xl border border-zinc-900/80">
+                              <span className="text-zinc-500 font-mono font-bold mx-2 uppercase tracking-wider text-[8px] sm:text-[9px]">Sintonia:</span>
+                              
+                              {/* Modo Vertical */}
+                              <button
+                                onClick={() => setMyListViewMode('vertical_list')}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-mono font-black uppercase tracking-widest transition-all cursor-pointer text-[9px] ${
+                                  myListViewMode === 'vertical_list'
+                                    ? 'bg-rose-500/15 border-rose-500/30 text-rose-400'
+                                    : 'border-transparent text-zinc-500 hover:text-zinc-300'
+                                }`}
+                                title="Visualização Vertical Detalhada"
+                              >
+                                <List className="w-3.5 h-3.5" />
+                                <span className="hidden xs:inline">Vertical</span>
+                              </button>
+
+                              {/* Modo Grade */}
+                              <button
+                                onClick={() => setMyListViewMode('grid')}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-mono font-black uppercase tracking-widest transition-all cursor-pointer text-[9px] ${
+                                  myListViewMode === 'grid'
+                                    ? 'bg-rose-500/15 border-rose-500/30 text-rose-400'
+                                    : 'border-transparent text-zinc-500 hover:text-zinc-300'
+                                }`}
+                                title="Visualização em Grade Compacta"
+                              >
+                                <LayoutGrid className="w-3.5 h-3.5" />
+                                <span className="hidden xs:inline">Grade</span>
+                              </button>
+
+                              {/* Modo Carousel */}
+                              <button
+                                onClick={() => setMyListViewMode('carousel')}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-mono font-black uppercase tracking-widest transition-all cursor-pointer text-[9px] ${
+                                  myListViewMode === 'carousel'
+                                    ? 'bg-rose-500/15 border-rose-500/30 text-rose-400'
+                                    : 'border-transparent text-zinc-500 hover:text-zinc-300'
+                                }`}
+                                title="Carrossel clássico horizontal"
+                              >
+                                <svg className="w-3.5 h-3.5 text-current" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                                </svg>
+                                <span className="hidden xs:inline">Carrossel</span>
+                              </button>
+                            </div>
                           </div>
-                          <MovieRow
-                            title="Prateleira Particular"
-                            movies={listMovies}
-                            watchHistory={activeProfile.watchHistory}
-                            myList={activeProfile.myList}
-                            onMovieClick={handleSelectMovie}
-                            onToggleMyList={handleToggleMyList}
-                            onPlayClick={handleFeaturedPlay}
-                          />
+
+                          {/* 1. MODO LISTA DETALHADA VERTICAL (PROFISSIONAL & MODERNO) */}
+                          {myListViewMode === 'vertical_list' && (
+                            <div className="px-4 sm:px-8 space-y-4 max-w-5xl">
+                              {listMovies.map((movie) => {
+                                const progress = activeProfile.watchHistory[movie.id];
+                                const hasProgress = progress && progress.progress > 0 && !progress.isFinished;
+                                
+                                return (
+                                  <div
+                                    key={movie.id}
+                                    className="group relative bg-zinc-950/30 hover:bg-[#070709]/80 border border-zinc-900 hover:border-rose-500/30 rounded-xl p-3 sm:p-4.5 transition-all duration-300 flex flex-col sm:flex-row gap-5 items-start sm:items-center overflow-hidden shadow-lg hover:shadow-2xl hover:shadow-rose-950/10"
+                                    id={`mylist-vertical-${movie.id}`}
+                                  >
+                                    {/* Enfeite neon de borda lateral no hover */}
+                                    <div className="absolute top-0 left-0 w-[3px] h-full bg-rose-500/80 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                                    
+                                    {/* Capa/Poster da Fita */}
+                                    <div 
+                                      onClick={() => handleSelectMovie(movie)}
+                                      className="relative w-20 sm:w-26 aspect-[2/3] shrink-0 rounded-lg overflow-hidden border border-zinc-850 group-hover:border-rose-500/60 shadow-md cursor-pointer transform group-hover:scale-[1.02] transition-all duration-300"
+                                    >
+                                      <img 
+                                        src={movie.posterUrl} 
+                                        alt={movie.title} 
+                                        className="w-full h-full object-cover"
+                                        referrerPolicy="no-referrer"
+                                      />
+                                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60" />
+                                      
+                                      {/* Badge superior na imagem */}
+                                      <div className="absolute top-1.5 left-1.5 bg-zinc-950/80 border border-zinc-800/80 text-[8px] font-mono font-bold text-zinc-300 px-1.5 py-0.5 rounded leading-none uppercase">
+                                        {movie.type === 'series' ? 'Série' : 'Movie'}
+                                      </div>
+                                    </div>
+                                    
+                                    {/* Miolo Informativo */}
+                                    <div className="flex-1 w-full min-w-0 flex flex-col justify-between">
+                                      <div>
+                                        <div className="flex flex-wrap items-center gap-2 mb-2 text-[10px] font-mono text-zinc-500">
+                                          <span className="text-rose-500 font-extrabold bg-rose-500/10 border border-rose-500/20 px-2 py-0.5 rounded-full uppercase tracking-wider text-[9px]">
+                                            {movie.category}
+                                          </span>
+                                          <span>•</span>
+                                          <span className="bg-zinc-900 border border-zinc-800 px-1.5 py-0.5 rounded text-zinc-300 font-bold">
+                                            {movie.year}
+                                          </span>
+                                          <span>•</span>
+                                          <span className="text-zinc-400">
+                                            Duração: <strong className="text-zinc-300">{movie.duration}</strong>
+                                          </span>
+                                        </div>
+                                        
+                                        <h3 
+                                          onClick={() => handleSelectMovie(movie)}
+                                          className="text-base sm:text-lg font-black text-white hover:text-rose-500 transition-colors uppercase tracking-tight truncate cursor-pointer font-sans"
+                                        >
+                                          {movie.title}
+                                        </h3>
+                                        
+                                        <p className="text-xs text-zinc-400 mt-1.5 leading-relaxed line-clamp-2 pr-2 font-sans text-justify sm:text-left">
+                                          {movie.description}
+                                        </p>
+                                      </div>
+                                      
+                                      {/* Rodapé Interno com Estrelas & Progresso se houver */}
+                                      <div className="flex flex-wrap items-center gap-4 mt-4 pt-3 border-t border-zinc-900/60 text-[10px] font-mono text-zinc-500">
+                                        <span className="flex items-center gap-1 text-yellow-500 font-bold">
+                                          <Star className="w-3.5 h-3.5 fill-current text-yellow-500" />
+                                          <strong className="text-zinc-300 text-xs">{movie.rating}</strong>/10
+                                        </span>
+                                        
+                                        {hasProgress && (
+                                          <div className="flex items-center gap-3 max-w-sm flex-1">
+                                            <span className="text-rose-400 shrink-0 font-bold uppercase text-[9px]">Ponto: {Math.floor((progress?.currentTime || 0) / 60)} min</span>
+                                            <div className="h-1.5 bg-zinc-900 border border-zinc-800 rounded-full flex-1 overflow-hidden relative">
+                                              <div className="h-full bg-rose-500" style={{ width: `${progress.progress}%` }} />
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                    
+                                    {/* Ações na lateral */}
+                                    <div className="flex sm:flex-col items-center gap-2 w-full sm:w-auto shrink-0 mt-4 sm:mt-0 pt-3 sm:pt-0 border-t sm:border-t-0 border-zinc-900/60">
+                                      <button
+                                        onClick={() => handleFeaturedPlay(movie)}
+                                        className="flex-1 sm:flex-none w-full bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-mono text-[10px] font-black uppercase tracking-wider py-2.5 px-4.5 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-md active:bg-rose-800"
+                                      >
+                                        <Play className="w-3.5 h-3.5 fill-current" />
+                                        <span>Assistir</span>
+                                      </button>
+                                      
+                                      <button
+                                        onClick={() => handleToggleMyList(movie.id)}
+                                        className="bg-zinc-950 hover:bg-rose-600/10 border border-zinc-850 hover:border-rose-600/30 text-zinc-400 hover:text-rose-400 p-2.5 rounded-lg transition-all cursor-pointer active:scale-95 flex items-center justify-center"
+                                        title="Remover da lista de favoritos"
+                                      >
+                                        <Trash2 className="w-4 h-4 text-zinc-500 hover:text-rose-400 transition-colors" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          {/* 2. MODO GRADE ESPAÇOSA MODERNA (GRID) */}
+                          {myListViewMode === 'grid' && (
+                            <div className="px-4 sm:px-8 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-y-6 gap-x-4 sm:gap-x-5">
+                              {listMovies.map((movie) => (
+                                <div
+                                  key={movie.id}
+                                  className="group relative bg-[#09090b]/40 border border-zinc-900 hover:border-rose-500 rounded-xl overflow-hidden hover:shadow-xl hover:shadow-rose-600/10 transition-all cursor-pointer flex flex-col h-full"
+                                  id={`mylist-grid-${movie.id}`}
+                                >
+                                  <div 
+                                    onClick={() => handleSelectMovie(movie)}
+                                    className="aspect-[2/3] overflow-hidden bg-zinc-900 relative shrink-0"
+                                  >
+                                    <img 
+                                      src={movie.posterUrl} 
+                                      alt={movie.title} 
+                                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                      referrerPolicy="no-referrer"
+                                    />
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2.5">
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleFeaturedPlay(movie);
+                                        }}
+                                        className="w-full bg-rose-600 hover:bg-rose-700 text-white py-1.5 rounded text-[9px] font-mono font-bold uppercase tracking-wider flex items-center justify-center gap-1 shadow-md cursor-pointer"
+                                      >
+                                        <Play className="w-2.5 h-2.5 fill-current" />
+                                        <span>Tocar</span>
+                                      </button>
+                                    </div>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleToggleMyList(movie.id);
+                                      }}
+                                      className="absolute top-2 right-2 bg-zinc-950/90 hover:bg-rose-950/90 border border-zinc-800 text-zinc-400 hover:text-rose-400 p-1.5 rounded-full transition-all cursor-pointer z-10"
+                                      title="Remover"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                  <div 
+                                    onClick={() => handleSelectMovie(movie)}
+                                    className="p-2 sm:p-3 bg-[#09090b]/40 border-t border-zinc-900 flex-1 flex flex-col justify-between"
+                                  >
+                                    <span className="font-semibold text-xs text-zinc-200 truncate group-hover:text-rose-500 block uppercase font-mono tracking-tight">{movie.title}</span>
+                                    <div className="flex justify-between items-center text-[9px] text-zinc-500 font-mono leading-none mt-1">
+                                      <span className="text-yellow-400 font-bold flex items-center gap-0.5">
+                                        <Star className="w-2.5 h-2.5 fill-yellow-400 text-yellow-400" /> {movie.rating}
+                                      </span>
+                                      <span>{movie.year}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* 3. MODO CARROSSEL CLÁSSICO */}
+                          {myListViewMode === 'carousel' && (
+                            <MovieRow
+                              title="Prateleira Particular"
+                              movies={listMovies}
+                              watchHistory={activeProfile.watchHistory}
+                              myList={activeProfile.myList}
+                              onMovieClick={handleSelectMovie}
+                              onToggleMyList={handleToggleMyList}
+                              onPlayClick={handleFeaturedPlay}
+                            />
+                          )}
                         </div>
                       );
                     }
@@ -1502,9 +1614,10 @@ export default function App() {
                     return (
                       <div className="flex flex-col">
                         {categoriesToRender.map(category => {
-                          const categoryMovies = category === 'Séries'
+                          const categoryMovies = (category === 'Séries'
                             ? movies.filter(m => m.type === 'series')
-                            : movies.filter(m => m.category === category);
+                            : movies.filter(m => m.category === category)
+                          ).sort((a, b) => getMovieSortingWeight(b) - getMovieSortingWeight(a));
 
                           if (categoryMovies.length === 0) return null;
 

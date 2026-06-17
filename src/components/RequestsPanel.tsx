@@ -621,7 +621,7 @@ export default function RequestsPanel({
 
                       {/* Ações e Status */}
                       <div className="flex items-center gap-2 shrink-0 self-end sm:self-center mt-3 sm:mt-0">
-                        {/* Controles de Administrador */}
+                        {/* Controles de Administrador ou do Próprio Perfil */}
                         {isAdmin ? (
                           <div className="flex items-center gap-1.5">
                             <button
@@ -641,10 +641,21 @@ export default function RequestsPanel({
                             </button>
                           </div>
                         ) : (
-                          <span className="flex items-center gap-1.5 bg-amber-500/10 text-amber-500 px-2.5 py-1 rounded-full text-[9px] font-mono font-black uppercase tracking-widest border border-amber-500/20 select-none">
-                            <Clock className="w-3 h-3 animate-pulse text-amber-500" />
-                            <span>Aguardando Fita</span>
-                          </span>
+                          <div className="flex items-center gap-2">
+                            {req.profileName === activeProfile.name && (
+                              <button
+                                onClick={() => onDeleteRequest(req.id)}
+                                className="bg-zinc-950 hover:bg-rose-600/20 border border-zinc-850 hover:border-rose-600/30 text-zinc-500 hover:text-rose-400 p-2 rounded-lg transition-all cursor-pointer active:scale-95"
+                                title="Excluir meu pedido"
+                              >
+                                <Trash className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                            <span className="flex items-center gap-1.5 bg-amber-500/10 text-amber-500 px-2.5 py-1 rounded-full text-[9px] font-mono font-black uppercase tracking-widest border border-amber-500/20 select-none">
+                              <Clock className="w-3 h-3 animate-pulse text-amber-500" />
+                              <span>Aguardando Fita</span>
+                            </span>
+                          </div>
                         )}
                       </div>
                     </div>

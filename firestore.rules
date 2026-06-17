@@ -30,6 +30,11 @@ service cloud.firestore {
     match /requests/{document=**} {
       allow read, write: if true;
     }
+
+    // Notifications collection and subpaths
+    match /notifications/{document=**} {
+      allow read, write: if true;
+    }
   }
 }
 

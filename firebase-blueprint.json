@@ -48,6 +48,21 @@
         "adguardEnabled": { "type": "boolean" }
       },
       "required": ["id", "adguardEnabled"]
+    },
+    "AppNotification": {
+      "title": "AppNotification",
+      "description": "System-wide notification about a new release or system status",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "movieId": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "type": { "type": "string" },
+        "posterUrl": { "type": "string" }
+      },
+      "required": ["id", "title", "message", "createdAt", "type"]
     }
   },
   "firestore": {
@@ -66,6 +81,10 @@
     "/settings/{settingsId}": {
       "schema": "Settings",
       "description": "System defaults configuration settings"
+    },
+    "/notifications/{notificationId}": {
+      "schema": "AppNotification",
+      "description": "Pushed notifications for movies, series and requests"
     }
   }
 }

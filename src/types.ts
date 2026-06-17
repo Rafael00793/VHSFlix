@@ -64,6 +64,7 @@ export interface AppNotification {
   createdAt: string;
   isRead: boolean;
   type: 'movie' | 'series' | 'system';
+  posterUrl?: string;
 }
 
 export interface MovieRequest {
