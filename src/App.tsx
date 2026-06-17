@@ -118,35 +118,7 @@ export default function App() {
 
   const [dbNotifications, setDbNotifications] = useState<AppNotification[]>(() => {
     const saved = localStorage.getItem('vhsflix_db_notifications');
-    return saved ? JSON.parse(saved) : [
-      {
-        id: 'n1',
-        title: '📺 Série de Sucesso',
-        message: 'A fita de Stranger Things foi totalmente rebobinada e está pronta para assistir!',
-        movieId: 'm5',
-        createdAt: new Date(Date.now() - 3600000 * 2).toISOString(),
-        isRead: false,
-        type: 'series'
-      },
-      {
-        id: 'n2',
-        title: '📼 Clássico de Ficção',
-        message: 'A edição histórica remasterizada de Blade Runner já está adicionada ao catálogo!',
-        movieId: 'm4',
-        createdAt: new Date(Date.now() - 3600000 * 24).toISOString(),
-        isRead: false,
-        type: 'movie'
-      },
-      {
-        id: 'n3',
-        title: '🌟 Fé e Inspiração',
-        message: 'A sensacional produção cristã The Chosen está completa no nosso acervo retrô.',
-        movieId: 'm10',
-        createdAt: new Date(Date.now() - 3600000 * 48).toISOString(),
-        isRead: true,
-        type: 'series'
-      }
-    ];
+    return saved ? JSON.parse(saved) : [];
   });
   const [readNotifications, setReadNotifications] = useState<string[]>(() => {
     const saved = localStorage.getItem('vhsflix_read_notifications');
@@ -1710,69 +1682,92 @@ export default function App() {
           <AnimatePresence>
             {toast && (() => {
               const toastMovie = movies.find(m => m.id === toast.movieId);
+              const poster = toastMovie?.posterUrl || toast.posterUrl;
+              const hasPoster = !!poster;
+              const titleToShow = toastMovie?.title || toast.title;
+              const descToShow = toastMovie?.description || toast.message;
+              const categoryToShow = toastMovie?.category || (toast.type === 'series' ? 'Série Retrô' : toast.type === 'movie' ? 'Filme' : 'VHSFLIX');
+              
               return (
                 <motion.div
-                  initial={{ opacity: 0, y: 40, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 20, scale: 0.95, transition: { duration: 0.18 } }}
-                  className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-6 sm:bottom-6 z-[9999] max-w-none sm:max-w-sm w-auto sm:w-full bg-zinc-950/95 border border-rose-500/30 rounded-xl p-3.5 shadow-2xl shadow-rose-950/30 backdrop-blur-md flex gap-3 select-none"
+                  initial={{ opacity: 0, y: 70, scale: 0.9, rotateX: 10 }}
+                  animate={{ opacity: 1, y: 0, scale: 1, rotateX: 0 }}
+                  exit={{ opacity: 0, y: 30, scale: 0.92, transition: { duration: 0.22, ease: 'easeIn' } }}
+                  style={{ perspective: 1000 }}
+                  className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-6 sm:bottom-6 z-[9999] max-w-none sm:max-w-[390px] w-auto sm:w-full bg-black/90 border border-rose-500/40 rounded-2xl p-4 shadow-[0_10px_40px_rgba(244,63,94,0.18)] backdrop-blur-xl flex gap-3.5 select-none overflow-hidden"
+                  id={`live-toast-${toast.id}`}
                 >
-                  {/* Mini Poster do Filme/Série */}
-                  {toastMovie && toastMovie.posterUrl ? (
-                    <div className="w-16 h-24 rounded overflow-hidden flex-shrink-0 border border-zinc-800 shadow">
+                  {/* Linha de Progresso/Duração que some aos poucos na base */}
+                  <motion.div 
+                    initial={{ width: '100%' }}
+                    animate={{ width: '0%' }}
+                    transition={{ duration: 8.5, ease: 'linear' }}
+                    className="absolute bottom-0 left-0 h-[3.5px] bg-gradient-to-r from-red-500 via-rose-500 to-amber-500 shadow-[0_0_8px_rgba(244,63,94,0.6)]" 
+                  />
+
+                  {/* Capa Clássica de Fita VHS */}
+                  {hasPoster ? (
+                    <div className="relative w-18 sm:w-22 aspect-[2/3] rounded-lg overflow-hidden shrink-0 border border-zinc-800 shadow-[0_4px_16px_rgba(0,0,0,0.6)] group">
                       <img
-                        src={toastMovie.posterUrl}
-                        alt={toastMovie.title}
-                        className="w-full h-full object-cover"
+                        src={poster}
+                        alt={titleToShow}
+                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                         referrerPolicy="no-referrer"
                       />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-40" />
                     </div>
                   ) : (
-                    <div className="w-16 h-16 rounded bg-zinc-900 border border-zinc-800 flex items-center justify-center flex-shrink-0 text-rose-500">
-                      <Bell className="w-6 h-6 animate-pulse" />
+                    <div className="w-18 h-18 rounded-xl bg-zinc-950 border border-zinc-850 flex items-center justify-center shrink-0 text-rose-500 shadow-inner">
+                      <Bell className="w-6 h-6 text-rose-500 animate-pulse" />
                     </div>
                   )}
 
-                  {/* Conteúdo Informativo */}
-                  <div className="flex-1 min-w-0 flex flex-col justify-between">
+                  {/* Conteúdo Técnico e Sinopse */}
+                  <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
                     <div>
-                      {/* Título da Notificação */}
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[10px] uppercase font-black tracking-wider text-rose-500 flex items-center gap-1">
-                          <Flame className="w-3.5 h-3.5 fill-rose-500/20 text-rose-500 animate-pulse" />
-                          {toast.title}
+                      {/* Categoria / Tipo e Botão Fechar */}
+                      <div className="flex items-center justify-between gap-2 mb-1.5">
+                        <span className="text-[9px] uppercase font-mono font-black tracking-widest text-rose-400 bg-rose-500/10 border border-rose-500/20 px-2 py-0.5 rounded-full flex items-center gap-1 leading-none">
+                          <Sparkles className="w-2.5 h-2.5 text-rose-400 fill-current animate-pulse" />
+                          {categoryToShow}
                         </span>
+                        
                         <button
                           onClick={() => setToast(null)}
-                          className="text-zinc-500 hover:text-zinc-200 p-0.5 rounded transition-colors"
+                          className="text-zinc-500 hover:text-rose-400 p-1 hover:bg-zinc-900 rounded-lg transition-all cursor-pointer"
+                          title="Descartar aviso"
                         >
-                          <X className="w-4 h-4" />
+                          <X className="w-3.5 h-3.5" />
                         </button>
                       </div>
 
                       {/* Nome do Conteúdo */}
-                      <p className="text-xs font-bold font-display text-white mt-1 truncate">
-                        {toastMovie ? toastMovie.title : toast.title}
-                      </p>
+                      <h4 className="text-xs sm:text-sm font-black font-sans text-white uppercase tracking-tight line-clamp-1">
+                        {titleToShow}
+                      </h4>
 
-                      {/* Descritivo curto */}
-                      <p className="text-[10px] text-zinc-400 font-light mt-1.5 leading-relaxed line-clamp-2">
-                        {toastMovie ? toastMovie.description : toast.message}
+                      {/* Descrição em Prosa */}
+                      <p className="text-[10px] text-zinc-400 font-sans mt-1 leading-relaxed line-clamp-2 text-justify">
+                        {descToShow}
                       </p>
                     </div>
 
-                    {/* Ação Interativa */}
-                    {toastMovie && (
+                    {/* Rodapé Dinâmico com Play */}
+                    {toastMovie ? (
                       <button
                         onClick={() => {
                           setSelectedMovie(toastMovie);
                           setToast(null);
                         }}
-                        className="mt-2.5 w-full bg-rose-600 hover:bg-rose-700 active:scale-[0.98] transition-all text-white font-bold text-[9px] uppercase tracking-widest py-1.5 px-3 rounded flex items-center justify-center gap-1 shadow shadow-rose-600/20 cursor-pointer"
+                        className="mt-3 w-full bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 active:scale-[0.97] transition-all text-white font-mono text-[9px] font-black uppercase tracking-widest py-2 px-3 rounded-lg flex items-center justify-center gap-1.5 shadow-[0_2px_10px_rgba(244,63,94,0.3)] cursor-pointer"
                       >
                         <Play className="w-3 h-3 fill-current" />
-                        <span>Inserir VHS e Assistir</span>
+                        <span>Sintonizar Fita Agora</span>
                       </button>
+                    ) : (
+                      <div className="mt-2.5 text-[8px] font-mono text-zinc-500 text-right uppercase tracking-wider">
+                        Atualizado • VHSFLIX BRASIL
+                      </div>
                     )}
                   </div>
                 </motion.div>
