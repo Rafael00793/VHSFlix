@@ -855,11 +855,8 @@ export default function MovieDetailModal({
                     title={`Reproduzindo ${movie.title}`}
                     className="w-full h-full border-0 absolute inset-0 video-player-iframe"
                     allowFullScreen
-                    webkitallowfullscreen="true"
-                    mozallowfullscreen="true"
-                    allow="autoplay *; encrypted-media *; picture-in-picture *; fullscreen *; clipboard-write *; accelerometer *; gyroscope *; web-share *"
-                    sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
-                    referrerPolicy="no-referrer"
+                    allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+                    referrerPolicy="origin"
                   />
                 </div>
               </div>
