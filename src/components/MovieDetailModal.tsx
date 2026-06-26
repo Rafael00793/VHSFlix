@@ -595,83 +595,6 @@ export default function MovieDetailModal({
     currentTimeRef.current = currentTime;
   }, [currentTime]);
 
-  // AdGuard Active Protection Engine (Anti-Ads / Anti-Popups / Anti-Redirection)
-  useEffect(() => {
-    if (!isPlaying || !adguardEnabled) return;
-
-    // Intercepta tentativas automáticas de redirecionar ou sair da página principal
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      e.returnValue = "AdGuard Pro bloqueou um redirecionamento de anúncio externo.";
-      return e.returnValue;
-    };
-
-    // Bloqueia qualquer clique ou evento que tente de alguma forma iniciar abertura de abas externas/popups
-    const preventPopups = (e: MouseEvent | TouchEvent) => {
-      const target = e.target as HTMLElement;
-      const closestLink = target.closest('a');
-      if (closestLink) {
-        const href = closestLink.getAttribute('href') || '';
-        const targetAttr = closestLink.getAttribute('target') || '';
-
-        if (targetAttr === '_blank' || href.startsWith('http') || href.startsWith('//')) {
-          try {
-            const urlObj = new URL(href, window.location.href);
-            if (urlObj.hostname !== window.location.hostname) {
-              e.preventDefault();
-              e.stopPropagation();
-              console.warn("[AdGuard Pro] Link ou Popup bloqueado com sucesso:", href);
-            }
-          } catch (err) {
-            e.preventDefault();
-            e.stopPropagation();
-          }
-        }
-      }
-    };
-
-    // Sobrescreve com segurança o window.open para evitar novos popups de abrirem via script
-    const originalOpen = window.open;
-    // @ts-ignore
-    window.open = function() {
-      console.warn("[AdGuard Pro] Tentativa bloqueada de criar uma nova aba/janela.");
-      return {
-        focus: () => {},
-        blur: () => {},
-        close: () => {},
-        postMessage: () => {}
-      }; // Retorna objeto proxy inofensivo para evitar erros de compilação/execução em scripts invasivos
-    };
-
-    // Bloqueia manipulações de window.top para redirecionar a página inteira
-    const preventFrameEscape = () => {
-      try {
-        if (window.top && window.top !== window.self) {
-          window.top.onbeforeunload = function() {
-            return "O AdGuard impediu que o reprodutor nativo tentasse escapar da página.";
-          };
-        }
-      } catch (e) {}
-    };
-
-    const intervalId = setInterval(preventFrameEscape, 1000);
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    document.addEventListener('click', preventPopups, true);
-    document.addEventListener('mousedown', preventPopups, true);
-    document.addEventListener('mouseup', preventPopups, true);
-
-    return () => {
-      // @ts-ignore
-      window.open = originalOpen;
-      clearInterval(intervalId);
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      document.removeEventListener('click', preventPopups, true);
-      document.removeEventListener('mousedown', preventPopups, true);
-      document.removeEventListener('mouseup', preventPopups, true);
-    };
-  }, [isPlaying, adguardEnabled]);
-
   const isAddedToList = movie ? myList.includes(movie.id) : false;
   const progressState = movie ? watchHistory[movie.id] : undefined;
 
@@ -926,8 +849,8 @@ export default function MovieDetailModal({
                 <div className="flex-1 w-full bg-black relative">
                   <iframe
                     src={movie.type === 'series' 
-                      ? `https://myembed.biz/serie/${movie.tmdbId || '1396'}/${season}/${episode}`
-                      : `https://myembed.biz/filme/${movie.tmdbId || '105'}`
+                      ? `https://fembed.sx/e/${movie.tmdbId || '1396'}/${season}-${episode}`
+                      : `https://fembed.sx/e/${movie.tmdbId || '105'}`
                     }
                     title={`Reproduzindo ${movie.title}`}
                     className="w-full h-full border-0 absolute inset-0 video-player-iframe"
@@ -1065,22 +988,6 @@ export default function MovieDetailModal({
                       </div>
                     </div>
                   )}
-
-                  {/* DETALHE DO ADGUARD POPUP BLOCKER */}
-                  <div className="border border-zinc-900 bg-zinc-900/20 rounded-xl p-3.5 flex items-center justify-between font-mono text-xs text-left">
-                    <div className="flex items-center gap-2.5">
-                      <div className="p-2 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-500 animate-pulse">
-                        <Shield className="w-4 h-4 text-rose-500" />
-                      </div>
-                      <div>
-                        <p className="text-zinc-200 font-black text-[10px] sm:text-xs uppercase tracking-wider">Filtro de Popups Estrito (AdGuard Ativo)</p>
-                        <p className="text-zinc-500 text-[9px] sm:text-[10px] mt-0.5">Iframe sintonizado sob sandbox protegida. Popups externos bloqueados.</p>
-                      </div>
-                    </div>
-                    <span className="text-[9px] font-black uppercase text-emerald-400 bg-emerald-400/5 py-1 px-2.5 rounded border border-emerald-400/10 select-none animate-pulse">
-                      PROTEGIDO
-                    </span>
-                  </div>
 
                   {/* BOTÃO DE INSERIR E REPRODUZIR */}
                   <button
