@@ -462,6 +462,7 @@ export default function MovieDetailModal({
   // Real-time episode mapping from TMDB if applicable
   const [tmdbEpisodes, setTmdbEpisodes] = useState<{ [key: string]: Episode[] }>({});
   const [isLoadingEpisodes, setIsLoadingEpisodes] = useState(false);
+  const [abyssEpisodeId, setAbyssEpisodeId] = useState<string>('');
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const currentTimeRef = useRef(currentTime);
@@ -475,6 +476,39 @@ export default function MovieDetailModal({
     setEpisode(1);
     setActiveTab(movie.type === 'series' ? 'episodes' : 'details');
   }, [movie?.id]);
+
+  // Sintonizar automaticamente episódios de séries com Abyss em tempo real
+  useEffect(() => {
+    if (!movie) return;
+    if (movie.type !== 'series') {
+      setAbyssEpisodeId('');
+      return;
+    }
+    setAbyssEpisodeId(''); // Reset temporário para sintonização
+    
+    fetch('/api/abyss/register', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        tmdbId: movie.tmdbId,
+        type: 'series',
+        title: movie.title,
+        season,
+        episode
+      })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success && data.abyssId) {
+        setAbyssEpisodeId(data.abyssId);
+      }
+    })
+    .catch(err => {
+      console.error('[Abyss Player] Erro ao sintonizar episódio:', err);
+    });
+  }, [movie?.id, season, episode]);
 
   // Busca fitas correspondentes inteligentes sintonizadas na mesma categoria e tipo
   const relatedList = React.useMemo(() => {
@@ -848,10 +882,10 @@ export default function MovieDetailModal({
                 {/* 2. Área do Iframe com altura flex-1 restrita para nunca vazar ou rolar e evitar adoverlays de roubar cliques no topo */}
                 <div className="flex-1 w-full bg-black relative">
                   <iframe
-                    src={movie.type === 'series' 
-                      ? `https://fembed.sx/e/${movie.tmdbId || '1396'}/${season}-${episode}`
-                      : `https://fembed.sx/e/${movie.tmdbId || '105'}`
-                    }
+                    src={`https://abyssplayer.com/${movie.type === 'series'
+                      ? (abyssEpisodeId || `series-${movie.tmdbId || '1396'}-${season}-${episode}`)
+                      : (movie.abyssId || movie.tmdbId || '105')
+                    }`}
                     title={`Reproduzindo ${movie.title}`}
                     className="w-full h-full border-0 absolute inset-0 video-player-iframe"
                     allowFullScreen

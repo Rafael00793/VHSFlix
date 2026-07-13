@@ -21,6 +21,9 @@ export interface Movie {
   clicksCount?: number;
   votesLikes?: number;
   votesDislikes?: number;
+  abyssId?: string; // ID gerado/obtido no Abyss
+  abyssEmbedUrl?: string; // URL de reprodução incorporada gerada pelo Abyss
+  abyssStatus?: string; // Status de processamento no Abyss (ex: "active", "processing")
 }
 
 export interface WatchProgress {

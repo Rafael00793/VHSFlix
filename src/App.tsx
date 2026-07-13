@@ -686,6 +686,7 @@ export default function App() {
     const newMovie: Movie = {
       ...newMovieData,
       id: newMovieId,
+      abyssStatus: 'processing'
     };
     setMovies(prev => [newMovie, ...prev]);
     saveSingleMovieToFirestore(newMovie);
@@ -699,12 +700,88 @@ export default function App() {
       isSeries ? 'series' : 'movie',
       newMovie.posterUrl
     );
+
+    // Registrar fita automaticamente no Abyss
+    fetch('/api/abyss/register', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        tmdbId: newMovie.tmdbId,
+        type: newMovie.type,
+        title: newMovie.title
+      })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        setMovies(prev => prev.map(m => {
+          if (m.id === newMovieId) {
+            const updated = {
+              ...m,
+              abyssId: data.abyssId,
+              abyssEmbedUrl: data.embedUrl,
+              abyssStatus: data.status
+            };
+            saveSingleMovieToFirestore(updated);
+            return updated;
+          }
+          return m;
+        }));
+        triggerNotification(
+          '🛰️ Sinal Sintonizado!',
+          `O player Abyss para "${newMovie.title}" está pronto e sintonizado no canal!`,
+          newMovieId,
+          'system',
+          newMovie.posterUrl
+        );
+      }
+    })
+    .catch(err => {
+      console.error('[Abyss App] Erro ao sintonizar fita no catálogo:', err);
+    });
+
     return true; // Sucesso ao adicionar
   };
 
   const handleEditMovie = (editedMovie: Movie) => {
     setMovies(prev => prev.map(m => m.id === editedMovie.id ? editedMovie : m));
     saveSingleMovieToFirestore(editedMovie);
+
+    // Re-registrar no Abyss em caso de edição (como alteração de TMDB ID ou título)
+    fetch('/api/abyss/register', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        tmdbId: editedMovie.tmdbId,
+        type: editedMovie.type,
+        title: editedMovie.title
+      })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        setMovies(prev => prev.map(m => {
+          if (m.id === editedMovie.id) {
+            const updated = {
+              ...m,
+              abyssId: data.abyssId,
+              abyssEmbedUrl: data.embedUrl,
+              abyssStatus: data.status
+            };
+            saveSingleMovieToFirestore(updated);
+            return updated;
+          }
+          return m;
+        }));
+      }
+    })
+    .catch(err => {
+      console.error('[Abyss App] Erro ao sintonizar fita editada:', err);
+    });
   };
 
   const handleDeleteMovie = (movieId: string) => {
