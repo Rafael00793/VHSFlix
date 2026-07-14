@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Movie, WatchProgress } from '../types';
-import { X, Play, Pause, Plus, Check, Star, RefreshCw, Tv, Clock, HelpCircle, Film, Sparkles, AlertCircle, ExternalLink, Maximize, Shield, Sliders, ThumbsUp, ThumbsDown, ChevronDown, ArrowLeft, Settings } from 'lucide-react';
+import { X, Play, Pause, Plus, Check, Star, RefreshCw, Tv, Clock, HelpCircle, Film, Sparkles, AlertCircle, ExternalLink, Maximize, Shield, Sliders, ThumbsUp, ThumbsDown, ChevronDown, ArrowLeft, Settings, Volume2, VolumeX } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { INITIAL_MOVIES } from '../data';
 
@@ -385,6 +385,22 @@ const CATEGORY_TAPE_LABELS: { [key: string]: string } = {
 };
 
 export function getSeriesSeasonsData(movie: Movie) {
+  // Se houver configuração manual de temporadas e episódios, usar prioritariamente
+  if (movie.seasonsConfig && Object.keys(movie.seasonsConfig).length > 0) {
+    const seasons: { seasonNumber: number; episodesCount: number }[] = [];
+    const sortedSeasons = Object.keys(movie.seasonsConfig)
+      .map(Number)
+      .sort((a, b) => a - b);
+    
+    for (const sNum of sortedSeasons) {
+      seasons.push({
+        seasonNumber: sNum,
+        episodesCount: movie.seasonsConfig[sNum] || 1
+      });
+    }
+    return seasons;
+  }
+
   // Tentar parsear o número de temporadas
   let numSeasons = 3; // Fallback
   const durationStr = movie.duration || '';
@@ -458,11 +474,97 @@ export default function MovieDetailModal({
   const [episode, setEpisode] = useState<number>(1);
   const [activeTab, setActiveTab] = useState<'episodes' | 'related' | 'details'>('episodes');
   const [isSeasonDropdownOpen, setIsSeasonDropdownOpen] = useState(false);
+  const [abyssEpisodeId, setAbyssEpisodeId] = useState<string>('');
+  
+  // Qualidade preferencial de reprodução (persiste em localStorage para máxima fluidez)
+  const [preferredQuality, setPreferredQuality] = useState<string>(() => {
+    return localStorage.getItem('vhsflix_preferred_quality') || '480p';
+  });
+  const [isMuted, setIsMuted] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  const getQualityParams = (quality: string) => {
+    const num = quality.replace('p', '');
+    return `&quality=${quality}&res=${num}&q=${num}&quality_preferred=${num}&initial_resolution=${quality}&preload=auto&autoplay=1&buffering=fast&autoQuality=0`;
+  };
+
+  const getActiveVideoUrl = () => {
+    if (!movie) return '';
+    if (movie.type === 'series') {
+      const key = `${season}_${episode}`;
+      if (movie.episodeEmbeds && movie.episodeEmbeds[key]) {
+        const url = movie.episodeEmbeds[key];
+        return url.startsWith('http://') || url.startsWith('https://') ? url : `https://abyssplayer.com/${url}`;
+      } else if (abyssEpisodeId) {
+        return abyssEpisodeId.startsWith('http://') || abyssEpisodeId.startsWith('https://') ? abyssEpisodeId : `https://abyssplayer.com/${abyssEpisodeId}`;
+      } else {
+        return `https://abyssplayer.com/series-${movie.tmdbId || '1396'}-${season}-${episode}`;
+      }
+    } else {
+      if (movie.embedUrl) {
+        return movie.embedUrl.startsWith('http://') || movie.embedUrl.startsWith('https://') ? movie.embedUrl : `https://abyssplayer.com/${movie.embedUrl}`;
+      } else {
+        return `https://abyssplayer.com/${movie.abyssId || movie.tmdbId || '105'}`;
+      }
+    }
+  };
+
+  const parsedVideo = (() => {
+    const rawUrl = getActiveVideoUrl();
+    if (!rawUrl) return { type: 'empty', url: '' };
+
+    const urlTrim = rawUrl.trim();
+
+    // Check direct video file formats (including general file stream links)
+    const directVideoRegex = /\.(mp4|mkv|webm|ogg|mov|m3u8)(?:\?|$)/i;
+    const isDirect = urlTrim.toLowerCase().match(directVideoRegex) || 
+                     urlTrim.startsWith('blob:') || 
+                     urlTrim.includes('/video/') || 
+                     urlTrim.includes('.mp4') || 
+                     urlTrim.includes('.mkv') || 
+                     urlTrim.includes('stream');
+                     
+    if (isDirect) {
+      return {
+        type: 'direct',
+        url: urlTrim
+      };
+    }
+
+    return {
+      type: 'iframe',
+      url: urlTrim
+    };
+  })();
+
+  // Sincronizar estado de reproducao, velocidade e volume com o elemento de video real
+  useEffect(() => {
+    if (parsedVideo.type === 'direct' && videoRef.current) {
+      if (isPlaying) {
+        videoRef.current.play().catch(err => {
+          console.warn("Autoplay impedido ou arquivo nao suportado:", err);
+        });
+      } else {
+        videoRef.current.pause();
+      }
+    }
+  }, [isPlaying, parsedVideo.type]);
+
+  useEffect(() => {
+    if (parsedVideo.type === 'direct' && videoRef.current) {
+      videoRef.current.playbackRate = playbackSpeed;
+    }
+  }, [playbackSpeed, parsedVideo.type]);
+
+  useEffect(() => {
+    if (parsedVideo.type === 'direct' && videoRef.current) {
+      videoRef.current.muted = isMuted;
+    }
+  }, [isMuted, parsedVideo.type]);
   
   // Real-time episode mapping from TMDB if applicable
   const [tmdbEpisodes, setTmdbEpisodes] = useState<{ [key: string]: Episode[] }>({});
   const [isLoadingEpisodes, setIsLoadingEpisodes] = useState(false);
-  const [abyssEpisodeId, setAbyssEpisodeId] = useState<string>('');
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const currentTimeRef = useRef(currentTime);
@@ -668,7 +770,7 @@ export default function MovieDetailModal({
 
   // Simulador de Ticking de Tempo do Player (Relógio da fita VHS)
   useEffect(() => {
-    if (isPlaying && movie) {
+    if (isPlaying && movie && parsedVideo.type !== 'direct') {
       timerRef.current = setInterval(() => {
         const prev = currentTimeRef.current;
         let nextTime = prev + (1 * playbackSpeed);
@@ -696,7 +798,7 @@ export default function MovieDetailModal({
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [isPlaying, totalDuration, movie?.id, playbackSpeed, onUpdateProgress]);
+  }, [isPlaying, totalDuration, movie?.id, playbackSpeed, onUpdateProgress, parsedVideo.type]);
 
   // --- SISTEMA DE PROTEÇÃO ROBUSTO ANTI-ANÚNCIOS, POPUPS E REDIRECIONAMENTOS ---
   useEffect(() => {
@@ -748,6 +850,96 @@ export default function MovieDetailModal({
       window.removeEventListener("click", handleWindowClick, true);
     };
   }, [isPlaying]);
+
+  // --- SISTEMA DE PRÉ-CARREGAMENTO (PREFETCHING) E PRECONNECT ---
+  // Pré-conecta silenciosamente aos servidores de streaming e faz prefetch do player ativo e do próximo episódio
+  useEffect(() => {
+    if (!movie || !isOpen) return;
+
+    // Calcular URLs que devem ser pré-carregadas
+    const getUrlsToPrefetch = (): string[] => {
+      const urls: string[] = [];
+      
+      if (movie.type === 'series') {
+        // 1. URL do episódio atual
+        const key = `${season}_${episode}`;
+        if (movie.episodeEmbeds && movie.episodeEmbeds[key]) {
+          urls.push(movie.episodeEmbeds[key]);
+        } else if (abyssEpisodeId) {
+          urls.push(abyssEpisodeId);
+        } else {
+          urls.push(`https://abyssplayer.com/series-${movie.tmdbId || '1396'}-${season}-${episode}`);
+        }
+
+        // 2. URL do próximo episódio (antecipação inteligente para reprodução contínua)
+        const nextEpisode = episode + 1;
+        const nextKey = `${season}_${nextEpisode}`;
+        if (movie.episodeEmbeds && movie.episodeEmbeds[nextKey]) {
+          urls.push(movie.episodeEmbeds[nextKey]);
+        } else {
+          urls.push(`https://abyssplayer.com/series-${movie.tmdbId || '1396'}-${season}-${nextEpisode}`);
+        }
+      } else {
+        // URL do filme atual
+        if (movie.embedUrl) {
+          urls.push(movie.embedUrl);
+        } else {
+          urls.push(`https://abyssplayer.com/${movie.abyssId || movie.tmdbId || '105'}`);
+        }
+      }
+
+      // Normalizar URLs completas
+      return urls.map(u => {
+        if (u.startsWith('http://') || u.startsWith('https://')) return u;
+        return `https://abyssplayer.com/${u}`;
+      });
+    };
+
+    const targetUrls = getUrlsToPrefetch();
+    const createdElements: HTMLLinkElement[] = [];
+
+    // Lista de CDNs e domínios comuns do player Abyss/Hydrax para pré-conexão imediata de DNS/Socket
+    const streamingHosts = [
+      'https://abyssplayer.com',
+      'https://api.hydrax.net',
+      'https://multi.hydrax.net',
+      'https://play.abyss.to'
+    ];
+
+    streamingHosts.forEach(host => {
+      // dns-prefetch
+      const dnsLink = document.createElement('link');
+      dnsLink.rel = 'dns-prefetch';
+      dnsLink.href = host;
+      document.head.appendChild(dnsLink);
+      createdElements.push(dnsLink);
+
+      // preconnect
+      const connLink = document.createElement('link');
+      connLink.rel = 'preconnect';
+      connLink.href = host;
+      connLink.crossOrigin = 'anonymous';
+      document.head.appendChild(connLink);
+      createdElements.push(connLink);
+    });
+
+    // Prefetch dos documentos/páginas dos players para encher o cache do navegador em segundo plano
+    targetUrls.forEach(url => {
+      const prefLink = document.createElement('link');
+      prefLink.rel = 'prefetch';
+      prefLink.as = 'document';
+      prefLink.href = url;
+      document.head.appendChild(prefLink);
+      createdElements.push(prefLink);
+    });
+
+    return () => {
+      // Limpar os elementos injetados ao desmontar ou trocar de filme/episódio
+      createdElements.forEach(el => {
+        if (el.parentNode) el.parentNode.removeChild(el);
+      });
+    };
+  }, [movie, isOpen, season, episode, abyssEpisodeId]);
 
   const formatVCRTime = (secs: number) => {
     const h = Math.floor(secs / 3600);
@@ -859,19 +1051,17 @@ export default function MovieDetailModal({
 
                   {/* Direita: Controles Adicionais / Opções */}
                   <div className="flex items-center gap-2">
-                    {movie.type === 'series' && (
-                      <button
-                        onClick={() => {
-                          setIsPlaying(false);
-                          setIsConfiguringPlayer(true);
-                        }}
-                        className="bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 font-sans font-bold text-[10px] sm:text-xs h-10 px-2.5 sm:px-3 rounded-lg transition-all flex items-center gap-1 cursor-pointer focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none"
-                        title="Sintonizar canal (Episódio / Temporada)"
-                      >
-                        <Settings className="w-3.5 h-3.5 text-rose-500" />
-                        <span className="hidden xs:inline">MUDAR CAPÍTULO</span>
-                      </button>
-                    )}
+                    <button
+                      onClick={() => {
+                        setIsPlaying(false);
+                        setIsConfiguringPlayer(true);
+                      }}
+                      className="bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 font-sans font-bold text-[10px] sm:text-xs h-10 px-2.5 sm:px-3 rounded-lg transition-all flex items-center gap-1 cursor-pointer focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none"
+                      title={movie.type === 'series' ? "Sintonizar canal (Episódio / Temporada)" : "Sintonizar qualidade de reprodução"}
+                    >
+                      <Settings className="w-3.5 h-3.5 text-rose-500" />
+                      <span className="hidden xs:inline">{movie.type === 'series' ? 'MUDAR CAPÍTULO' : 'AJUSTAR SINAL'}</span>
+                    </button>
                     <span className="hidden md:inline-flex items-center gap-1.5 uppercase font-mono text-[9px] text-zinc-400 bg-zinc-900 border border-zinc-850 px-2.5 py-1.5 rounded-lg select-none">
                       <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-ping"></span>
                       VHS_HD
@@ -879,19 +1069,208 @@ export default function MovieDetailModal({
                   </div>
                 </div>
 
-                {/* 2. Área do Iframe com altura flex-1 restrita para nunca vazar ou rolar e evitar adoverlays de roubar cliques no topo */}
-                <div className="flex-1 w-full bg-black relative">
-                  <iframe
-                    src={`https://abyssplayer.com/${movie.type === 'series'
-                      ? (abyssEpisodeId || `series-${movie.tmdbId || '1396'}-${season}-${episode}`)
-                      : (movie.abyssId || movie.tmdbId || '105')
-                    }`}
-                    title={`Reproduzindo ${movie.title}`}
-                    className="w-full h-full border-0 absolute inset-0 video-player-iframe"
-                    allowFullScreen
-                    allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
-                    referrerPolicy="origin"
-                  />
+                {/* 2. Área do Reprodutor Inteligente (Detecção de Link Direto ou Iframe Tradicional) */}
+                <div className="flex-1 w-full bg-black relative flex items-center justify-center overflow-hidden group">
+                  {parsedVideo.type === 'direct' ? (
+                    <div className="w-full h-full relative bg-black flex items-center justify-center overflow-hidden">
+                      {/* Reprodutor HTML5 Nativo */}
+                      <video
+                        ref={videoRef}
+                        src={parsedVideo.url}
+                        className="w-full h-full max-h-full object-contain"
+                        playsInline
+                        preload="auto"
+                        onPlay={() => setIsPlaying(true)}
+                        onPause={() => setIsPlaying(false)}
+                        onLoadedMetadata={() => {
+                          if (videoRef.current) {
+                            setTotalDuration(videoRef.current.duration || 110 * 60);
+                          }
+                        }}
+                        onTimeUpdate={() => {
+                          if (videoRef.current) {
+                            const current = videoRef.current.currentTime;
+                            const duration = videoRef.current.duration || totalDuration || 1;
+                            const pct = (current / duration) * 100;
+                            setCurrentTime(current);
+                            onUpdateProgress(movie.id, pct, current, duration, current >= duration);
+                          }
+                        }}
+                        onEnded={() => {
+                          setIsPlaying(false);
+                          onUpdateProgress(movie.id, 100, totalDuration, totalDuration, true);
+                        }}
+                      />
+
+                      {/* Display de Status (OSD) Retro no canto superior esquerdo */}
+                      <div className="absolute top-4 left-4 font-mono text-[10px] text-emerald-400 bg-black/80 px-3 py-1.5 rounded-lg border border-emerald-500/20 pointer-events-none select-none flex flex-col gap-0.5 z-20 shadow-lg shadow-black/80">
+                        <div className="flex items-center gap-1.5 font-black uppercase tracking-widest">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                          VHS DIRECT
+                        </div>
+                        <div className="text-[9px] opacity-80 uppercase">VELOCIDADE: {playbackSpeed}x</div>
+                        <div className="text-[9px] opacity-80 uppercase">SINAL: {preferredQuality.toUpperCase()}</div>
+                      </div>
+
+                      {/* Controles Customizados estilo Mesa de Som Retro */}
+                      <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-zinc-950 via-zinc-950/90 to-transparent p-4 sm:p-5 flex flex-col gap-3.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity duration-300 z-30 select-none shadow-[0_-20px_50px_rgba(0,0,0,0.9)]">
+                        {/* Linha da Barra de Progresso */}
+                        <div className="flex items-center gap-3">
+                          <span className="font-mono text-[9px] sm:text-[10px] text-zinc-400 select-none min-w-[45px] text-right">
+                            {formatVCRTime(currentTime)}
+                          </span>
+                          <input
+                            type="range"
+                            min={0}
+                            max={totalDuration || 1}
+                            step={0.1}
+                            value={currentTime}
+                            onChange={(e) => {
+                              const newTime = parseFloat(e.target.value);
+                              setCurrentTime(newTime);
+                              if (videoRef.current) {
+                                videoRef.current.currentTime = newTime;
+                              }
+                            }}
+                            className="flex-1 h-1.5 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-rose-500 hover:accent-rose-400 outline-none transition-all"
+                          />
+                          <span className="font-mono text-[9px] sm:text-[10px] text-zinc-400 select-none min-w-[45px]">
+                            {formatVCRTime(totalDuration)}
+                          </span>
+                        </div>
+
+                        {/* Linha dos Botões de Navegação */}
+                        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-0">
+                          {/* Esquerda: Play/Pause, Rebobinar/Avancar, e Ajuste de Sinal Rapido */}
+                          <div className="flex items-center gap-3.5 w-full sm:w-auto justify-between sm:justify-start">
+                            <div className="flex items-center gap-2">
+                              {/* Botão de Rebobinar 10 Segundos */}
+                              <button
+                                onClick={() => {
+                                  if (videoRef.current) {
+                                    videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime - 10);
+                                  }
+                                }}
+                                className="w-8 h-8 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 flex items-center justify-center transition-all cursor-pointer"
+                                title="Rebobinar 10 segundos"
+                              >
+                                <span className="font-mono text-[10px] font-bold">⏪ 10s</span>
+                              </button>
+
+                              {/* Play / Pause Principal */}
+                              <button
+                                onClick={() => {
+                                  if (videoRef.current) {
+                                    if (isPlaying) {
+                                      videoRef.current.pause();
+                                    } else {
+                                      videoRef.current.play().catch(err => console.log(err));
+                                    }
+                                  }
+                                }}
+                                className="w-10 h-10 rounded-full bg-rose-600 hover:bg-rose-500 text-white flex items-center justify-center transition-all cursor-pointer shadow shadow-rose-600/30 hover:scale-105 active:scale-95"
+                              >
+                                {isPlaying ? <Pause className="w-4 h-4 fill-white" /> : <Play className="w-4 h-4 fill-white translate-x-0.5" />}
+                              </button>
+
+                              {/* Botão de Avançar 10 Segundos */}
+                              <button
+                                onClick={() => {
+                                  if (videoRef.current) {
+                                    videoRef.current.currentTime = Math.min(totalDuration, videoRef.current.currentTime + 10);
+                                  }
+                                }}
+                                className="w-8 h-8 rounded-lg bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 flex items-center justify-center transition-all cursor-pointer"
+                                title="Avançar 10 segundos"
+                              >
+                                <span className="font-mono text-[10px] font-bold">10s ⏩</span>
+                              </button>
+                            </div>
+
+                            {/* Sintonizadores de Qualidade no HUD do Reprodutor */}
+                            <div className="flex items-center gap-1 bg-zinc-950 border border-zinc-900 p-1 rounded-lg">
+                              {['480p', '720p', '1080p'].map((q) => (
+                                <button
+                                  key={q}
+                                  onClick={() => {
+                                    setPreferredQuality(q);
+                                    localStorage.setItem('vhsflix_preferred_quality', q);
+                                  }}
+                                  className={`px-2 py-1 text-[8px] sm:text-[9px] font-mono font-bold rounded transition-all cursor-pointer ${
+                                    preferredQuality === q 
+                                      ? 'bg-rose-600 text-white shadow-sm' 
+                                      : 'text-zinc-500 hover:text-zinc-300'
+                                  }`}
+                                >
+                                  {q.toUpperCase()}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Direita: Controles de Audio, Tela Cheia e Link Direto */}
+                          <div className="flex items-center gap-3.5 w-full sm:w-auto justify-end">
+                            {/* Link Direto Externo para rodar em reprodutores externos como VLC ou MX Player se quiser */}
+                            <a
+                              href={parsedVideo.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="flex items-center gap-1 text-zinc-400 hover:text-rose-400 text-[10px] font-mono font-bold bg-zinc-950 border border-zinc-850 px-3 py-1.5 rounded-lg transition-colors"
+                              title="Abrir arquivo de vídeo direto em nova aba"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                              <span className="hidden xs:inline">RODAR EXTERNO</span>
+                            </a>
+
+                            {/* Controles de Mudo / Volume */}
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                onClick={() => {
+                                  setIsMuted(!isMuted);
+                                }}
+                                className="text-zinc-400 hover:text-white transition-colors cursor-pointer"
+                                title={isMuted ? "Ativar som" : "Desativar som"}
+                              >
+                                {isMuted ? <VolumeX className="w-4 h-4 text-rose-500" /> : <Volume2 className="w-4 h-4" />}
+                              </button>
+                            </div>
+
+                            {/* Botão Maximize de Tela Cheia */}
+                            <button
+                              onClick={() => {
+                                if (videoRef.current) {
+                                  if (document.fullscreenElement) {
+                                    document.exitFullscreen();
+                                  } else {
+                                    videoRef.current.requestFullscreen().catch(err => {
+                                      console.error(err);
+                                    });
+                                  }
+                                }
+                              }}
+                              className="text-zinc-400 hover:text-white transition-colors cursor-pointer"
+                              title="Tela cheia"
+                            >
+                              <Maximize className="w-4.5 h-4.5" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <iframe
+                      src={(() => {
+                            const sep = parsedVideo.url.includes('?') ? '&' : '?';
+                            return `${parsedVideo.url}${sep}autoplay=1${getQualityParams(preferredQuality)}`;
+                          })()
+                      }
+                      title={`Reproduzindo ${movie.title}`}
+                      className="w-full h-full border-0 absolute inset-0 video-player-iframe"
+                      allowFullScreen
+                      allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+                      referrerPolicy="origin"
+                    />
+                  )}
                 </div>
               </div>
             )}
@@ -1019,6 +1398,39 @@ export default function MovieDetailModal({
                       </div>
                     </div>
                   )}
+
+                  {/* QUALIDADE DE SINAL & PRÉ-CARREGAMENTO (RETRO VHS STYLE) */}
+                  <div className="flex flex-col gap-2.5 text-left">
+                    <span className="text-[10px] text-zinc-400 uppercase tracking-wider font-extrabold flex items-center gap-1.5">
+                      <Sliders className="w-3.5 h-3.5 text-rose-500 animate-pulse" />
+                      Ajuste de Sinal / Velocidade do Buffer
+                    </span>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 font-mono">
+                      {[
+                        { id: '360p', label: 'LP (360p)', desc: 'Carrega Instantâneo' },
+                        { id: '480p', label: 'SP (480p)', desc: 'Desempenho Fluido' },
+                        { id: '720p', label: 'HQ (720p)', desc: 'Alta Definição' },
+                        { id: '1080p', label: 'S-VHS (1080p)', desc: 'Qualidade Máxima' }
+                      ].map(q => (
+                        <button
+                          key={q.id}
+                          type="button"
+                          onClick={() => {
+                            setPreferredQuality(q.id);
+                            localStorage.setItem('vhsflix_preferred_quality', q.id);
+                          }}
+                          className={`p-3 rounded-lg border text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-1 select-none ${
+                            preferredQuality === q.id
+                              ? 'bg-rose-500/10 border-rose-500 text-rose-400 shadow-md shadow-rose-600/15'
+                              : 'bg-zinc-900/40 border-zinc-800 hover:border-zinc-700 text-zinc-400 hover:text-zinc-200'
+                          }`}
+                        >
+                          <span className="text-[11px] font-bold uppercase tracking-widest">{q.label}</span>
+                          <span className="text-[8px] opacity-50 tracking-normal font-sans font-medium">{q.desc}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
 
                   {/* BOTÃO DE INSERIR E REPRODUZIR */}
                   <button

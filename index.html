@@ -4,6 +4,15 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>VHSFLIX - Streaming Retrô</title>
+    <!-- Preconectar com os servidores do reprodutor e CDN para acelerar o carregamento e bufferizacao -->
+    <link rel="preconnect" href="https://abyssplayer.com" crossorigin />
+    <link rel="dns-prefetch" href="https://abyssplayer.com" />
+    <link rel="preconnect" href="https://api.hydrax.net" crossorigin />
+    <link rel="dns-prefetch" href="https://api.hydrax.net" />
+    <link rel="preconnect" href="https://multi.hydrax.net" crossorigin />
+    <link rel="dns-prefetch" href="https://multi.hydrax.net" />
+    <link rel="preconnect" href="https://play.abyss.to" crossorigin />
+    <link rel="dns-prefetch" href="https://play.abyss.to" />
     <script>
       // Ignorar erros benignos do WebSocket e do Vite HMR para não interpor sobreposições ou quebras em tempo de desenvolvimento
       window.addEventListener('unhandledrejection', function(event) {

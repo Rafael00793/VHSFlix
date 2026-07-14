@@ -106,12 +106,18 @@ export default function AdminPanel({
   const [formTrailerUrl, setFormTrailerUrl] = useState('https://www.youtube.com/embed/qvsgGtIvCBY');
   const [formVhsTapeColor, setFormVhsTapeColor] = useState('#2563eb');
   const [formTmdbId, setFormTmdbId] = useState<number | undefined>(undefined);
+  const [formAbyssId, setFormAbyssId] = useState('');
+  const [formEmbedUrl, setFormEmbedUrl] = useState('');
+  const [formEpisodeEmbeds, setFormEpisodeEmbeds] = useState<{ [key: string]: string }>({});
+  const [formSeasonsConfig, setFormSeasonsConfig] = useState<{ [season: number]: number }>({ 1: 8 });
+  const [activeConfigSeason, setActiveConfigSeason] = useState(1);
 
   // Estados de busca do TMDB para Importação de Dados
   const [tmdbSearchQuery, setTmdbSearchQuery] = useState('');
   const [tmdbSearchResults, setTmdbSearchResults] = useState<any[]>([]);
   const [isSearchingTMDB, setIsSearchingTMDB] = useState(false);
   const [tmdbError, setTmdbError] = useState('');
+
 
   // Limpa formulário
   const resetForm = () => {
@@ -127,6 +133,11 @@ export default function AdminPanel({
     setFormTrailerUrl('https://www.youtube.com/embed/qvsgGtIvCBY');
     setFormVhsTapeColor('#2563eb');
     setFormTmdbId(undefined);
+    setFormAbyssId('');
+    setFormEmbedUrl('');
+    setFormEpisodeEmbeds({});
+    setFormSeasonsConfig({ 1: 8 });
+    setActiveConfigSeason(1);
     setEditingMovie(null);
   };
 
@@ -149,6 +160,11 @@ export default function AdminPanel({
     setFormTrailerUrl(movie.trailerUrl);
     setFormVhsTapeColor(movie.vhsTapeColor || '#2563eb');
     setFormTmdbId(movie.tmdbId);
+    setFormAbyssId(movie.abyssId || '');
+    setFormEmbedUrl(movie.embedUrl || '');
+    setFormEpisodeEmbeds(movie.episodeEmbeds || {});
+    setFormSeasonsConfig(movie.seasonsConfig || { 1: 8 });
+    setActiveConfigSeason(1);
     setIsFormOpen(true);
   };
 
@@ -163,12 +179,20 @@ export default function AdminPanel({
       backdropUrl: formBackdropUrl || 'https://image.tmdb.org/t/p/original/vKof7jZ50vS2pYgO569ofCidG9y.jpg',
       category: formCategory,
       year: formYear,
-      duration: formDuration,
+      duration: formType === 'series' 
+        ? `${Object.keys(formSeasonsConfig).length} Temporada${Object.keys(formSeasonsConfig).length > 1 ? 's' : ''}` 
+        : formDuration,
       type: formType,
       rating: formRating,
       trailerUrl: formTrailerUrl,
       vhsTapeColor: formVhsTapeColor,
-      tmdbId: formTmdbId
+      tmdbId: formTmdbId,
+      embedUrl: formType === 'movie' ? (formEmbedUrl.trim() || undefined) : undefined,
+      episodeEmbeds: formType === 'series' ? formEpisodeEmbeds : undefined,
+      seasonsConfig: formType === 'series' ? formSeasonsConfig : undefined,
+      abyssId: formType === 'movie' ? (formEmbedUrl.trim() || undefined) : undefined,
+      abyssEmbedUrl: formType === 'movie' && formEmbedUrl.trim() ? (formEmbedUrl.trim().startsWith('http') ? formEmbedUrl.trim() : `https://abyssplayer.com/${formEmbedUrl.trim()}`) : undefined,
+      abyssStatus: 'active'
     };
 
     if (editingMovie) {
@@ -511,6 +535,8 @@ export default function AdminPanel({
                     </div>
                   )}
                 </div>
+
+
 
                 {/* Grid Segunda Fileira: Grápico Categoria & Diagnósticos */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -978,6 +1004,157 @@ export default function AdminPanel({
                         </div>
                       </div>
                     </div>
+
+                    {/* Sintonizadores Adicionais: TMDB */}
+                    <div className="bg-zinc-950/40 p-4 border border-zinc-850 rounded">
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-zinc-300 font-bold uppercase tracking-wider text-[10px]">ID do TMDB (Opcional)</label>
+                        <input
+                          type="number"
+                          value={formTmdbId || ''}
+                          onChange={e => setFormTmdbId(e.target.value ? Number(e.target.value) : undefined)}
+                          placeholder="Ex: 105"
+                          className="w-full bg-zinc-950 border border-zinc-850 px-3.5 py-2 rounded focus:outline-none focus:border-rose-500 text-sm"
+                        />
+                        <span className="text-[9px] text-zinc-600 leading-relaxed font-mono">
+                          ID de referência do filme ou série no TheMovieDatabase para auto-gerar posters e títulos de episódios se necessário.
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* CONFIGURAÇÃO DE EMBED URL PERSONALIZADO (FILME / SÉRIE) */}
+                    {formType === 'movie' ? (
+                      <div className="flex flex-col gap-1.5 bg-zinc-950/40 p-4 border border-zinc-850 rounded">
+                        <div className="flex items-center justify-between">
+                          <label className="text-zinc-300 font-bold uppercase tracking-wider text-[10px] flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span> URL do Player / Embed URL (Filme)
+                          </label>
+                          <span className="text-[9px] text-rose-400 font-mono font-bold bg-rose-950/50 border border-rose-500/20 px-2 py-0.5 rounded">REPRODUTOR MANUAL</span>
+                        </div>
+                        <input
+                          type="text"
+                          value={formEmbedUrl}
+                          onChange={e => setFormEmbedUrl(e.target.value)}
+                          placeholder="Cole o Embed do Abyss ou URL de Vídeo (MP4/MKV)"
+                          className="w-full bg-zinc-950 border border-zinc-850 px-3.5 py-2 rounded focus:outline-none focus:border-rose-500 text-sm text-zinc-100 font-mono"
+                        />
+                        <span className="text-[9px] text-zinc-500 leading-relaxed font-mono">
+                          Suporta URLs do Abyss Player ou links diretos de arquivos MP4/MKV.
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col gap-3 bg-zinc-950/40 p-4 border border-zinc-850 rounded">
+                        <div className="flex items-center justify-between border-b border-zinc-850 pb-2">
+                          <label className="text-zinc-300 font-bold uppercase tracking-wider text-[10px] flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span> Gerenciador de Temporadas & Episódios
+                          </label>
+                          <span className="text-[9px] text-rose-400 font-mono font-bold bg-rose-950/50 border border-rose-500/20 px-2 py-0.5 rounded">SÉRIE / ANIME</span>
+                        </div>
+
+                        {/* Abas das Temporadas */}
+                        <div className="flex flex-wrap gap-1.5 border-b border-zinc-850/60 pb-2">
+                          {Object.keys(formSeasonsConfig).map(Number).sort((a,b)=>a-b).map(sNum => (
+                            <button
+                              key={sNum}
+                              type="button"
+                              onClick={() => setActiveConfigSeason(sNum)}
+                              className={`px-3 py-1.5 text-[10px] font-bold rounded cursor-pointer transition-all uppercase tracking-wider font-mono ${
+                                activeConfigSeason === sNum
+                                  ? 'bg-rose-600 text-white shadow-md shadow-rose-600/25 border border-rose-500/35'
+                                  : 'bg-zinc-900 text-zinc-400 hover:text-zinc-200 border border-zinc-850'
+                              }`}
+                            >
+                              Temp {sNum}
+                            </button>
+                          ))}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const nextSeason = Math.max(...Object.keys(formSeasonsConfig).map(Number), 0) + 1;
+                              setFormSeasonsConfig(prev => ({ ...prev, [nextSeason]: 8 }));
+                              setActiveConfigSeason(nextSeason);
+                            }}
+                            className="px-2.5 py-1.5 text-[10px] font-mono font-bold rounded bg-zinc-900 border border-zinc-800 text-rose-500 hover:bg-zinc-850 hover:text-rose-400 cursor-pointer transition-all flex items-center gap-1 uppercase tracking-wider"
+                          >
+                            + Add Temp
+                          </button>
+                          {Object.keys(formSeasonsConfig).length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const keys = Object.keys(formSeasonsConfig).map(Number).sort((a,b)=>a-b);
+                                const last = keys[keys.length - 1];
+                                const updated = { ...formSeasonsConfig };
+                                delete updated[last];
+                                setFormSeasonsConfig(updated);
+                                if (activeConfigSeason === last) {
+                                  setActiveConfigSeason(keys[keys.length - 2]);
+                                }
+                              }}
+                              className="px-2.5 py-1.5 text-[10px] font-mono font-bold rounded bg-zinc-950 border border-zinc-900 text-zinc-500 hover:text-rose-500 hover:bg-zinc-900 cursor-pointer transition-all uppercase tracking-wider"
+                            >
+                              - Excluir Última Temp
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Configuração da Temporada Ativa */}
+                        <div className="space-y-3 bg-zinc-950/80 p-3 rounded border border-zinc-850">
+                          <div className="flex items-center justify-between text-[11px] text-zinc-400 font-mono font-bold uppercase tracking-wider">
+                            <span>Temporada {activeConfigSeason}: {(formSeasonsConfig[activeConfigSeason] || 0)} Episódios</span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[9px] text-zinc-500">Mudar Total:</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const currentEps = formSeasonsConfig[activeConfigSeason] || 0;
+                                  if (currentEps > 1) {
+                                    setFormSeasonsConfig(prev => ({ ...prev, [activeConfigSeason]: currentEps - 1 }));
+                                  }
+                                }}
+                                className="w-6 h-6 rounded bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-rose-500 flex items-center justify-center font-bold text-sm cursor-pointer transition-colors"
+                              >
+                                -
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const currentEps = formSeasonsConfig[activeConfigSeason] || 0;
+                                  setFormSeasonsConfig(prev => ({ ...prev, [activeConfigSeason]: currentEps + 1 }));
+                                }}
+                                className="w-6 h-6 rounded bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-rose-500 flex items-center justify-center font-bold text-sm cursor-pointer transition-colors"
+                              >
+                                +
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Listagem de Episódios com Inputs para Embed URL */}
+                          <div className="max-h-[300px] overflow-y-auto pr-1 space-y-2.5 divide-y divide-zinc-900/60 custom-scrollbar">
+                            {Array.from({ length: formSeasonsConfig[activeConfigSeason] || 0 }, (_, i) => i + 1).map(epNum => {
+                              const key = `${activeConfigSeason}_${epNum}`;
+                              return (
+                                <div key={epNum} className="flex flex-col sm:flex-row sm:items-center gap-2 pt-2.5 first:pt-0 border-zinc-900/40">
+                                  <span className="text-[10px] font-mono font-bold text-zinc-400 min-w-[100px] uppercase tracking-wider">
+                                    Episódio {epNum.toString().padStart(2, '0')}
+                                  </span>
+                                  <input
+                                    type="text"
+                                    value={formEpisodeEmbeds[key] || ''}
+                                    onChange={e => {
+                                      const val = e.target.value;
+                                      setFormEpisodeEmbeds(prev => ({ ...prev, [key]: val }));
+                                    }}
+                                    placeholder="Abyss Player ou URL de Vídeo (MP4/MKV)"
+                                    className="flex-1 bg-zinc-950 border border-zinc-850 px-3 py-1.5 rounded focus:outline-none focus:border-rose-500 text-xs text-zinc-100 font-mono placeholder-zinc-700"
+                                  />
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Botões de Ação do Forms */}
                     <div className="flex gap-3 justify-end pt-5 border-t border-zinc-800">

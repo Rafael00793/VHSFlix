@@ -24,6 +24,9 @@ export interface Movie {
   abyssId?: string; // ID gerado/obtido no Abyss
   abyssEmbedUrl?: string; // URL de reprodução incorporada gerada pelo Abyss
   abyssStatus?: string; // Status de processamento no Abyss (ex: "active", "processing")
+  embedUrl?: string; // URL de Player / Embed manual do filme
+  episodeEmbeds?: { [key: string]: string }; // Dicionário de URLs de embed para episódios de séries: {"1_1": "url", "1_2": "url"}
+  seasonsConfig?: { [season: number]: number }; // Mapeamento de temporada para quantidade de episódios: {1: 8, 2: 10}
 }
 
 export interface WatchProgress {

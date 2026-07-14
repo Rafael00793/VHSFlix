@@ -1,6 +1,10 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
+import https from 'https';
 import { createServer as createViteServer } from 'vite';
 import { INITIAL_USERS, DEFAULT_PROFILES, INITIAL_MOVIES } from './src/data';
 
@@ -243,24 +247,47 @@ app.get('/api/abyss/status/:abyssId', async (req, res) => {
 
   if (apiKey && apiKey.trim() !== '' && apiKey !== 'YOUR_ABYSS_API_KEY') {
     try {
-      const response = await fetch(`https://api.abyss.to/v1/videos/${abyssId}`, {
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'X-API-Key': apiKey,
-          'apikey': apiKey
-        },
+      // Usar a URL oficial e documentada do Hydrax/Abyss para verificação de status
+      const hydraxUrl = `https://api.hydrax.net/${apiKey}/slug/${abyssId}/status`;
+      console.log(`[ABYSS API] Buscando status do Hydrax: ${hydraxUrl}`);
+      
+      const response = await fetch(hydraxUrl, {
         signal: AbortSignal.timeout(5000)
       });
 
       if (response.ok) {
         const data = await response.json();
-        status = data.status || 'active';
+        if (data && data.status === true) {
+          if (data.msg === 'Ready' || data.msg === 'ready') {
+            status = 'active';
+          } else {
+            status = data.msg ? data.msg.toLowerCase() : 'processing';
+          }
+        } else {
+          status = 'failed';
+        }
         usedRealAPI = true;
       } else {
-        apiError = `HTTP ${response.status}`;
+        // Fallback para a API antiga da Abyss
+        const altResponse = await fetch(`https://api.abyss.to/v1/videos/${abyssId}`, {
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'X-API-Key': apiKey,
+            'apikey': apiKey
+          },
+          signal: AbortSignal.timeout(5000)
+        });
+        
+        if (altResponse.ok) {
+          const data = await altResponse.json();
+          status = data.status || 'active';
+          usedRealAPI = true;
+        } else {
+          apiError = `Hydrax HTTP ${response.status}, Abyss HTTP ${altResponse.status}`;
+        }
       }
     } catch (err: any) {
-      apiError = err.message;
+      apiError = err.message || String(err);
     }
   }
 
@@ -271,6 +298,259 @@ app.get('/api/abyss/status/:abyssId', async (req, res) => {
     usedRealAPI,
     apiError
   });
+});
+
+
+// --- SISTEMA INTELIGENTE DE PARSING E RESOLUÇÃO RETRO AUTO-STREAM ---
+
+function cleanTitle(title: string): string {
+  const tags = [
+    /\b1080p\b/i, /\b720p\b/i, /\b2160p\b/i, /\b4k\b/i,
+    /\bweb-?dl\b/i, /\bbluray\b/i, /\bhdrip\b/i, /\bdvdrip\b/i,
+    /\bx264\b/i, /\bh264\b/i, /\bhevc\b/i, /\bx265\b/i,
+    /\bdual\b/i, /\baudio\b/i, /\bdublado\b/i, /\blegendado\b/i,
+    /\bmulti\b/i, /\brip\b/i, /\byts\b/i, /\brgby\b/i,
+    /\bhdr\b/i, /\b10bit\b/i, /\b\[.*?\]/g, /\(.*?\)/g
+  ];
+  let clean = title;
+  for (const tag of tags) {
+    clean = clean.replace(tag, ' ');
+  }
+  return clean.replace(/\s+/g, ' ').trim();
+}
+
+function parseFilename(filename: string) {
+  let nameWithoutExt = filename.substring(0, filename.lastIndexOf('.')) || filename;
+  nameWithoutExt = nameWithoutExt.replace(/[\._\-]/g, ' ');
+
+  const seriesRegex1 = /(.*?)\bs?(\d+)\s*[ex]\s*(\d+)\b/i;
+  const seriesRegex2 = /(.*?)\bep\s*(\d+)\b/i;
+
+  let match = nameWithoutExt.match(seriesRegex1);
+  if (match) {
+    return {
+      type: 'series',
+      title: cleanTitle(match[1]),
+      season: parseInt(match[2], 10),
+      episode: parseInt(match[3], 10)
+    };
+  }
+
+  match = nameWithoutExt.match(seriesRegex2);
+  if (match) {
+    return {
+      type: 'series',
+      title: cleanTitle(match[1]),
+      season: 1,
+      episode: parseInt(match[2], 10)
+    };
+  }
+
+  const yearRegex = /(.*?)\b(19\d\d|20\d\d)\b/;
+  match = nameWithoutExt.match(yearRegex);
+  if (match) {
+    return {
+      type: 'movie',
+      title: cleanTitle(match[1]),
+      year: parseInt(match[2], 10)
+    };
+  }
+
+  return {
+    type: 'movie',
+    title: cleanTitle(nameWithoutExt),
+    year: 1989
+  };
+}
+
+async function fetchTMDBMetadata(parsed: any, tmdbKey: string) {
+  const apiKey = tmdbKey || '9ba478ffe785bbc34fa2b10c46296580';
+  if (!apiKey || apiKey === 'MY_GEMINI_API_KEY') return null;
+  
+  const query = encodeURIComponent(parsed.title);
+  const searchUrl = `https://api.themoviedb.org/3/search/multi?api_key=${apiKey}&query=${query}&language=pt-BR&include_adult=false`;
+  
+  try {
+    const searchRes = await fetch(searchUrl, { signal: AbortSignal.timeout(4000) });
+    if (!searchRes.ok) return null;
+    
+    const searchData = await searchRes.json();
+    const results = searchData.results || [];
+    
+    const targetType = parsed.type === 'series' ? 'tv' : 'movie';
+    let bestResult = results.find((r: any) => r.media_type === targetType);
+    
+    if (!bestResult && results.length > 0) {
+      bestResult = results[0];
+    }
+    
+    if (!bestResult) return null;
+    
+    const mediaType = bestResult.media_type || targetType;
+    const detailsUrl = `https://api.themoviedb.org/3/${mediaType}/${bestResult.id}?api_key=${apiKey}&language=pt-BR`;
+    const detailsRes = await fetch(detailsUrl, { signal: AbortSignal.timeout(4000) });
+    if (!detailsRes.ok) return null;
+    
+    const details = await detailsRes.json();
+    
+    const title = details.title || details.name || parsed.title;
+    const description = details.overview || 'Sem descrição cadastrada no TMDB.';
+    const posterUrl = details.poster_path 
+      ? `https://image.tmdb.org/t/p/w780${details.poster_path}` 
+      : 'https://image.tmdb.org/t/p/w780/8uO0gUMYrj5BNZ6Z9ZgWaS9Stj3.jpg';
+    const backdropUrl = details.backdrop_path 
+      ? `https://image.tmdb.org/t/p/original${details.backdrop_path}` 
+      : 'https://image.tmdb.org/t/p/original/vKof7jZ50vS2pYgO569ofCidG9y.jpg';
+    
+    const dateStr = details.release_date || details.first_air_date || '1989-01-01';
+    const year = parseInt(dateStr.split('-')[0]) || parsed.year || 1989;
+    
+    let duration = '2h';
+    if (mediaType === 'movie') {
+      const runtime = details.runtime || 105;
+      duration = `${Math.floor(runtime / 60)}h ${runtime % 60}m`;
+    } else {
+      const seasonsCount = details.number_of_seasons || 1;
+      duration = `${seasonsCount} Temporada(s)`;
+    }
+    
+    const category = details.genres && details.genres.length > 0 
+      ? details.genres[0].name 
+      : 'Retro';
+      
+    return {
+      title,
+      description,
+      posterUrl,
+      backdropUrl,
+      year,
+      duration,
+      type: mediaType === 'tv' ? 'series' : 'movie',
+      category,
+      rating: details.vote_average || 7.0,
+      tmdbId: details.id
+    };
+  } catch (err) {
+    console.error('[TMDB] Erro de busca automática de metadados:', err);
+    return null;
+  }
+}
+
+// Endpoint de sincronização inteligente e irrestrita com a conta do Abyss
+app.post('/api/abyss/sync', async (req, res) => {
+  const { existingAbyssIds, tmdbApiKey } = req.body;
+  const apiKey = process.env.ABYSS_API_KEY;
+
+  console.log(`[ABYSS SYNC] Sincronização automatizada iniciada. Catalogados: ${existingAbyssIds?.length || 0}`);
+
+  if (!apiKey || apiKey.trim() === '' || apiKey === 'YOUR_ABYSS_API_KEY') {
+    return res.status(400).json({
+      success: false,
+      message: 'A chave de API do Abyss não está configurada no seu ambiente. Configure o segredo ABYSS_API_KEY no painel de segredos.'
+    });
+  }
+
+  try {
+    const searchUrl = new URL('https://api.abyss.to/v1/files');
+    const params = new URLSearchParams({
+      key: apiKey,
+      searchType: 'any',
+      type: 'files',
+      maxResults: '100',
+      orderBy: 'createdAt:desc'
+    });
+
+    const response = await fetch(`${searchUrl.origin}${searchUrl.pathname}?${params.toString()}`, {
+      headers: {
+        'Authorization': `Bearer ${apiKey}`
+      },
+      signal: AbortSignal.timeout(8000)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      return res.status(response.status).json({
+        success: false,
+        message: `A API do Abyss retornou erro HTTP ${response.status}: ${errorText}`
+      });
+    }
+
+    const resData = await response.json();
+    const files = resData.data || resData.results || resData.files || (Array.isArray(resData) ? resData : []);
+    
+    if (!files || files.length === 0) {
+      return res.json({
+        success: true,
+        importedCount: 0,
+        movies: [],
+        message: 'Nenhum arquivo encontrado no seu drive/conta do Abyss.'
+      });
+    }
+
+    const newlyImported: any[] = [];
+    const idSet = new Set<string>(existingAbyssIds || []);
+
+    for (const file of files) {
+      const fileId = file.id || file.fileId || file.video_id || file.videoId;
+      if (!fileId) continue;
+
+      if (idSet.has(fileId)) continue;
+
+      const filename = file.name || file.title || '';
+      console.log(`[ABYSS SYNC] Novo arquivo pendente encontrado: "${filename}"`);
+
+      const parsed = parseFilename(filename);
+      let movieMetadata = await fetchTMDBMetadata(parsed, tmdbApiKey);
+
+      if (!movieMetadata) {
+        console.log(`[ABYSS SYNC] Metadados reais indisponíveis. Usando renderização vintage retro para: ${parsed.title}`);
+        movieMetadata = {
+          title: parsed.title,
+          description: `Fita de vídeo sintonizada automaticamente da sua conta Abyss. Título original do arquivo: "${filename}"`,
+          posterUrl: 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=720&auto=format&fit=crop',
+          backdropUrl: 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=1200&auto=format&fit=crop',
+          year: parsed.year || 1989,
+          duration: parsed.type === 'series' ? `${parsed.season} Temporada(s)` : '1h 45m',
+          type: parsed.type as 'movie' | 'series',
+          category: 'Retro',
+          rating: 7.2,
+          tmdbId: Math.floor(Math.random() * 90000) + 10000
+        };
+      }
+
+      const newMovieId = `m_abyss_${fileId}`;
+      const newMovie = {
+        ...movieMetadata,
+        id: newMovieId,
+        abyssId: fileId,
+        abyssEmbedUrl: `https://abyssplayer.com/${fileId}`,
+        abyssStatus: file.status || 'active',
+        clicksCount: 0,
+        votesLikes: 0,
+        votesDislikes: 0,
+        createdAt: new Date().toISOString()
+      };
+
+      newlyImported.push(newMovie);
+      idSet.add(fileId);
+    }
+
+    res.json({
+      success: true,
+      importedCount: newlyImported.length,
+      movies: newlyImported,
+      message: newlyImported.length > 0 
+        ? `${newlyImported.length} nova(s) fita(s) sintonizada(s) da sua conta do Abyss!` 
+        : 'Todos os arquivos do Abyss já estão sintonizados no VHSFLIX!'
+    });
+
+  } catch (err: any) {
+    console.error('[ABYSS SYNC ERROR]', err);
+    res.status(500).json({
+      success: false,
+      message: `Erro na sincronização automática: ${err.message || String(err)}`
+    });
+  }
 });
 
 async function startServer() {
