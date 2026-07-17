@@ -15,7 +15,7 @@ import RequestsPanel from './components/RequestsPanel';
 import { Play, Info, Sparkles, Star, Plus, Check, Shield, HelpCircle, AlertCircle, Heart, HeartOff, Volume1, Volume2, VolumeX, Bell, X, Flame, LayoutGrid, List, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { db, saveUsersToFirestore, deleteUserFromFirestore, saveProfilesToFirestore, saveMoviesToFirestore, saveSingleMovieToFirestore, deleteMovieFromFirestore, saveSettingsToFirestore, saveRequestsToFirestore, deleteRequestFromFirestore, handleFirestoreError, OperationType, saveSingleNotificationToFirestore, deleteNotificationFromFirestore } from './lib/firebase';
-import { onSnapshot, collection, doc, setDoc } from 'firebase/firestore';
+import { onSnapshot, collection, doc, setDoc, getDoc } from 'firebase/firestore';
 
 
 
@@ -241,8 +241,21 @@ export default function App() {
         fetchedMovies.push(doc.data() as Movie);
       });
       if (fetchedMovies.length === 0) {
-        // Popula catálogo com os filmes padrão
-        saveMoviesToFirestore(INITIAL_MOVIES);
+        // Se o catálogo estiver vazio, verificamos no settings/global se já foi inicializado anteriormente
+        getDoc(doc(db, 'settings', 'global')).then((settingsSnap) => {
+          const isInit = settingsSnap.exists() && settingsSnap.data()?.catalogInitialized === true;
+          if (!isInit) {
+            // Se realmente nunca foi inicializado na nuvem, popula com os filmes padrão
+            saveMoviesToFirestore(INITIAL_MOVIES);
+            setDoc(doc(db, 'settings', 'global'), { catalogInitialized: true }, { merge: true });
+          } else {
+            // Se já foi inicializado antes e agora está vazio, respeita a exclusão total do admin
+            setMovies([]);
+          }
+        }).catch((err) => {
+          console.error('[VHSFLIX] Erro ao consultar inicialização do catálogo:', err);
+          setMovies([]);
+        });
       } else {
         setMovies(fetchedMovies);
       }
@@ -993,6 +1006,28 @@ export default function App() {
     );
   };
 
+  const handleBulkDeleteMovies = (movieIds: string[]) => {
+    // Apenas o Administrador Rafael (rafaelguaruja09@gmail.com) tem permissão de excluir
+    const userEmail = activeUser?.email || '';
+    if (userEmail !== 'rafaelguaruja09@gmail.com') {
+      triggerNotification(
+        '⚠️ Acesso Negado!',
+        'Apenas o administrador master (Rafael Gusmão) tem permissão para excluir filmes ou séries.',
+        '',
+        'system'
+      );
+      return;
+    }
+    setMovies(prev => prev.filter(m => !movieIds.includes(m.id)));
+    movieIds.forEach(id => deleteMovieFromFirestore(id));
+    triggerNotification(
+      '📼 Itens Excluídos em Lote',
+      `${movieIds.length} itens foram removidos com sucesso do catálogo sob o seu comando.`,
+      '',
+      'system'
+    );
+  };
+
   const handleResetCatalog = () => {
     // Apenas o Administrador Rafael (rafaelguaruja09@gmail.com) tem permissão de restaurar
     const userEmail = activeUser?.email || '';
@@ -1260,6 +1295,7 @@ export default function App() {
               onAddMovie={handleAddMovie}
               onEditMovie={handleEditMovie}
               onDeleteMovie={handleDeleteMovie}
+              onBulkDeleteMovies={handleBulkDeleteMovies}
               onResetCatalog={handleResetCatalog}
               onAddUser={handleAddUser}
               onEditUser={handleEditUser}

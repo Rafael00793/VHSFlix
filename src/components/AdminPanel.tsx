@@ -19,6 +19,7 @@ interface AdminPanelProps {
   onAddMovie: (movie: Omit<Movie, 'id'>) => boolean | void;
   onEditMovie: (movie: Movie) => void;
   onDeleteMovie: (movieId: string) => void;
+  onBulkDeleteMovies?: (movieIds: string[]) => void;
   onResetCatalog: () => void;
   onAddUser: (name: string, email: string, password: string, isAdmin: boolean, avatarUrl?: string) => string | null;
   onEditUser: (userId: string, name: string, email: string, password?: string, isAdmin?: boolean, avatarUrl?: string, subscriptionExpiresAt?: string) => string | null;
@@ -40,6 +41,7 @@ export default function AdminPanel({
   onAddMovie,
   onEditMovie,
   onDeleteMovie,
+  onBulkDeleteMovies,
   onResetCatalog,
   onAddUser,
   onEditUser,
@@ -52,6 +54,10 @@ export default function AdminPanel({
   onPublishUpdate
 }: AdminPanelProps) {
   const [activeAdminTab, setActiveAdminTab] = useState<'dashboard' | 'catalog' | 'users' | 'myaccount' | 'settings'>('dashboard');
+
+  // Estados de Seleção em Lote e Exclusão Coletiva
+  const [selectedMovieIds, setSelectedMovieIds] = useState<string[]>([]);
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
 
   // Estados com confirmação customizada segura
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
@@ -636,95 +642,163 @@ export default function AdminPanel({
                   </button>
                 </div>
 
+                {/* Barra de Seleção e Ações em Lote */}
+                <div className="flex flex-col sm:flex-row justify-between items-center bg-zinc-900/50 border border-zinc-850 px-5 py-3 rounded-lg gap-3">
+                  <div className="flex items-center gap-3">
+                    <label className="flex items-center gap-2 text-xs font-mono text-zinc-300 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={movies.length > 0 && selectedMovieIds.length === movies.length}
+                        onChange={() => {
+                          if (selectedMovieIds.length === movies.length) {
+                            setSelectedMovieIds([]);
+                          } else {
+                            setSelectedMovieIds(movies.map(m => m.id));
+                          }
+                        }}
+                        className="rounded border-zinc-800 bg-zinc-950 text-rose-600 focus:ring-0 w-4 h-4 cursor-pointer"
+                      />
+                      <span>Selecionar Todos ({movies.length})</span>
+                    </label>
+                    {selectedMovieIds.length > 0 && (
+                      <span className="text-xs font-mono text-rose-500 font-bold">
+                        • {selectedMovieIds.length} selecionados
+                      </span>
+                    )}
+                  </div>
+
+                  {selectedMovieIds.length > 0 && (
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                      <button
+                        onClick={() => setSelectedMovieIds([])}
+                        className="flex-1 sm:flex-initial text-zinc-400 hover:text-white bg-zinc-850 hover:bg-zinc-800 border border-zinc-800 font-semibold font-mono text-[11px] px-3.5 py-1.5 rounded transition-all cursor-pointer"
+                      >
+                        Limpar Seleção
+                      </button>
+                      <button
+                        onClick={() => setShowBulkDeleteConfirm(true)}
+                        className="flex-1 sm:flex-initial text-white bg-rose-600 hover:bg-rose-500 font-bold font-mono text-[11px] px-4 py-1.5 rounded transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-lg shadow-rose-600/15"
+                        id="btn-bulk-delete-movies"
+                      >
+                        <Trash className="w-3.5 h-3.5" /> Excluir Selecionados ({selectedMovieIds.length})
+                      </button>
+                    </div>
+                  )}
+                </div>
+
                 {/* Grid Compacto de Filmes do Admin */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                  {movies.map(movie => (
-                    <div 
-                      key={movie.id}
-                      className="bg-zinc-950 rounded-xl border border-zinc-900 overflow-hidden flex shadow-md hover:border-zinc-800 transition-colors"
-                    >
-                      <div className="w-24 flex-shrink-0 bg-zinc-900 relative">
-                        <img 
-                          src={movie.posterUrl} 
-                          alt={movie.title} 
-                          className="w-full h-full object-cover" 
-                          referrerPolicy="no-referrer"
-                        />
-                        {(() => {
-                          const COLOR_MAP: { [key: string]: string } = {
-                            'Ação': '#dc2626',
-                            'Aventura': '#059669',
-                            'Terror': '#7c3aed',
-                            'Suspense': '#ea580c',
-                            'Drama': '#db2777',
-                            'Comédia': '#eab308',
-                            'Ficção Científica': '#06b6d4',
-                            'Cristão': '#0ea5e9',
-                            'Séries': '#10b981',
-                            'Reality': '#f43f5e',
-                            'Documentário': '#71717a',
-                            'Animação': '#fbbf24',
-                            'Família': '#22c55e',
-                            'Fantasia': '#a855f7',
-                            'Crime': '#334155',
-                            'Musical': '#ec4899',
-                            'Guerra': '#78350f',
-                            'Faroeste': '#b45309',
-                            'Romance': '#e11d48',
-                            'História': '#854d0e',
-                            'Biografia': '#0d9488'
-                          };
-                          const finalTapeColor = COLOR_MAP[movie.category] || movie.vhsTapeColor || '#dc2626';
-                          return (
-                            <div 
-                              className="absolute top-1.5 left-1.5 w-3 h-3 rounded-full border border-zinc-950" 
-                              style={{ backgroundColor: finalTapeColor }}
-                              title={`Cor do VHS / Categoria: ${movie.category}`}
+                  {movies.map(movie => {
+                    const isSelected = selectedMovieIds.includes(movie.id);
+                    return (
+                      <div 
+                        key={movie.id}
+                        className={`rounded-xl border overflow-hidden flex shadow-md transition-all ${
+                          isSelected 
+                            ? 'border-rose-500 bg-zinc-900/60 ring-1 ring-rose-500/20' 
+                            : 'bg-zinc-950 border-zinc-900 hover:border-zinc-800'
+                        }`}
+                      >
+                        <div className="w-24 flex-shrink-0 bg-zinc-900 relative">
+                          <img 
+                            src={movie.posterUrl} 
+                            alt={movie.title} 
+                            className="w-full h-full object-cover" 
+                            referrerPolicy="no-referrer"
+                          />
+                          {/* Checkbox Overlay */}
+                          <div className="absolute top-1.5 right-1.5 z-10 bg-black/50 p-0.5 rounded backdrop-blur-xs">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => {
+                                if (isSelected) {
+                                  setSelectedMovieIds(prev => prev.filter(id => id !== movie.id));
+                                } else {
+                                  setSelectedMovieIds(prev => [...prev, movie.id]);
+                                }
+                              }}
+                              className="rounded border-zinc-800 bg-zinc-950 text-rose-600 focus:ring-0 w-4 h-4 cursor-pointer"
+                              title="Selecionar esta mídia"
                             />
-                          );
-                        })()}
-                      </div>
+                          </div>
 
-                      <div className="flex-1 p-4 flex flex-col justify-between">
-                        <div>
-                          <div className="flex items-center gap-1.5">
-                            <span className="bg-zinc-900 text-[9px] font-mono border border-zinc-800 px-1 py-0.5 rounded text-zinc-400 capitalize">
-                              {movie.type === 'movie' ? 'Filme' : 'Série'}
+                          {(() => {
+                            const COLOR_MAP: { [key: string]: string } = {
+                              'Ação': '#dc2626',
+                              'Aventura': '#059669',
+                              'Terror': '#7c3aed',
+                              'Suspense': '#ea580c',
+                              'Drama': '#db2777',
+                              'Comédia': '#eab308',
+                              'Ficção Científica': '#06b6d4',
+                              'Cristão': '#0ea5e9',
+                              'Séries': '#10b981',
+                              'Reality': '#f43f5e',
+                              'Documentário': '#71717a',
+                              'Animação': '#fbbf24',
+                              'Família': '#22c55e',
+                              'Fantasia': '#a855f7',
+                              'Crime': '#334155',
+                              'Musical': '#ec4899',
+                              'Guerra': '#78350f',
+                              'Faroeste': '#b45309',
+                              'Romance': '#e11d48',
+                              'História': '#854d0e',
+                              'Biografia': '#0d9488'
+                            };
+                            const finalTapeColor = COLOR_MAP[movie.category] || movie.vhsTapeColor || '#dc2626';
+                            return (
+                              <div 
+                                className="absolute top-1.5 left-1.5 w-3 h-3 rounded-full border border-zinc-950" 
+                                style={{ backgroundColor: finalTapeColor }}
+                                title={`Cor do VHS / Categoria: ${movie.category}`}
+                              />
+                            );
+                          })()}
+                        </div>
+
+                        <div className="flex-1 p-4 flex flex-col justify-between">
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="bg-zinc-900 text-[9px] font-mono border border-zinc-800 px-1 py-0.5 rounded text-zinc-400 capitalize">
+                                {movie.type === 'movie' ? 'Filme' : 'Série'}
+                              </span>
+                              <span className="text-[10px] text-rose-500 font-semibold uppercase">{movie.category}</span>
+                            </div>
+                            <h4 className="font-bold text-sm text-zinc-150 mt-1.5 line-clamp-1">{movie.title}</h4>
+                            <p className="text-zinc-500 text-[11px] font-mono mt-0.5">{movie.year} • {movie.duration}</p>
+                            <p className="text-zinc-400 text-xs mt-1.5 line-clamp-2 leading-relaxed">{movie.description}</p>
+                          </div>
+
+                          {/* Ações Rápidas */}
+                          <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-zinc-900/60 font-mono text-[11px]">
+                            <span className="text-yellow-400 font-bold flex items-center gap-0.5">
+                              <Star className="w-3 h-3 fill-yellow-400" /> {movie.rating}
                             </span>
-                            <span className="text-[10px] text-rose-500 font-semibold uppercase">{movie.category}</span>
-                          </div>
-                          <h4 className="font-bold text-sm text-zinc-150 mt-1.5 line-clamp-1">{movie.title}</h4>
-                          <p className="text-zinc-500 text-[11px] font-mono mt-0.5">{movie.year} • {movie.duration}</p>
-                          <p className="text-zinc-400 text-xs mt-1.5 line-clamp-2 leading-relaxed">{movie.description}</p>
-                        </div>
-
-                        {/* Ações Rápidas */}
-                        <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-zinc-900/60 font-mono text-[11px]">
-                          <span className="text-yellow-400 font-bold flex items-center gap-0.5">
-                            <Star className="w-3 h-3 fill-yellow-400" /> {movie.rating}
-                          </span>
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => handleOpenEditForm(movie)}
-                              className="text-zinc-400 hover:text-white p-1 rounded hover:bg-zinc-900 transition-colors"
-                              title="Editar mídias"
-                              id={`btn-edit-movie-${movie.id}`}
-                            >
-                              <Edit className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => setMovieToDelete(movie)}
-                              className="text-zinc-500 hover:text-rose-500 p-1 rounded hover:bg-zinc-900 transition-colors"
-                              title="Excluir do catálogo"
-                              id={`btn-delete-movie-${movie.id}`}
-                            >
-                              <Trash className="w-4 h-4" />
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => handleOpenEditForm(movie)}
+                                className="text-zinc-400 hover:text-white p-1 rounded hover:bg-zinc-900 transition-colors"
+                                title="Editar mídias"
+                                id={`btn-edit-movie-${movie.id}`}
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => setMovieToDelete(movie)}
+                                className="text-zinc-500 hover:text-rose-500 p-1 rounded hover:bg-zinc-900 transition-colors"
+                                title="Excluir do catálogo"
+                                id={`btn-delete-movie-${movie.id}`}
+                              >
+                                <Trash className="w-4 h-4" />
+                              </button>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </>
             ) : (
@@ -1991,6 +2065,50 @@ export default function AdminPanel({
                   className="bg-red-600 hover:bg-red-700 text-white text-xs font-semibold px-5 py-2 rounded transition-all shadow-lg cursor-pointer"
                 >
                   Excluir Conta
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MODAL DE CONFIRMAÇÃO DE EXCLUSÃO DE FILME */}
+      <AnimatePresence>
+        {showBulkDeleteConfirm && (
+          <div className="fixed inset-0 bg-black/85 flex justify-center items-center p-4 z-50 modal-backdrop-blur">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-zinc-900 border border-zinc-800 max-w-sm w-full rounded-xl p-6 text-center shadow-2xl"
+            >
+              <Trash className="w-12 h-12 text-rose-500 mx-auto mb-3" />
+              <h3 className="text-lg font-bold text-white mb-2 font-display">Remover em Lote?</h3>
+              <p className="text-xs text-zinc-400 mb-6 leading-relaxed font-sans">
+                Deseja realmente excluir os <strong className="text-zinc-200">{selectedMovieIds.length} títulos selecionados</strong> permanentemente do acervo VHSFLIX?
+              </p>
+              <div className="flex gap-3 justify-center">
+                <button
+                  type="button"
+                  onClick={() => setShowBulkDeleteConfirm(false)}
+                  className="px-4 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-400 text-xs font-semibold hover:text-white transition-all cursor-pointer font-sans"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onBulkDeleteMovies) {
+                      onBulkDeleteMovies(selectedMovieIds);
+                    } else {
+                      selectedMovieIds.forEach(id => onDeleteMovie(id));
+                    }
+                    setSelectedMovieIds([]);
+                    setShowBulkDeleteConfirm(false);
+                  }}
+                  className="bg-red-600 hover:bg-red-700 text-white text-xs font-semibold px-5 py-2 rounded transition-all shadow-lg cursor-pointer font-sans"
+                >
+                  Confirmar Exclusão
                 </button>
               </div>
             </motion.div>
