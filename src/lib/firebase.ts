@@ -3,7 +3,24 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export const db = null as any;
+import { initializeApp } from 'firebase/app';
+import { 
+  getFirestore, 
+  doc, 
+  setDoc, 
+  deleteDoc, 
+  collection, 
+  getDocs, 
+  writeBatch 
+} from 'firebase/firestore';
+import firebaseConfig from '../../firebase-applet-config.json';
+
+// Inicializa o Firebase
+const app = initializeApp(firebaseConfig);
+
+// Inicializa o Firestore utilizando a base de dados correta do usuário
+export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId || '(default)');
+
 export const auth = null as any;
 
 export enum OperationType {
@@ -22,7 +39,7 @@ export interface FirestoreErrorInfo {
 }
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
-  console.warn('Silent Local Storage Mode active - database operation bypassed safely.');
+  console.error(`[FIRESTORE ERROR] ${operationType} on path: ${path}`, error);
 }
 
 // Helper function to compress large Base64 images to avoid exceeding memory/storage limits
@@ -71,7 +88,7 @@ export function compressImage(base64Str: string, maxWidth = 600, maxHeight = 600
   });
 }
 
-// Helper to recursively strip undefined properties
+// Helper to recursively strip undefined properties (crucial for Firestore!)
 export function sanitizeForFirestore<T>(obj: T): T {
   if (obj === null || obj === undefined) {
     return null as unknown as T;
@@ -91,15 +108,119 @@ export function sanitizeForFirestore<T>(obj: T): T {
   return obj;
 }
 
-// Fully stubbed safe synchronous functions that allow App.tsx to work offline with absolute zero errors
-export async function saveUsersToFirestore(users: any[]) {}
-export async function deleteUserFromFirestore(userId: string) {}
-export async function saveProfilesToFirestore(allProfiles: any) {}
-export async function saveMoviesToFirestore(movies: any[]) {}
-export async function saveSingleMovieToFirestore(movie: any) {}
-export async function deleteMovieFromFirestore(movieId: string) {}
-export async function saveSettingsToFirestore(adguardEnabled: boolean) {}
-export async function saveRequestsToFirestore(requests: any[]) {}
-export async function deleteRequestFromFirestore(requestId: string) {}
-export async function saveSingleNotificationToFirestore(notif: any) {}
-export async function deleteNotificationFromFirestore(notificationId: string) {}
+// --- CLOUD FIRESTORE SYNCHRONIZATION WRITERS ---
+
+export async function saveUsersToFirestore(users: any[]) {
+  try {
+    const batch = writeBatch(db);
+    for (const user of users) {
+      if (!user.id) continue;
+      const ref = doc(db, 'users', user.id);
+      batch.set(ref, sanitizeForFirestore(user), { merge: true });
+    }
+    await batch.commit();
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, 'users');
+  }
+}
+
+export async function deleteUserFromFirestore(userId: string) {
+  try {
+    await deleteDoc(doc(db, 'users', userId));
+    // Remove também seus perfis cadastrados para manter integridade
+    await deleteDoc(doc(db, 'profiles', userId));
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, `users/${userId}`);
+  }
+}
+
+export async function saveProfilesToFirestore(allProfiles: any) {
+  try {
+    const batch = writeBatch(db);
+    for (const [userId, profilesArray] of Object.entries(allProfiles)) {
+      const ref = doc(db, 'profiles', userId);
+      batch.set(ref, sanitizeForFirestore({ userId, profiles: profilesArray }), { merge: true });
+    }
+    await batch.commit();
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, 'profiles');
+  }
+}
+
+export async function saveMoviesToFirestore(movies: any[]) {
+  try {
+    const batch = writeBatch(db);
+    for (const m of movies) {
+      if (!m.id) continue;
+      const ref = doc(db, 'movies', m.id);
+      batch.set(ref, sanitizeForFirestore(m), { merge: true });
+    }
+    await batch.commit();
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, 'movies');
+  }
+}
+
+export async function saveSingleMovieToFirestore(movie: any) {
+  try {
+    if (!movie.id) return;
+    await setDoc(doc(db, 'movies', movie.id), sanitizeForFirestore(movie), { merge: true });
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, `movies/${movie.id}`);
+  }
+}
+
+export async function deleteMovieFromFirestore(movieId: string) {
+  try {
+    await deleteDoc(doc(db, 'movies', movieId));
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, `movies/${movieId}`);
+  }
+}
+
+export async function saveSettingsToFirestore(adguardEnabled: boolean) {
+  try {
+    await setDoc(doc(db, 'settings', 'global'), { id: 'global', adguardEnabled }, { merge: true });
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, 'settings/global');
+  }
+}
+
+export async function saveRequestsToFirestore(requests: any[]) {
+  try {
+    const batch = writeBatch(db);
+    for (const req of requests) {
+      if (!req.id) continue;
+      const ref = doc(db, 'requests', req.id);
+      batch.set(ref, sanitizeForFirestore(req), { merge: true });
+    }
+    await batch.commit();
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, 'requests');
+  }
+}
+
+export async function deleteRequestFromFirestore(requestId: string) {
+  try {
+    await deleteDoc(doc(db, 'requests', requestId));
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, `requests/${requestId}`);
+  }
+}
+
+export async function saveSingleNotificationToFirestore(notif: any) {
+  try {
+    if (!notif.id) return;
+    await setDoc(doc(db, 'notifications', notif.id), sanitizeForFirestore(notif), { merge: true });
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, `notifications/${notif.id}`);
+  }
+}
+
+export async function deleteNotificationFromFirestore(notificationId: string) {
+  try {
+    await deleteDoc(doc(db, 'notifications', notificationId));
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, `notifications/${notificationId}`);
+  }
+}

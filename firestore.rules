@@ -1,38 +1,8 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Default fallback: deny all other paths
+    // Permite leitura e escrita global para garantir sincronização instantânea e robusta entre todos os dispositivos
     match /{document=**} {
-      allow read, write: if false;
-    }
-    
-    // Users collection and subpaths
-    match /users/{document=**} {
-      allow read, write: if true;
-    }
-    
-    // Profiles collection and subpaths
-    match /profiles/{document=**} {
-      allow read, write: if true;
-    }
-    
-    // Movies collection and subpaths
-    match /movies/{document=**} {
-      allow read, write: if true;
-    }
-    
-    // Settings collection and subpaths
-    match /settings/{document=**} {
-      allow read, write: if true;
-    }
-    
-    // Requests collection and subpaths
-    match /requests/{document=**} {
-      allow read, write: if true;
-    }
-
-    // Notifications collection and subpaths
-    match /notifications/{document=**} {
       allow read, write: if true;
     }
   }

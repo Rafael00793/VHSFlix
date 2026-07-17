@@ -15,6 +15,7 @@ import RequestsPanel from './components/RequestsPanel';
 import { Play, Info, Sparkles, Star, Plus, Check, Shield, HelpCircle, AlertCircle, Heart, HeartOff, Volume1, Volume2, VolumeX, Bell, X, Flame, LayoutGrid, List, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { db, saveUsersToFirestore, deleteUserFromFirestore, saveProfilesToFirestore, saveMoviesToFirestore, saveSingleMovieToFirestore, deleteMovieFromFirestore, saveSettingsToFirestore, saveRequestsToFirestore, deleteRequestFromFirestore, handleFirestoreError, OperationType, saveSingleNotificationToFirestore, deleteNotificationFromFirestore } from './lib/firebase';
+import { onSnapshot, collection, doc, setDoc } from 'firebase/firestore';
 
 
 
@@ -174,6 +175,15 @@ export default function App() {
     };
     setDbNotifications(prev => [newNotif, ...prev]);
     setToast(newNotif);
+    // Sincroniza a notificação diretamente no Firestore
+    saveSingleNotificationToFirestore(newNotif);
+  };
+
+  // Forçar atualização e limpar cache em todos os dispositivos
+  const handlePublishUpdate = () => {
+    const newVersion = Date.now();
+    setDoc(doc(db, 'settings', 'global'), { id: 'global', adguardEnabled, systemVersion: newVersion }, { merge: true });
+    localStorage.setItem('vhsflix_system_version', String(newVersion));
   };
 
   // Timer para sumir com o toast de notificação da tela automaticamente após alguns segundos
@@ -185,11 +195,143 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [toast]);
 
-  // --- CENTRAL SYNCHRONIZATION (100% OFFLINE / LOCALSTORAGE ONLY) ---
+  // --- CENTRAL SYNCHRONIZATION WITH CLOUD FIRESTORE & LOCAL FALLBACKS ---
   const isLoadedRef = useRef(false);
 
   useEffect(() => {
     isLoadedRef.current = true;
+
+    // 1. Escuta em tempo real a coleção de usuários
+    const unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
+      const fetchedUsers: User[] = [];
+      snapshot.forEach((doc) => {
+        fetchedUsers.push(doc.data() as User);
+      });
+      if (fetchedUsers.length === 0) {
+        // Se estiver vazio, popula com os usuários padrão do sistema
+        saveUsersToFirestore(INITIAL_USERS);
+      } else {
+        setUsers(fetchedUsers);
+      }
+    });
+
+    // 2. Escuta em tempo real a coleção de perfis
+    const unsubProfiles = onSnapshot(collection(db, 'profiles'), (snapshot) => {
+      const fetchedProfiles: { [userId: string]: Profile[] } = {};
+      let hasData = false;
+      snapshot.forEach((doc) => {
+        hasData = true;
+        const data = doc.data();
+        if (data.userId && data.profiles) {
+          fetchedProfiles[data.userId] = data.profiles;
+        }
+      });
+      if (!hasData) {
+        // Se estiver vazio, popula com os perfis padrão
+        saveProfilesToFirestore(DEFAULT_PROFILES);
+      } else {
+        setAllProfiles(fetchedProfiles);
+      }
+    });
+
+    // 3. Escuta em tempo real a coleção de filmes/séries (catálogo)
+    const unsubMovies = onSnapshot(collection(db, 'movies'), (snapshot) => {
+      const fetchedMovies: Movie[] = [];
+      snapshot.forEach((doc) => {
+        fetchedMovies.push(doc.data() as Movie);
+      });
+      if (fetchedMovies.length === 0) {
+        // Popula catálogo com os filmes padrão
+        saveMoviesToFirestore(INITIAL_MOVIES);
+      } else {
+        setMovies(fetchedMovies);
+      }
+    });
+
+    // 4. Escuta em tempo real as configurações gerais (Adguard + Versionamento de Cache)
+    const unsubSettings = onSnapshot(collection(db, 'settings'), (snapshot) => {
+      let adguard = true;
+      let hasData = false;
+      snapshot.forEach((doc) => {
+        if (doc.id === 'global') {
+          hasData = true;
+          const data = doc.data();
+          if (data.adguardEnabled !== undefined) {
+            adguard = data.adguardEnabled;
+          }
+          
+          // Mecanismo Inteligente de Limpeza de Cache & Versionamento por Sinal de Rádio
+          if (data.systemVersion !== undefined) {
+            const currentClientVersion = Number(localStorage.getItem('vhsflix_system_version') || '0');
+            const serverVersion = Number(data.systemVersion);
+            
+            if (currentClientVersion > 0 && serverVersion > currentClientVersion) {
+              console.log(`[VHSFLIX] SINAL DE ATUALIZAÇÃO RECEBIDO! Sincronizando para a versão ${serverVersion}.`);
+              localStorage.setItem('vhsflix_system_version', String(serverVersion));
+              
+              // Limpar todos os caches de HTTP e Service Workers de forma agressiva
+              if (window.caches) {
+                caches.keys().then((names) => {
+                  for (const name of names) {
+                    caches.delete(name);
+                  }
+                });
+              }
+              if (navigator.serviceWorker) {
+                navigator.serviceWorker.getRegistrations().then((registrations) => {
+                  for (const r of registrations) {
+                    r.unregister();
+                  }
+                });
+              }
+              
+              // Recarrega a página de forma limpa
+              setTimeout(() => {
+                window.location.reload();
+              }, 1200);
+            } else if (currentClientVersion === 0) {
+              localStorage.setItem('vhsflix_system_version', String(serverVersion));
+            }
+          }
+        }
+      });
+      if (!hasData) {
+        setDoc(doc(db, 'settings', 'global'), { id: 'global', adguardEnabled: true, systemVersion: Date.now() }, { merge: true });
+      } else {
+        setAdguardEnabled(adguard);
+      }
+    });
+
+    // 5. Escuta em tempo real os pedidos dos usuários
+    const unsubRequests = onSnapshot(collection(db, 'requests'), (snapshot) => {
+      const fetchedRequests: MovieRequest[] = [];
+      snapshot.forEach((doc) => {
+        fetchedRequests.push(doc.data() as MovieRequest);
+      });
+      // Ordenar por data de criação de forma decrescente
+      fetchedRequests.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setRequests(fetchedRequests);
+    });
+
+    // 6. Escuta em tempo real as notificações
+    const unsubNotifications = onSnapshot(collection(db, 'notifications'), (snapshot) => {
+      const fetchedNotifs: AppNotification[] = [];
+      snapshot.forEach((doc) => {
+        fetchedNotifs.push(doc.data() as AppNotification);
+      });
+      // Ordenar por data de criação de forma decrescente
+      fetchedNotifs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setDbNotifications(fetchedNotifs);
+    });
+
+    return () => {
+      unsubUsers();
+      unsubProfiles();
+      unsubMovies();
+      unsubSettings();
+      unsubRequests();
+      unsubNotifications();
+    };
   }, []);
 
   // --- EFEITOS DE SINCRONIZAÇÃO COM LOCALSTORAGE (100% OFFLINE E SEGURO) ---
@@ -967,6 +1109,9 @@ export default function App() {
     };
     setRequests(prev => [newRequest, ...prev]);
 
+    // Salva o pedido diretamente no Firestore
+    saveRequestsToFirestore([newRequest]);
+
     // Notificar todos os usuários sobre o novo pedido realizado em tempo real
     triggerNotification(
       '🆕 Novo Pedido Solicitado!',
@@ -1124,6 +1269,7 @@ export default function App() {
               onEditProfile={handleEditProfile}
               adguardEnabled={adguardEnabled}
               onToggleAdguardEnabled={setAdguardEnabled}
+              onPublishUpdate={handlePublishUpdate}
             />
           ) : activeTab === 'requests' ? (
             <RequestsPanel

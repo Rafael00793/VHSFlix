@@ -28,6 +28,7 @@ interface AdminPanelProps {
   onEditProfile?: (profileId: string, name: string, avatarUrl: string) => void;
   adguardEnabled: boolean;
   onToggleAdguardEnabled: (enabled: boolean) => void;
+  onPublishUpdate?: () => void;
 }
 
 export default function AdminPanel({
@@ -47,7 +48,8 @@ export default function AdminPanel({
   currentProfileId,
   onEditProfile,
   adguardEnabled,
-  onToggleAdguardEnabled
+  onToggleAdguardEnabled,
+  onPublishUpdate
 }: AdminPanelProps) {
   const [activeAdminTab, setActiveAdminTab] = useState<'dashboard' | 'catalog' | 'users' | 'myaccount' | 'settings'>('dashboard');
 
@@ -1864,6 +1866,55 @@ export default function AdminPanel({
                       {tmdbApiKey ? 'Chave personalizada inserida. Buscas live mundiais ativas!' : 'Utilizando banco de dados local retro de contingência.'}
                     </span>
                   </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Bloco de Versionamento e Sincronização Global */}
+            <div className="bg-zinc-900 border border-zinc-850 rounded-xl p-5 md:p-6 space-y-5 col-span-1 md:col-span-2">
+              <div className="border-b border-zinc-800 flex justify-between items-start gap-4 flex-wrap pb-4">
+                <div>
+                  <h3 className="font-bold text-md text-emerald-500 font-display uppercase tracking-tight flex items-center gap-2">
+                    <RefreshCw className="w-4.5 h-4.5" /> Sincronização e Versionamento Global
+                  </h3>
+                  <p className="text-xs text-zinc-500 mt-1">
+                    Força todos os dispositivos conectados (Celulares, Smart TVs, Computadores) a limparem o cache local e recarregarem imediatamente para a versão mais recente.
+                  </p>
+                </div>
+                <div className="bg-zinc-950 px-3 py-1.5 rounded border border-zinc-850 font-mono text-[10px] text-zinc-400">
+                  Sinal de Versão: <span className="text-white font-bold">{localStorage.getItem('vhsflix_system_version') || '1.0.0'}</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="p-4 bg-zinc-950 rounded border border-zinc-800 flex flex-col justify-between">
+                  <div>
+                    <span className="text-[11px] font-bold text-zinc-300 block font-sans">Como Funciona?</span>
+                    <p className="text-[10px] text-zinc-500 mt-1.5 leading-relaxed font-sans font-mono">
+                      Quando você publica novas capas, altera filmes ou faz atualizações de design no site, alguns celulares e TVs continuam exibiendo a versão antiga em cache. Ao clicar no botão ao lado, você altera o número da versão no banco de dados em nuvem em tempo real, disparando um comando remoto para todos os navegadores abertos limparem seus caches e recarregarem a página na hora!
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-4.5 bg-emerald-950/10 rounded-lg border border-emerald-500/25 flex flex-col justify-center items-stretch gap-4">
+                  <div className="text-center font-sans">
+                    <span className="text-xs font-bold text-emerald-400 block font-sans">Forçar Atualização de Sinal</span>
+                    <span className="text-[10px] text-zinc-400 mt-1 block leading-relaxed font-sans">
+                      Clique abaixo para propagar as alterações instantaneamente para todos os aparelhos ativos.
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (onPublishUpdate) {
+                        onPublishUpdate();
+                        alert('Sinal de atualização enviado com sucesso! Todos os aparelhos sintonizados no VHSFLIX serão reiniciados e atualizados nos próximos segundos.');
+                      }
+                    }}
+                    className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 px-4 rounded-lg text-xs font-mono uppercase transition-all tracking-wider text-center cursor-pointer flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/10"
+                    id="btn-publish-global-update"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" /> Enviar Sinal de Atualização Geral
+                  </button>
                 </div>
               </div>
             </div>
