@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { User, Profile } from '../types';
+import { User, Profile, getSubscriptionDaysLeft } from '../types';
 import { PROFILE_AVATARS, INITIAL_MOVIES } from '../data';
 import { Plus, Trash, Edit, UserCheck, Shield, ChevronRight, LogOut, Film, Eye, EyeOff, User as UserIcon, Lock as LockIcon, Heart, Tv, ArrowLeft, Upload, Link } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -108,6 +108,12 @@ export default function ProfileSelector({
 
     if (!matchedUser || (matchedUser.password && (matchedUser.password || '').toString().trim() !== passwordInput)) {
       setLoginError('Usuário ou senha inválidos');
+      return;
+    }
+
+    const daysLeft = getSubscriptionDaysLeft(matchedUser);
+    if (!matchedUser.isAdmin && daysLeft <= 0) {
+      setLoginError('Acesso bloqueado! Sua assinatura de 30 dias expirou. Entre em contato com o administrador Rafael Gusmão para renovar.');
       return;
     }
 

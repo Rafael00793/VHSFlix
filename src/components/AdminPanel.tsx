@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { Movie, User, Profile } from '../types';
+import { Movie, User, Profile, getSubscriptionDaysLeft, renewSubscription } from '../types';
 import { GENRE_CATEGORIES, searchMoviesTMDB, getMovieDetailsTMDB, PROFILE_AVATARS } from '../data';
 import { Trash, Edit, Plus, Users, Library, Settings, Search, Import, Download, Star, Shield, Film, Tv, Play, AlertTriangle, ShieldAlert, RefreshCw, Check, LayoutDashboard, Activity, Clock, TrendingUp, User as UserIcon, Lock as LockIcon, Eye, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -21,7 +21,7 @@ interface AdminPanelProps {
   onDeleteMovie: (movieId: string) => void;
   onResetCatalog: () => void;
   onAddUser: (name: string, email: string, password: string, isAdmin: boolean, avatarUrl?: string) => string | null;
-  onEditUser: (userId: string, name: string, email: string, password?: string, isAdmin?: boolean, avatarUrl?: string) => string | null;
+  onEditUser: (userId: string, name: string, email: string, password?: string, isAdmin?: boolean, avatarUrl?: string, subscriptionExpiresAt?: string) => string | null;
   onDeleteUser: (userId: string) => void;
   currentUserId: string;
   currentProfileId?: string;
@@ -71,6 +71,7 @@ export default function AdminPanel({
   const [userFormAvatarUrl, setUserFormAvatarUrl] = useState('');
   const [userFormSelectedAvatarIdx, setUserFormSelectedAvatarIdx] = useState(0);
   const [userFormError, setUserFormError] = useState('');
+  const [userFormSubscriptionExpiresAt, setUserFormSubscriptionExpiresAt] = useState<string | undefined>(undefined);
 
   // Estados para "Minha Conta"
   const currentUser = users.find(u => u.id === currentUserId) || { name: 'Admin', email: '', password: '' };
@@ -1240,6 +1241,7 @@ export default function AdminPanel({
                       <th className="py-4.5 px-6 font-semibold">Conta / Titular</th>
                       <th className="py-4.5 px-6 font-semibold">ID Único</th>
                       <th className="py-4.5 px-6 font-semibold">Privilégios</th>
+                      <th className="py-4.5 px-6 font-semibold">Tempo de Acesso</th>
                       <th className="py-4.5 px-6 font-semibold">Subperfis Criados</th>
                       <th className="py-4.5 px-6 font-semibold">Data Registro</th>
                       <th className="py-4.5 px-6 font-semibold text-right">Ações</th>
@@ -1279,6 +1281,26 @@ export default function AdminPanel({
                               </span>
                             )}
                           </td>
+                          <td className="py-4 px-6 font-mono text-xs">
+                            {isMasterAdmin ? (
+                              <span className="text-emerald-400 font-bold uppercase tracking-wider">Ilimitado ♾️</span>
+                            ) : u.isAdmin ? (
+                              <span className="text-emerald-400 font-bold uppercase tracking-wider">Ilimitado ♾️</span>
+                            ) : (
+                              <div className="flex flex-col gap-1">
+                                <span className={`font-bold ${getSubscriptionDaysLeft(u) <= 5 ? 'text-rose-500' : 'text-emerald-400'}`}>
+                                  {getSubscriptionDaysLeft(u)} {getSubscriptionDaysLeft(u) === 1 ? 'dia disponível' : 'dias disponíveis'}
+                                </span>
+                                {getSubscriptionDaysLeft(u) === 0 ? (
+                                  <span className="bg-rose-600/20 text-rose-500 border border-rose-500/20 px-1 py-0.5 rounded text-[8px] uppercase text-center font-bold font-mono">Expirado ⚠️</span>
+                                ) : getSubscriptionDaysLeft(u) <= 5 ? (
+                                  <span className="bg-amber-600/10 text-amber-500 border border-amber-500/10 px-1 py-0.5 rounded text-[8px] uppercase text-center font-bold font-mono">Vence logo ⏳</span>
+                                ) : (
+                                  <span className="bg-emerald-600/10 text-emerald-400 border border-emerald-500/10 px-1 py-0.5 rounded text-[8px] uppercase text-center font-bold font-mono">Ativo ✅</span>
+                                )}
+                              </div>
+                            )}
+                          </td>
                           <td className="py-4 px-6">
                             <div className="flex items-center -space-x-1.5 overflow-hidden">
                               {listProfiles.map(p => (
@@ -1310,6 +1332,7 @@ export default function AdminPanel({
                                   const matchingIdx = PROFILE_AVATARS.findIndex(avatar => avatar.url === u.avatarUrl);
                                   setUserFormSelectedAvatarIdx(matchingIdx !== -1 ? matchingIdx : 0);
                                   setUserFormError('');
+                                  setUserFormSubscriptionExpiresAt(u.subscriptionExpiresAt);
                                   setIsUserFormOpen(true);
                                 }}
                                 className="p-1 px-1.5 rounded-md bg-zinc-850 hover:bg-rose-600 hover:text-white transition-all text-zinc-300 text-xs flex items-center gap-1 cursor-pointer"
@@ -1384,7 +1407,7 @@ export default function AdminPanel({
                       }
 
                       if (editingUser) {
-                        const res = onEditUser(editingUser.id, name, email, password || undefined, userFormIsAdmin, userFormAvatarUrl);
+                        const res = onEditUser(editingUser.id, name, email, password || undefined, userFormIsAdmin, userFormAvatarUrl, userFormSubscriptionExpiresAt);
                         if (res) {
                           setUserFormError(res);
                         } else {
@@ -1492,6 +1515,51 @@ export default function AdminPanel({
                         </button>
                       </div>
                     </div>
+
+                    {/* Seção de Assinatura / Tempo de Acesso (Apenas para Usuários Normais) */}
+                    {editingUser && !userFormIsAdmin && (
+                      <div className="p-4 bg-zinc-950/85 border border-zinc-800 rounded-xl space-y-3">
+                        <div className="flex justify-between items-center">
+                          <label className="text-zinc-400 font-bold uppercase tracking-wider text-[9px] block">
+                            Assinatura / Tempo de Acesso
+                          </label>
+                          <span className="font-mono text-[9px] bg-rose-600/10 text-rose-500 border border-rose-500/20 px-1.5 py-0.5 rounded font-black uppercase">
+                            {getSubscriptionDaysLeft({ ...editingUser, subscriptionExpiresAt: userFormSubscriptionExpiresAt })} {getSubscriptionDaysLeft({ ...editingUser, subscriptionExpiresAt: userFormSubscriptionExpiresAt }) === 1 ? 'dia restante' : 'dias restantes'}
+                          </span>
+                        </div>
+                        
+                        <div className="text-xs text-zinc-300 font-sans flex flex-col gap-1.5">
+                          <p className="leading-relaxed">
+                            O usuário tem atualmente <strong className="text-white">{getSubscriptionDaysLeft({ ...editingUser, subscriptionExpiresAt: userFormSubscriptionExpiresAt })} {getSubscriptionDaysLeft({ ...editingUser, subscriptionExpiresAt: userFormSubscriptionExpiresAt }) === 1 ? 'dia' : 'dias'}</strong> de acesso restantes ao VHSFLIX.
+                          </p>
+                          <div className="flex gap-2 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newExpiry = renewSubscription({ ...editingUser, subscriptionExpiresAt: userFormSubscriptionExpiresAt });
+                                setUserFormSubscriptionExpiresAt(newExpiry);
+                              }}
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded text-[10px] transition-colors cursor-pointer flex-1 text-center"
+                              title="Adiciona +30 dias ao tempo restante atual do usuário"
+                            >
+                              🚀 Renovar +30 Dias (Soma)
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const thirtyDaysFromNow = new Date();
+                                thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+                                setUserFormSubscriptionExpiresAt(thirtyDaysFromNow.toISOString());
+                              }}
+                              className="bg-zinc-800 hover:bg-zinc-750 text-zinc-300 font-bold px-3 py-1.5 rounded text-[10px] transition-colors cursor-pointer flex-1 text-center"
+                              title="Redefine o acesso para exatamente 30 dias a partir de hoje"
+                            >
+                              🔄 Reiniciar (30 Dias)
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Controlo de privilégios de Administrador */}
                     {editingUser?.email !== 'rafaelguaruja09@gmail.com' && editingUser?.id !== 'u1' && (

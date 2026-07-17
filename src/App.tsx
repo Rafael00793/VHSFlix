@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Movie, User, Profile, WatchProgress, AppNotification, MovieRequest } from './types';
+import { Movie, User, Profile, WatchProgress, AppNotification, MovieRequest, getSubscriptionDaysLeft, renewSubscription } from './types';
 import { INITIAL_MOVIES, INITIAL_USERS, DEFAULT_PROFILES, GENRE_CATEGORIES, getMovieDetailsTMDB } from './data';
 import Navbar from './components/Navbar';
 import ProfileSelector from './components/ProfileSelector';
@@ -42,6 +42,20 @@ export default function App() {
         createdAt: '2026-05-10T12:00:00Z'
       });
     }
+
+    // Inicializar assinaturas de 30 dias para usuários normais que não possuem o campo definido
+    parsed = parsed.map(u => {
+      if (!u.isAdmin && !u.subscriptionExpiresAt) {
+        const thirtyDaysFromNow = new Date();
+        thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+        return {
+          ...u,
+          subscriptionExpiresAt: thirtyDaysFromNow.toISOString()
+        };
+      }
+      return u;
+    });
+
     return parsed;
   });
 
@@ -261,6 +275,32 @@ export default function App() {
     return users.find(u => u.id === currentUserId) || users[0];
   }, [users, currentUserId]);
 
+  const isUserExpired = useMemo(() => {
+    if (!currentUserId) return false;
+    return activeUser && !activeUser.isAdmin && getSubscriptionDaysLeft(activeUser) <= 0;
+  }, [activeUser, currentUserId]);
+
+  // Alerta automático quando faltar 5 dias ou menos para o vencimento do sinal
+  useEffect(() => {
+    if (activeUser && !activeUser.isAdmin) {
+      const daysLeft = getSubscriptionDaysLeft(activeUser);
+      if (daysLeft > 0 && daysLeft <= 5) {
+        const sessionKey = `warned_expiry_${activeUser.id}_${daysLeft}`;
+        const alreadyWarned = sessionStorage.getItem(sessionKey);
+        
+        if (!alreadyWarned) {
+          triggerNotification(
+            '⚠️ Assinatura Vencendo!',
+            `Faltam apenas ${daysLeft} ${daysLeft === 1 ? 'dia' : 'dias'} para o vencimento do seu sinal VHSFLIX! Entre em contato com Rafael Gusmão para renovar e não perder o acesso.`,
+            '',
+            'system'
+          );
+          sessionStorage.setItem(sessionKey, 'true');
+        }
+      }
+    }
+  }, [activeUser]);
+
   const activeProfile = useMemo(() => {
     const userProfs = allProfiles[currentUserId] || [];
     return userProfs.find(p => p.id === currentProfileId) || null;
@@ -432,6 +472,9 @@ export default function App() {
 
     const defaultAvatar = avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80';
 
+    const thirtyDaysFromNow = new Date();
+    thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+
     const newUser: User = {
       id: 'u_' + Date.now(),
       name,
@@ -439,7 +482,8 @@ export default function App() {
       password: password,
       isAdmin,
       avatarUrl: defaultAvatar,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      subscriptionExpiresAt: isAdmin ? undefined : thirtyDaysFromNow.toISOString()
     };
     setUsers(prev => [...prev, newUser]);
     
@@ -464,7 +508,7 @@ export default function App() {
     return null; // Sucesso
   };
 
-  const handleEditUser = (userId: string, name: string, email: string, password?: string, isAdmin?: boolean, avatarUrl?: string): string | null => {
+  const handleEditUser = (userId: string, name: string, email: string, password?: string, isAdmin?: boolean, avatarUrl?: string, subscriptionExpiresAt?: string): string | null => {
     const emailLower = email.trim().toLowerCase();
     
     // Se o e-mail mudou, verifica duplicidade
@@ -481,7 +525,8 @@ export default function App() {
       email: emailLower,
       password: (password !== undefined && password.trim() !== '') ? password : targetUser.password,
       isAdmin: isAdmin !== undefined ? isAdmin : targetUser.isAdmin,
-      avatarUrl: avatarUrl !== undefined ? avatarUrl : targetUser.avatarUrl
+      avatarUrl: avatarUrl !== undefined ? avatarUrl : targetUser.avatarUrl,
+      subscriptionExpiresAt: subscriptionExpiresAt !== undefined ? subscriptionExpiresAt : targetUser.subscriptionExpiresAt
     };
 
     setUsers(prev => prev.map(u => u.id === userId ? updatedUser : u));
@@ -973,6 +1018,65 @@ export default function App() {
           onDeleteProfile={handleDeleteProfile}
           onEditProfile={handleEditProfile}
         />
+      ) : isUserExpired ? (
+        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center select-none min-h-screen relative z-20">
+          <motion.div 
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="max-w-md w-full bg-zinc-950/90 border-2 border-rose-600 rounded-2xl p-8 shadow-[0_0_50px_rgba(229,9,20,0.15)] flex flex-col items-center gap-6"
+          >
+            <div className="w-16 h-16 rounded-full bg-rose-950/40 border border-rose-500/30 flex items-center justify-center animate-pulse">
+              <span className="text-rose-500 text-3xl font-bold font-mono">✕</span>
+            </div>
+            <div>
+              <h2 className="text-2xl sm:text-3xl font-black font-display tracking-widest text-[#E50914] uppercase">
+                Sinal Bloqueado
+              </h2>
+              <p className="text-xs font-mono text-zinc-500 mt-1 uppercase tracking-widest">
+                Acesso Suspenso • VHSFLIX
+              </p>
+            </div>
+            <p className="text-sm text-zinc-300 font-sans leading-relaxed">
+              A assinatura desta conta de 30 dias chegou ao fim. Para continuar assistindo aos seus filmes e séries retrô favoritos, entre em contato com o administrador Rafael Gusmão para renovar o seu sinal por mais 30 dias.
+            </p>
+            <div className="w-full bg-zinc-900 rounded-lg p-3 border border-zinc-800 text-left font-mono text-xs text-zinc-400 flex flex-col gap-1">
+              <div className="flex justify-between">
+                <span>Conta:</span>
+                <span className="text-white font-bold">{activeUser.name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>E-mail:</span>
+                <span className="text-white">{activeUser.email}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Dias Disponíveis:</span>
+                <span className="text-rose-500 font-extrabold">0 dias (Expirado)</span>
+              </div>
+            </div>
+            
+            <div className="flex flex-col gap-3 w-full">
+              <a 
+                href="https://wa.me/5513997148555" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="w-full bg-[#22c55e] hover:bg-[#16a34a] text-white font-bold py-3 px-4 rounded-lg text-sm uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-emerald-600/10 text-center"
+              >
+                💬 Falar com Rafael Gusmão
+              </a>
+              <button
+                onClick={() => {
+                  handleLogoutProfile();
+                  setCurrentUserId('');
+                  sessionStorage.removeItem('vhs_session_logged_in');
+                  window.location.reload();
+                }}
+                className="w-full bg-zinc-900 hover:bg-zinc-850 text-zinc-400 hover:text-white py-3 px-4 rounded-lg text-sm font-semibold transition-all cursor-pointer border border-zinc-800"
+              >
+                Sair da Conta / Mudar Usuário
+              </button>
+            </div>
+          </motion.div>
+        </div>
       ) : (
         /* --- SECÇÃO 2: PLATAFORMA STREAMING PRINCIPAL --- */
         <div className="flex flex-col min-h-screen justify-between">

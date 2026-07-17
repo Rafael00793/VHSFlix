@@ -55,6 +55,28 @@ export interface User {
   isAdmin: boolean;
   createdAt: string;
   deleted?: boolean;
+  subscriptionExpiresAt?: string; // ISO string
+}
+
+export function getSubscriptionDaysLeft(user: User): number {
+  if (user.isAdmin || user.email === 'rafaelguaruja09@gmail.com' || user.id === 'u1') {
+    return 9999; // Sem limite para Admin Master
+  }
+  if (!user.subscriptionExpiresAt) return 30; // Padrão se não preenchido
+  const expiry = new Date(user.subscriptionExpiresAt).getTime();
+  const now = new Date().getTime();
+  const diffMs = expiry - now;
+  const daysLeft = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+  return daysLeft < 0 ? 0 : daysLeft;
+}
+
+export function renewSubscription(user: User): string {
+  const daysLeft = getSubscriptionDaysLeft(user);
+  const baseDate = daysLeft > 0 ? new Date(user.subscriptionExpiresAt!) : new Date();
+  
+  const newExpiry = new Date(baseDate);
+  newExpiry.setDate(newExpiry.getDate() + 30);
+  return newExpiry.toISOString();
 }
 
 export interface TMDBConfig {

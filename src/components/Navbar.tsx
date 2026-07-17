@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, Bell, Shield, LogOut, RefreshCw, UserCheck, Film, Tv, List, Sliders, ChevronDown, MessageSquare } from 'lucide-react';
-import { User, Profile, AppNotification, Movie } from '../types';
+import { User, Profile, AppNotification, Movie, getSubscriptionDaysLeft } from '../types';
 import { GENRE_CATEGORIES } from '../data';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -288,6 +288,14 @@ export default function Navbar({
             </div>
           )}
 
+          {/* Badge de assinatura */}
+          {!user.isAdmin && (
+            <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 bg-zinc-900 border border-zinc-800 text-zinc-300 rounded-full font-mono text-[10px] font-bold select-none shadow">
+              <span className={`w-1.5 h-1.5 rounded-full ${getSubscriptionDaysLeft(user) <= 5 ? 'bg-rose-500 animate-pulse' : 'bg-emerald-500'}`} />
+              <span>{getSubscriptionDaysLeft(user)} dias restantes</span>
+            </div>
+          )}
+
           {/* Botão de Dropdown de Perfis */}
           <div className="relative" ref={dropdownRef}>
             <button
@@ -388,6 +396,24 @@ export default function Navbar({
                         <span>Mudar de Conta</span>
                       </button>
                     </div>
+
+                    {/* Informações de Assinatura */}
+                    {!user.isAdmin && (
+                      <div className="px-3 py-2.5 border-t border-zinc-900 bg-zinc-950/40 flex flex-col gap-1.5 select-none font-sans">
+                        <div className="flex justify-between items-center text-[10px] font-mono">
+                          <span className="text-zinc-500 font-bold uppercase tracking-wider">Período de Acesso</span>
+                          <span className={`font-bold ${getSubscriptionDaysLeft(user) <= 5 ? 'text-rose-500 font-black' : 'text-emerald-500'}`}>
+                            {getSubscriptionDaysLeft(user)} dias restantes
+                          </span>
+                        </div>
+                        <div className="w-full bg-zinc-900 h-1.5 rounded-full overflow-hidden">
+                          <div 
+                            className={`h-full rounded-full transition-all duration-500 ${getSubscriptionDaysLeft(user) <= 5 ? 'bg-rose-500' : 'bg-emerald-500'}`} 
+                            style={{ width: `${Math.min(100, (getSubscriptionDaysLeft(user) / 30) * 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
 
                     {/* Rodapé Logged In */}
                     <div className="bg-zinc-900/40 p-2.5 border-t border-zinc-900 text-[10px] text-zinc-500 flex justify-between items-center">
