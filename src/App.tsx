@@ -12,7 +12,7 @@ import MovieRow from './components/MovieRow';
 import MovieDetailModal from './components/MovieDetailModal';
 import AdminPanel from './components/AdminPanel';
 import RequestsPanel from './components/RequestsPanel';
-import { Play, Info, Sparkles, Star, Plus, Check, Shield, HelpCircle, AlertCircle, Heart, HeartOff, Volume1, Volume2, VolumeX, Bell, X, Flame, LayoutGrid, List, Trash2 } from 'lucide-react';
+import { Play, Info, Sparkles, Star, Plus, Check, Shield, HelpCircle, AlertCircle, Heart, HeartOff, Volume1, Volume2, VolumeX, Bell, X, Flame, LayoutGrid, List, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { db, saveUsersToFirestore, deleteUserFromFirestore, saveProfilesToFirestore, saveMoviesToFirestore, saveSingleMovieToFirestore, deleteMovieFromFirestore, saveSettingsToFirestore, saveRequestsToFirestore, deleteRequestFromFirestore, handleFirestoreError, OperationType, saveSingleNotificationToFirestore, deleteNotificationFromFirestore } from './lib/firebase';
 import { onSnapshot, collection, doc, setDoc, getDoc } from 'firebase/firestore';
@@ -465,45 +465,98 @@ export default function App() {
   const [activeHighlightIndex, setActiveHighlightIndex] = useState(0);
 
   const featuredHighlights = useMemo(() => {
-    const sorted = [...movies].sort((a, b) => b.year - a.year);
+    if (movies.length === 0) return [];
     
-    // Filtro e ordenação inteligente:
-    // 1. Prioriza os filmes marcados como isFeatured, mas ordenados por ano decrescente (lançamentos atuais primeiro)
-    // 2. Mescla lançamentos do ano atual (2026+) ordenando por ano desc e nota/rating decrescente
+    // Semente diária baseada no dia (ano, mês e dia) para alterar a ordem diariamente
+    const today = new Date();
+    const daySeed = today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate();
+    
+    // Gerador determinístico de números pseudo-aleatórios com semente diária
+    const pseudoRandom = (seed: number) => {
+      const x = Math.sin(seed) * 10000;
+      return x - Math.floor(x);
+    };
+
     const currentYear = new Date().getFullYear();
+
+    // 1. Lançamentos do ano atual ou recentes (2026+) tanto de filmes quanto de séries
+    const releases = movies.filter(m => m.year >= currentYear);
     
-    const starred = sorted.filter(m => m.isFeatured).sort((a, b) => b.year - a.year);
-    const nonStarred = sorted.filter(m => !m.isFeatured);
+    // 2. Destaques marcados explicitamente no painel admin (isFeatured)
+    const explicitFeatured = movies.filter(m => m.isFeatured);
     
-    // Junta priorizando os marcados + lançamentos do ano corrente
-    const combined = [...starred, ...nonStarred];
+    // 3. Fitas mais desejadas / acessadas (ordenadas por cliques/avaliação)
+    const mostDesired = [...movies].sort((a, b) => {
+      const clicksA = a.clicksCount || 0;
+      const clicksB = b.clicksCount || 0;
+      if (clicksB !== clicksA) return clicksB - clicksA;
+      return (b.rating || 0) - (a.rating || 0);
+    }).slice(0, 10);
+
+    // 4. Representante de cada categoria do acervo para garantir diversidade
+    const categoryMap = new Map<string, Movie[]>();
+    movies.forEach(m => {
+      if (!categoryMap.has(m.category)) categoryMap.set(m.category, []);
+      categoryMap.get(m.category)!.push(m);
+    });
     
-    // Vamos separar filmes e séries para termos um carrossel rotativo intercalado (Filme 1, Série 1, Filme 2, Série 2...)
-    const movieItems = combined.filter(m => m.type === 'movie');
-    const seriesItems = combined.filter(m => m.type === 'series');
-    
-    const highlights: Movie[] = [];
-    const maxHighlightsCount = Math.min(5, combined.length);
-    let moviePtr = 0;
-    let seriesPtr = 0;
-    
-    for (let i = 0; i < maxHighlightsCount; i++) {
-      if (i % 2 === 0 && moviePtr < movieItems.length) {
-        highlights.push(movieItems[moviePtr++]);
-      } else if (seriesPtr < seriesItems.length) {
-        highlights.push(seriesItems[seriesPtr++]);
-      } else if (moviePtr < movieItems.length) {
-        highlights.push(movieItems[moviePtr++]);
+    const categorySamples: Movie[] = [];
+    categoryMap.forEach(catMovies => {
+      if (catMovies.length > 0) categorySamples.push(catMovies[0]);
+    });
+
+    // Agrupa todos os candidatos em um mapa único sem duplicatas
+    const poolMap = new Map<string, Movie>();
+    releases.forEach(m => poolMap.set(m.id, m));
+    explicitFeatured.forEach(m => poolMap.set(m.id, m));
+    mostDesired.forEach(m => poolMap.set(m.id, m));
+    categorySamples.forEach(m => poolMap.set(m.id, m));
+    // Inclui todos os outros itens disponíveis no catálogo para permitir rolagem rica e abrangente
+    movies.forEach(m => poolMap.set(m.id, m));
+
+    const pool = Array.from(poolMap.values());
+
+    // Separar em filmes e séries para intercalar com equilíbrio
+    const poolMovies = pool.filter(m => m.type === 'movie');
+    const poolSeries = pool.filter(m => m.type === 'series');
+
+    // Função de embaralhamento com semente diária
+    const seededShuffle = <T,>(arr: T[], seed: number): T[] => {
+      const result = [...arr];
+      let s = seed;
+      for (let i = result.length - 1; i > 0; i--) {
+        const j = Math.floor(pseudoRandom(s++) * (i + 1));
+        [result[i], result[j]] = [result[j], result[i]];
       }
+      return result;
+    };
+
+    const shuffledMovies = seededShuffle(poolMovies, daySeed);
+    const shuffledSeries = seededShuffle(poolSeries, daySeed + 500);
+
+    // Intercalar Filme 1, Série 1, Filme 2, Série 2...
+    const interleaved: Movie[] = [];
+    const maxLen = Math.max(shuffledMovies.length, shuffledSeries.length);
+    for (let i = 0; i < maxLen; i++) {
+      if (i < shuffledMovies.length) interleaved.push(shuffledMovies[i]);
+      if (i < shuffledSeries.length) interleaved.push(shuffledSeries[i]);
     }
-    
-    return highlights.length > 0 ? highlights : combined.slice(0, 5);
+
+    return interleaved.length > 0 ? interleaved : movies;
   }, [movies]);
+
+  // Escolhe um ponto de partida diferente a cada nova entrada/abertura do site
+  useEffect(() => {
+    if (featuredHighlights.length > 0) {
+      const randomIndex = Math.floor(Math.random() * featuredHighlights.length);
+      setActiveHighlightIndex(randomIndex);
+    }
+  }, [featuredHighlights.length]);
 
   // Filme atualmente focado no carrossel do Banner
   const featuredMovie = useMemo(() => {
     if (featuredHighlights.length === 0) return null;
-    return featuredHighlights[activeHighlightIndex] || featuredHighlights[0];
+    return featuredHighlights[activeHighlightIndex % featuredHighlights.length] || featuredHighlights[0];
   }, [featuredHighlights, activeHighlightIndex]);
 
   // Fita VHS Mais Desejada (Baseado no sistema de mais assistidos / mais clicados)
@@ -533,12 +586,12 @@ export default function App() {
     });
   }, [movies]);
 
-  // Transição automática das fitas de destaque rotativas a cada 8 segundos
+  // Transição automática das fitas de destaque rotativas a cada 7 segundos sem travamentos
   useEffect(() => {
     if (featuredHighlights.length <= 1) return;
     const interval = setInterval(() => {
       setActiveHighlightIndex(prev => (prev + 1) % featuredHighlights.length);
-    }, 8000);
+    }, 7000);
     return () => clearInterval(interval);
   }, [featuredHighlights]);
 
@@ -1425,7 +1478,28 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Indicadores do carrossel removidos por solicitação do usuário */}
+                  {/* Botões direcionais de navegação no Carrossel Hero */}
+                  {featuredHighlights.length > 1 && (
+                    <>
+                      <button
+                        onClick={() => setActiveHighlightIndex(prev => (prev - 1 + featuredHighlights.length) % featuredHighlights.length)}
+                        className="absolute left-3 sm:left-6 top-1/2 -translate-y-1/2 z-30 p-2.5 sm:p-3.5 rounded-full bg-black/40 hover:bg-black/80 text-zinc-300 hover:text-white border border-white/10 hover:border-white/30 backdrop-blur-md transition-all cursor-pointer opacity-70 hover:opacity-100 hover:scale-110 active:scale-95 shadow-xl"
+                        title="Destaque Anterior"
+                        id="btn-hero-prev"
+                      >
+                        <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6" />
+                      </button>
+
+                      <button
+                        onClick={() => setActiveHighlightIndex(prev => (prev + 1) % featuredHighlights.length)}
+                        className="absolute right-3 sm:right-6 top-1/2 -translate-y-1/2 z-30 p-2.5 sm:p-3.5 rounded-full bg-black/40 hover:bg-black/80 text-zinc-300 hover:text-white border border-white/10 hover:border-white/30 backdrop-blur-md transition-all cursor-pointer opacity-70 hover:opacity-100 hover:scale-110 active:scale-95 shadow-xl"
+                        title="Próximo Destaque"
+                        id="btn-hero-next"
+                      >
+                        <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6" />
+                      </button>
+                    </>
+                  )}
 
                 </div>
               )}
