@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Bell, Shield, LogOut, RefreshCw, UserCheck, Film, Tv, List, Sliders, ChevronDown, MessageSquare } from 'lucide-react';
+import { Search, Bell, Shield, LogOut, RefreshCw, UserCheck, Film, Tv, List, Sliders, ChevronDown, MessageSquare, Heart } from 'lucide-react';
 import { User, Profile, AppNotification, Movie, getSubscriptionDaysLeft } from '../types';
 import { GENRE_CATEGORIES } from '../data';
 import { motion, AnimatePresence } from 'motion/react';
@@ -18,8 +18,8 @@ interface NavbarProps {
   onSwitchUser: () => void;
   searchVal: string;
   onSearchChange: (val: string) => void;
-  activeTab: 'all' | 'movies' | 'series' | 'mylist' | 'requests';
-  onTabChange: (tab: 'all' | 'movies' | 'series' | 'mylist' | 'requests') => void;
+  activeTab: 'all' | 'movies' | 'series' | 'mylist' | 'requests' | 'support';
+  onTabChange: (tab: 'all' | 'movies' | 'series' | 'mylist' | 'requests' | 'support') => void;
   isAdminView: boolean;
   onToggleAdminView: (val: boolean) => void;
   vhsMode: boolean;
@@ -213,6 +213,25 @@ export default function Navbar({
                     </motion.div>
                   )}
                 </AnimatePresence>
+              </li>
+
+              {/* Nova Aba "Apoiar o Canal" localizada ao lado de Categorias */}
+              <li>
+                <button
+                  onClick={() => {
+                    onSelectCategory(null);
+                    onTabChange('support');
+                  }}
+                  className={`transition-all py-1 flex items-center gap-1.5 focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none rounded-lg px-2.5 font-bold cursor-pointer text-xs ${
+                    activeTab === 'support'
+                      ? 'bg-rose-600 text-white font-black shadow-md shadow-rose-600/30 ring-1 ring-rose-400'
+                      : 'text-rose-400 hover:text-white bg-rose-950/30 border border-rose-500/20 hover:bg-rose-900/40'
+                  }`}
+                  id="navbar-apoiar-canal-btn"
+                >
+                  <Heart className={`w-3.5 h-3.5 ${activeTab === 'support' ? 'fill-white text-white' : 'fill-rose-500 text-rose-500 animate-pulse'}`} />
+                  <span>Apoiar o Canal</span>
+                </button>
               </li>
             </ul>
           )}
@@ -482,6 +501,16 @@ export default function Navbar({
             className={`py-1 flex-1 text-center font-semibold relative ${selectedCategory ? 'text-rose-500 font-extrabold' : ''}`}
           >
             {selectedCategory ? selectedCategory : 'Gêneros'}
+          </button>
+          <button
+            onClick={() => {
+              onSelectCategory(null);
+              onTabChange('support');
+            }}
+            className={`py-1 flex-1 text-center font-bold relative flex items-center justify-center gap-0.5 ${activeTab === 'support' ? 'text-rose-500 font-extrabold' : 'text-rose-400'}`}
+          >
+            <Heart className="w-3 h-3 fill-rose-500 text-rose-500" />
+            <span>Apoiar</span>
           </button>
         </div>
       )}

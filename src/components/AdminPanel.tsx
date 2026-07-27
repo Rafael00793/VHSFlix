@@ -8,7 +8,7 @@ import { Movie, User, Profile, getSubscriptionDaysLeft, renewSubscription } from
 import { GENRE_CATEGORIES, searchMoviesTMDB, getMovieDetailsTMDB, PROFILE_AVATARS } from '../data';
 import { Trash, Edit, Plus, Users, Library, Settings, Search, Import, Download, Star, Shield, Film, Tv, Play, AlertTriangle, ShieldAlert, RefreshCw, Check, LayoutDashboard, Activity, Clock, TrendingUp, User as UserIcon, Lock as LockIcon, Eye, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { compressImage } from '../lib/firebase';
+import { compressImage, saveMoviesToFirestore } from '../lib/firebase';
 
 interface AdminPanelProps {
   movies: any[]; // para maior flexibilidade se houver types
@@ -126,7 +126,6 @@ export default function AdminPanel({
   const [tmdbSearchResults, setTmdbSearchResults] = useState<any[]>([]);
   const [isSearchingTMDB, setIsSearchingTMDB] = useState(false);
   const [tmdbError, setTmdbError] = useState('');
-
 
   // Limpa formulário
   const resetForm = () => {
@@ -257,6 +256,13 @@ export default function AdminPanel({
         setTmdbSearchResults([]);
         setTmdbSearchQuery('');
         setTmdbError('');
+        setIsFormOpen(true);
+        setTimeout(() => {
+          const formElem = document.getElementById('movie-form-section');
+          if (formElem) {
+            formElem.scrollIntoView({ behavior: 'smooth' });
+          }
+        }, 150);
       } else {
         setTmdbError('Erro ao obter detalhes específicos.');
       }
@@ -883,7 +889,7 @@ export default function AdminPanel({
                           <button
                             type="button"
                             onClick={() => handleImportTMDBMovie(result.id, result.media_type || 'movie')}
-                            className="bg-zinc-900 hover:bg-rose-600 hover:text-white text-[10px] font-bold px-3 py-1.5 rounded text-rose-500 border border-rose-500/20 transition-all font-mono uppercase flex items-center gap-1.5"
+                            className="bg-zinc-900 hover:bg-rose-600 hover:text-white text-[10px] font-bold px-3 py-1.5 rounded text-rose-500 border border-rose-500/20 transition-all font-mono uppercase flex items-center gap-1.5 shrink-0"
                           >
                             <Import className="w-3 h-3" /> AutoFill
                           </button>
@@ -894,7 +900,7 @@ export default function AdminPanel({
                 </div>
 
                 {/* Lado Direito: Formulário Principal de Edição */}
-                <div className="lg:col-span-3 bg-zinc-900 border border-zinc-800 rounded-xl p-5 md:p-6">
+                <div id="movie-form-section" className="lg:col-span-3 bg-zinc-900 border border-zinc-800 rounded-xl p-5 md:p-6">
                   <div className="border-b border-zinc-800 pb-4 mb-5 flex justify-between items-center">
                     <div>
                       <h3 className="font-bold text-md text-white font-display uppercase tracking-tight">

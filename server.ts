@@ -301,7 +301,9 @@ app.get('/api/abyss/status/:abyssId', async (req, res) => {
 });
 
 
-// --- SISTEMA INTELIGENTE DE PARSING E RESOLUÇÃO RETRO AUTO-STREAM ---
+// --- SISTEMA INTELIGENTE DE PARSING, ABYSS PLAYER API E TMDB AUTO-STREAM ---
+
+const DEFAULT_ABYSS_KEY = 'b27bfc0a395f149c2749ddc33275b6ff';
 
 function cleanTitle(title: string): string {
   const tags = [
@@ -310,85 +312,108 @@ function cleanTitle(title: string): string {
     /\bx264\b/i, /\bh264\b/i, /\bhevc\b/i, /\bx265\b/i,
     /\bdual\b/i, /\baudio\b/i, /\bdublado\b/i, /\blegendado\b/i,
     /\bmulti\b/i, /\brip\b/i, /\byts\b/i, /\brgby\b/i,
-    /\bhdr\b/i, /\b10bit\b/i, /\b\[.*?\]/g, /\(.*?\)/g
+    /\bhdr\b/i, /\b10bit\b/i, /\bmkv\b/i, /\bmp4\b/i, /\bavi\b/i,
+    /\[.*?\]/g, /\(.*?\)/g
   ];
   let clean = title;
   for (const tag of tags) {
     clean = clean.replace(tag, ' ');
   }
-  return clean.replace(/\s+/g, ' ').trim();
+  return clean.replace(/[\._\-]/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
 function parseFilename(filename: string) {
-  let nameWithoutExt = filename.substring(0, filename.lastIndexOf('.')) || filename;
+  let nameWithoutExt = filename.replace(/\.(mkv|mp4|avi|webm|flv|mov|m4v)$/i, '');
   nameWithoutExt = nameWithoutExt.replace(/[\._\-]/g, ' ');
 
-  const seriesRegex1 = /(.*?)\bs?(\d+)\s*[ex]\s*(\d+)\b/i;
-  const seriesRegex2 = /(.*?)\bep\s*(\d+)\b/i;
+  // 1. Padrão de Série: S02E01, S2E1, Season 2 Episode 1, Temp 2 Ep 1
+  const seriesRegex1 = /(.*?)\b(?:[sS](?:eason|temp|temporada)?\.?\s*0*(\d+))\s*(?:[eE](?:pisode|ep)?\.?\s*0*(\d+))\b/i;
+  // 2. Padrão de Série: 02x01, 2x1
+  const seriesRegex2 = /(.*?)\b0*(\d+)\s*x\s*0*(\d+)\b/i;
+  // 3. Padrão de Série simples: EP01, Ep 1
+  const seriesRegex3 = /(.*?)\b(?:[eE][pP]\.?\s*0*(\d+))\b/i;
 
   let match = nameWithoutExt.match(seriesRegex1);
   if (match) {
     return {
-      type: 'series',
+      type: 'series' as const,
       title: cleanTitle(match[1]),
-      season: parseInt(match[2], 10),
-      episode: parseInt(match[3], 10)
+      season: parseInt(match[2], 10) || 1,
+      episode: parseInt(match[3], 10) || 1
     };
   }
 
   match = nameWithoutExt.match(seriesRegex2);
   if (match) {
     return {
-      type: 'series',
+      type: 'series' as const,
       title: cleanTitle(match[1]),
-      season: 1,
-      episode: parseInt(match[2], 10)
+      season: parseInt(match[2], 10) || 1,
+      episode: parseInt(match[3], 10) || 1
     };
   }
 
+  match = nameWithoutExt.match(seriesRegex3);
+  if (match) {
+    return {
+      type: 'series' as const,
+      title: cleanTitle(match[1]),
+      season: 1,
+      episode: parseInt(match[2], 10) || 1
+    };
+  }
+
+  // 4. Padrão de Filme com Ano (ex: Deadpool 3 (2026))
   const yearRegex = /(.*?)\b(19\d\d|20\d\d)\b/;
   match = nameWithoutExt.match(yearRegex);
   if (match) {
     return {
-      type: 'movie',
+      type: 'movie' as const,
       title: cleanTitle(match[1]),
       year: parseInt(match[2], 10)
     };
   }
 
+  // Fallback para Filme sem ano especificado
   return {
-    type: 'movie',
+    type: 'movie' as const,
     title: cleanTitle(nameWithoutExt),
-    year: 1989
+    year: new Date().getFullYear()
   };
 }
 
-async function fetchTMDBMetadata(parsed: any, tmdbKey: string) {
+async function fetchTMDBMetadata(parsed: any, tmdbKey?: string) {
   const apiKey = tmdbKey || '9ba478ffe785bbc34fa2b10c46296580';
   if (!apiKey || apiKey === 'MY_GEMINI_API_KEY') return null;
   
   const query = encodeURIComponent(parsed.title);
-  const searchUrl = `https://api.themoviedb.org/3/search/multi?api_key=${apiKey}&query=${query}&language=pt-BR&include_adult=false`;
+  const isSeries = parsed.type === 'series';
+  const searchEndpoint = isSeries ? 'search/tv' : 'search/movie';
+  const searchUrl = `https://api.themoviedb.org/3/${searchEndpoint}?api_key=${apiKey}&query=${query}&language=pt-BR&include_adult=false`;
   
   try {
-    const searchRes = await fetch(searchUrl, { signal: AbortSignal.timeout(4000) });
-    if (!searchRes.ok) return null;
-    
-    const searchData = await searchRes.json();
-    const results = searchData.results || [];
-    
-    const targetType = parsed.type === 'series' ? 'tv' : 'movie';
-    let bestResult = results.find((r: any) => r.media_type === targetType);
-    
-    if (!bestResult && results.length > 0) {
-      bestResult = results[0];
+    let searchRes = await fetch(searchUrl, { signal: AbortSignal.timeout(5000) });
+    let searchData = searchRes.ok ? await searchRes.json() : null;
+    let results = searchData?.results || [];
+
+    // Fallback para busca multi caso a busca específica não encontre
+    if (results.length === 0) {
+      const multiUrl = `https://api.themoviedb.org/3/search/multi?api_key=${apiKey}&query=${query}&language=pt-BR&include_adult=false`;
+      const multiRes = await fetch(multiUrl, { signal: AbortSignal.timeout(5000) });
+      if (multiRes.ok) {
+        const multiData = await multiRes.json();
+        results = multiData.results || [];
+      }
     }
     
-    if (!bestResult) return null;
-    
-    const mediaType = bestResult.media_type || targetType;
+    if (results.length === 0) return null;
+
+    const targetMediaType = isSeries ? 'tv' : 'movie';
+    let bestResult = results.find((r: any) => r.media_type === targetMediaType) || results[0];
+    const mediaType = bestResult.media_type || targetMediaType;
+
     const detailsUrl = `https://api.themoviedb.org/3/${mediaType}/${bestResult.id}?api_key=${apiKey}&language=pt-BR`;
-    const detailsRes = await fetch(detailsUrl, { signal: AbortSignal.timeout(4000) });
+    const detailsRes = await fetch(detailsUrl, { signal: AbortSignal.timeout(5000) });
     if (!detailsRes.ok) return null;
     
     const details = await detailsRes.json();
@@ -402,8 +427,8 @@ async function fetchTMDBMetadata(parsed: any, tmdbKey: string) {
       ? `https://image.tmdb.org/t/p/original${details.backdrop_path}` 
       : 'https://image.tmdb.org/t/p/original/vKof7jZ50vS2pYgO569ofCidG9y.jpg';
     
-    const dateStr = details.release_date || details.first_air_date || '1989-01-01';
-    const year = parseInt(dateStr.split('-')[0]) || parsed.year || 1989;
+    const dateStr = details.release_date || details.first_air_date || `${new Date().getFullYear()}-01-01`;
+    const year = parseInt(dateStr.split('-')[0]) || parsed.year || new Date().getFullYear();
     
     let duration = '2h';
     if (mediaType === 'movie') {
@@ -416,7 +441,7 @@ async function fetchTMDBMetadata(parsed: any, tmdbKey: string) {
     
     const category = details.genres && details.genres.length > 0 
       ? details.genres[0].name 
-      : 'Retro';
+      : (isSeries ? 'Séries' : 'Lançamentos');
       
     return {
       title,
@@ -425,9 +450,9 @@ async function fetchTMDBMetadata(parsed: any, tmdbKey: string) {
       backdropUrl,
       year,
       duration,
-      type: mediaType === 'tv' ? 'series' : 'movie',
+      type: (mediaType === 'tv' || isSeries) ? ('series' as const) : ('movie' as const),
       category,
-      rating: details.vote_average || 7.0,
+      rating: Number((details.vote_average || 7.5).toFixed(1)),
       tmdbId: details.id
     };
   } catch (err) {
@@ -436,122 +461,239 @@ async function fetchTMDBMetadata(parsed: any, tmdbKey: string) {
   }
 }
 
-// Endpoint de sincronização inteligente e irrestrita com a conta do Abyss
-app.post('/api/abyss/sync', async (req, res) => {
-  const { existingAbyssIds, tmdbApiKey } = req.body;
-  const apiKey = process.env.ABYSS_API_KEY;
+// Função centralizada para sincronização automática com a conta do Abyss Player
+async function syncAbyssWithDb(tmdbKey?: string) {
+  const apiKey = (process.env.ABYSS_API_KEY && process.env.ABYSS_API_KEY !== 'YOUR_ABYSS_API_KEY')
+    ? process.env.ABYSS_API_KEY
+    : DEFAULT_ABYSS_KEY;
 
-  console.log(`[ABYSS SYNC] Sincronização automatizada iniciada. Catalogados: ${existingAbyssIds?.length || 0}`);
+  console.log('[ABYSS ENGINE] Conectando à API do Abyss Player com chave configurada...');
 
-  if (!apiKey || apiKey.trim() === '' || apiKey === 'YOUR_ABYSS_API_KEY') {
-    return res.status(400).json({
-      success: false,
-      message: 'A chave de API do Abyss não está configurada no seu ambiente. Configure o segredo ABYSS_API_KEY no painel de segredos.'
-    });
-  }
+  let files: any[] = [];
+  let apiError: string | null = null;
 
+  // Tentativa 1: Endpoint oficial de arquivos da Abyss API
   try {
     const searchUrl = new URL('https://api.abyss.to/v1/files');
     const params = new URLSearchParams({
       key: apiKey,
       searchType: 'any',
       type: 'files',
-      maxResults: '100',
+      maxResults: '200',
       orderBy: 'createdAt:desc'
     });
 
     const response = await fetch(`${searchUrl.origin}${searchUrl.pathname}?${params.toString()}`, {
-      headers: {
-        'Authorization': `Bearer ${apiKey}`
-      },
+      headers: { 'Authorization': `Bearer ${apiKey}`, 'X-API-Key': apiKey },
       signal: AbortSignal.timeout(8000)
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      return res.status(response.status).json({
-        success: false,
-        message: `A API do Abyss retornou erro HTTP ${response.status}: ${errorText}`
-      });
+    if (response.ok) {
+      const resData = await response.json();
+      files = resData.data || resData.results || resData.files || (Array.isArray(resData) ? resData : []);
+    } else {
+      apiError = `HTTP ${response.status}`;
     }
+  } catch (e: any) {
+    apiError = e.message || String(e);
+  }
 
-    const resData = await response.json();
-    const files = resData.data || resData.results || resData.files || (Array.isArray(resData) ? resData : []);
-    
-    if (!files || files.length === 0) {
-      return res.json({
-        success: true,
-        importedCount: 0,
-        movies: [],
-        message: 'Nenhum arquivo encontrado no seu drive/conta do Abyss.'
+  // Tentativa 2 (Fallback): Endpoint alternativo /v1/videos caso o primário retorne vazio ou falhe
+  if (files.length === 0) {
+    try {
+      const altUrl = `https://api.abyss.to/v1/videos?key=${apiKey}`;
+      const altRes = await fetch(altUrl, {
+        headers: { 'Authorization': `Bearer ${apiKey}`, 'X-API-Key': apiKey },
+        signal: AbortSignal.timeout(6000)
       });
-    }
-
-    const newlyImported: any[] = [];
-    const idSet = new Set<string>(existingAbyssIds || []);
-
-    for (const file of files) {
-      const fileId = file.id || file.fileId || file.video_id || file.videoId;
-      if (!fileId) continue;
-
-      if (idSet.has(fileId)) continue;
-
-      const filename = file.name || file.title || '';
-      console.log(`[ABYSS SYNC] Novo arquivo pendente encontrado: "${filename}"`);
-
-      const parsed = parseFilename(filename);
-      let movieMetadata = await fetchTMDBMetadata(parsed, tmdbApiKey);
-
-      if (!movieMetadata) {
-        console.log(`[ABYSS SYNC] Metadados reais indisponíveis. Usando renderização vintage retro para: ${parsed.title}`);
-        movieMetadata = {
-          title: parsed.title,
-          description: `Fita de vídeo sintonizada automaticamente da sua conta Abyss. Título original do arquivo: "${filename}"`,
-          posterUrl: 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=720&auto=format&fit=crop',
-          backdropUrl: 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=1200&auto=format&fit=crop',
-          year: parsed.year || 1989,
-          duration: parsed.type === 'series' ? `${parsed.season} Temporada(s)` : '1h 45m',
-          type: parsed.type as 'movie' | 'series',
-          category: 'Retro',
-          rating: 7.2,
-          tmdbId: Math.floor(Math.random() * 90000) + 10000
-        };
+      if (altRes.ok) {
+        const altData = await altRes.json();
+        files = altData.data || altData.results || altData.files || (Array.isArray(altData) ? altData : []);
       }
-
-      const newMovieId = `m_abyss_${fileId}`;
-      const newMovie = {
-        ...movieMetadata,
-        id: newMovieId,
-        abyssId: fileId,
-        abyssEmbedUrl: `https://abyssplayer.com/${fileId}`,
-        abyssStatus: file.status || 'active',
-        clicksCount: 0,
-        votesLikes: 0,
-        votesDislikes: 0,
-        createdAt: new Date().toISOString()
-      };
-
-      newlyImported.push(newMovie);
-      idSet.add(fileId);
+    } catch (e) {
+      // Silencioso em fallback
     }
+  }
 
-    res.json({
-      success: true,
-      importedCount: newlyImported.length,
-      movies: newlyImported,
-      message: newlyImported.length > 0 
-        ? `${newlyImported.length} nova(s) fita(s) sintonizada(s) da sua conta do Abyss!` 
-        : 'Todos os arquivos do Abyss já estão sintonizados no VHSFLIX!'
-    });
+  const currentDb = getDb();
+  if (!currentDb.movies) currentDb.movies = [];
 
+  let newlyAddedCount = 0;
+  let updatedCount = 0;
+
+  for (const file of files) {
+    const fileId = file.id || file.fileId || file.slug || file.video_id || file.code;
+    if (!fileId) continue;
+
+    const rawName = file.name || file.title || file.filename || file.original_name || '';
+    if (!rawName) continue;
+
+    const embedUrl = file.embedUrl || file.embed_url || file.url || `https://abyssplayer.com/${fileId}`;
+    const parsed = parseFilename(rawName);
+
+    console.log(`[ABYSS AUTOMATION] Processando arquivo "${rawName}" -> Tipo: ${parsed.type}, Título: "${parsed.title}"`);
+
+    // Busca metadados no TMDB para o título identificado
+    const movieMetadata = await fetchTMDBMetadata(parsed, tmdbKey);
+
+    if (parsed.type === 'series') {
+      const targetTitleClean = (movieMetadata?.title || parsed.title).trim().toLowerCase();
+      
+      // Procura se a série já existe no catálogo do VHS Fix
+      let seriesItem = currentDb.movies.find((m: any) => 
+        m.type === 'series' && (
+          (m.tmdbId && movieMetadata?.tmdbId && m.tmdbId === movieMetadata.tmdbId) ||
+          m.title.trim().toLowerCase() === targetTitleClean
+        )
+      );
+
+      const epKey = `${parsed.season}_${parsed.episode}`;
+
+      if (seriesItem) {
+        // Série já existe: atualiza episódios e temporadas automaticamente
+        if (!seriesItem.episodeEmbeds) seriesItem.episodeEmbeds = {};
+        if (!seriesItem.seasonsConfig) seriesItem.seasonsConfig = {};
+
+        const isNewEp = !seriesItem.episodeEmbeds[epKey];
+        seriesItem.episodeEmbeds[epKey] = embedUrl;
+        seriesItem.seasonsConfig[parsed.season] = Math.max(
+          seriesItem.seasonsConfig[parsed.season] || 0,
+          parsed.episode
+        );
+
+        const totalSeasons = Object.keys(seriesItem.seasonsConfig).length;
+        seriesItem.duration = `${totalSeasons} Temporada(s)`;
+
+        if (!seriesItem.abyssId) seriesItem.abyssId = fileId;
+        if (!seriesItem.abyssEmbedUrl) seriesItem.abyssEmbedUrl = embedUrl;
+        seriesItem.updatedAt = new Date().toISOString();
+
+        if (isNewEp) updatedCount++;
+      } else {
+        // Série não existe: cria cadastro novo completo com TMDB e primeiro episódio
+        const seasonsConfig = { [parsed.season]: parsed.episode };
+        const episodeEmbeds = { [epKey]: embedUrl };
+
+        const newSeries = {
+          id: `s_abyss_${movieMetadata?.tmdbId || parsed.title.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
+          title: movieMetadata?.title || parsed.title,
+          description: movieMetadata?.description || `Série ${parsed.title} cadastrada automaticamente pelo Abyss Player.`,
+          backdropUrl: movieMetadata?.backdropUrl || 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=1200&auto=format&fit=crop',
+          posterUrl: movieMetadata?.posterUrl || 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=720&auto=format&fit=crop',
+          category: movieMetadata?.category || 'Séries',
+          year: movieMetadata?.year || new Date().getFullYear(),
+          duration: `1 Temporada(s)`,
+          type: 'series' as const,
+          rating: movieMetadata?.rating || 8.0,
+          trailerUrl: '',
+          tmdbId: movieMetadata?.tmdbId,
+          abyssId: fileId,
+          abyssEmbedUrl: embedUrl,
+          abyssStatus: file.status || 'active',
+          seasonsConfig,
+          episodeEmbeds,
+          clicksCount: 0,
+          votesLikes: 0,
+          votesDislikes: 0,
+          createdAt: new Date().toISOString()
+        };
+
+        currentDb.movies.unshift(newSeries);
+        newlyAddedCount++;
+      }
+    } else {
+      // Processamento de Filme
+      const targetTitleClean = (movieMetadata?.title || parsed.title).trim().toLowerCase();
+      let movieItem = currentDb.movies.find((m: any) =>
+        m.type === 'movie' && (
+          (m.abyssId && m.abyssId === fileId) ||
+          (m.tmdbId && movieMetadata?.tmdbId && m.tmdbId === movieMetadata.tmdbId) ||
+          m.title.trim().toLowerCase() === targetTitleClean
+        )
+      );
+
+      if (movieItem) {
+        movieItem.abyssId = fileId;
+        movieItem.abyssEmbedUrl = embedUrl;
+        movieItem.embedUrl = embedUrl;
+        movieItem.abyssStatus = file.status || 'active';
+        movieItem.updatedAt = new Date().toISOString();
+        updatedCount++;
+      } else {
+        const newMovie = {
+          id: `m_abyss_${fileId}`,
+          title: movieMetadata?.title || parsed.title,
+          description: movieMetadata?.description || `Filme ${parsed.title} sintonizado automaticamente da sua conta Abyss.`,
+          posterUrl: movieMetadata?.posterUrl || 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?q=80&w=720&auto=format&fit=crop',
+          backdropUrl: movieMetadata?.backdropUrl || 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=1200&auto=format&fit=crop',
+          category: movieMetadata?.category || 'Lançamentos',
+          year: movieMetadata?.year || parsed.year || new Date().getFullYear(),
+          duration: movieMetadata?.duration || '1h 50m',
+          type: 'movie' as const,
+          rating: movieMetadata?.rating || 7.5,
+          trailerUrl: '',
+          tmdbId: movieMetadata?.tmdbId,
+          abyssId: fileId,
+          abyssEmbedUrl: embedUrl,
+          embedUrl: embedUrl,
+          abyssStatus: file.status || 'active',
+          clicksCount: 0,
+          votesLikes: 0,
+          votesDislikes: 0,
+          createdAt: new Date().toISOString()
+        };
+
+        currentDb.movies.unshift(newMovie);
+        newlyAddedCount++;
+      }
+    }
+  }
+
+  saveDb(currentDb);
+
+  return {
+    success: true,
+    movies: currentDb.movies,
+    newlyAddedCount,
+    updatedCount,
+    totalFilesDetected: files.length,
+    apiError
+  };
+}
+
+// Endpoint de sincronização automática chamado pelo frontend ou admin
+app.post('/api/abyss/sync', async (req, res) => {
+  const { tmdbApiKey } = req.body || {};
+  try {
+    const result = await syncAbyssWithDb(tmdbApiKey);
+    res.json(result);
   } catch (err: any) {
     console.error('[ABYSS SYNC ERROR]', err);
     res.status(500).json({
       success: false,
-      message: `Erro na sincronização automática: ${err.message || String(err)}`
+      message: `Erro na sincronização automatizada: ${err.message || String(err)}`
     });
   }
 });
+
+app.get('/api/abyss/sync', async (req, res) => {
+  try {
+    const result = await syncAbyssWithDb();
+    res.json(result);
+  } catch (err: any) {
+    res.status(500).json({ success: false, message: String(err) });
+  }
+});
+
+// Execução de Sincronização Periódica Automática em segundo plano no servidor
+setTimeout(() => {
+  syncAbyssWithDb().catch(e => console.error('[AUTO ABYSS INIT SYNC ERROR]', e));
+}, 3000);
+
+setInterval(() => {
+  syncAbyssWithDb().catch(e => console.error('[AUTO ABYSS INTERVAL SYNC ERROR]', e));
+}, 60000);
+
 
 async function startServer() {
   // Configuração do Vite middleware para desenvolvimento dinâmico e compilação

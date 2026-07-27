@@ -12,6 +12,7 @@ import MovieRow from './components/MovieRow';
 import MovieDetailModal from './components/MovieDetailModal';
 import AdminPanel from './components/AdminPanel';
 import RequestsPanel from './components/RequestsPanel';
+import SupportPanel from './components/SupportPanel';
 import { Play, Info, Sparkles, Star, Plus, Check, Shield, HelpCircle, AlertCircle, Heart, HeartOff, Volume1, Volume2, VolumeX, Bell, X, Flame, LayoutGrid, List, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { db, saveUsersToFirestore, deleteUserFromFirestore, saveProfilesToFirestore, saveMoviesToFirestore, saveSingleMovieToFirestore, deleteMovieFromFirestore, saveSettingsToFirestore, saveRequestsToFirestore, deleteRequestFromFirestore, handleFirestoreError, OperationType, saveSingleNotificationToFirestore, deleteNotificationFromFirestore } from './lib/firebase';
@@ -74,10 +75,6 @@ export default function App() {
     const seen = new Set<string>();
     for (const m of base) {
       if (!m) continue;
-      // Ignorar filmes adicionados automaticamente pelo TMDB no passado para limpar o catálogo
-      if (m.id && m.id.startsWith('m_tmdb_auto_')) {
-        continue;
-      }
       const type = m.type || 'movie';
       const yearStr = m.year ? `_${String(m.year).trim()}` : '';
       const key = m.tmdbId 
@@ -124,7 +121,7 @@ export default function App() {
   });
 
   // Abas de navegação do usuário na plataforma
-  const [activeTab, setActiveTab] = useState<'all' | 'movies' | 'series' | 'mylist' | 'requests'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'movies' | 'series' | 'mylist' | 'requests' | 'support'>('all');
   const [myListViewMode, setMyListViewMode] = useState<'grid' | 'vertical_list' | 'carousel'>(() => (localStorage.getItem('vhsflix_mylist_view') as any) || 'vertical_list');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [isAdminView, setIsAdminView] = useState(false);
@@ -609,11 +606,18 @@ export default function App() {
     if (customMatch) {
       return parseInt(customMatch[1]); // ex: timestamp Date.now() ~ 1.7e12
     }
+    const digitsMatch = m.id.match(/\d{8,}/);
+    if (digitsMatch) {
+      return parseInt(digitsMatch[0]);
+    }
+    if (m.abyssEmbedUrl || m.embedUrl) {
+      return 200000000;
+    }
     const initialMatch = m.id.match(/^m_2026_(\d+)$/);
     if (initialMatch) {
-      return 100000 - parseInt(initialMatch[1]); // Mantém a ordem original crescente de m_2026_1, m_2026_2 abaixo dos novos
+      return 100000 - parseInt(initialMatch[1]);
     }
-    return 0;
+    return 50000;
   };
 
   // Filtra catálogo com base em busca e na aba ativa
@@ -1371,6 +1375,8 @@ export default function App() {
               onDeleteRequest={handleDeleteRequest}
               tmdbApiKey={tmdbApiKey}
             />
+          ) : activeTab === 'support' ? (
+            <SupportPanel onClose={() => setActiveTab('all')} />
           ) : (
             /* --- TELA 2.B: PAINEL PRINCIPAL DO USUÁRIO ESTILO NETFLIX --- */
             <div className="flex-1 pb-16 font-sans">
