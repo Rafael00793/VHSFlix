@@ -2157,6 +2157,7 @@ export default function App() {
             onVoteMovie={handleVoteMovie}
             activeProfileId={activeProfile ? activeProfile.id : ''}
             tmdbApiKey={tmdbApiKey}
+            abyssApiKey={abyssApiKey}
             movies={movies}
             onSelectMovie={handleSelectMovie}
           />

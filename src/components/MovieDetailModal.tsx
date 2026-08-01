@@ -8,6 +8,7 @@ import { Movie, WatchProgress } from '../types';
 import { X, Play, Pause, Plus, Check, Star, RefreshCw, Tv, Clock, HelpCircle, Film, Sparkles, AlertCircle, ExternalLink, Maximize, Shield, Sliders, ThumbsUp, ThumbsDown, ChevronDown, ArrowLeft, Settings, Volume2, VolumeX } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { INITIAL_MOVIES } from '../data';
+import { AbyssService } from '../services/abyssService';
 
 export interface Episode {
   number: number;
@@ -332,6 +333,7 @@ interface MovieDetailModalProps {
   onVoteMovie?: (movieId: string, voteType: 'like' | 'dislike') => void;
   activeProfileId?: string;
   tmdbApiKey?: string;
+  abyssApiKey?: string;
   movies?: Movie[];
   onSelectMovie?: (movie: Movie) => void;
 }
@@ -459,10 +461,12 @@ export default function MovieDetailModal({
   onVoteMovie,
   activeProfileId = '',
   tmdbApiKey,
+  abyssApiKey,
   movies = [],
   onSelectMovie
 }: MovieDetailModalProps) {
   const [isPlaying, setIsPlaying] = useState(false);
+  const [manualEmbedInput, setManualEmbedInput] = useState('');
   const [isTapeLoading, setIsTapeLoading] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [totalDuration, setTotalDuration] = useState(120 * 60); // Default 2 horas em segundos
@@ -645,6 +649,9 @@ export default function MovieDetailModal({
     setSyncFailedMessage(null);
     setIsCheckingSync(true);
 
+    const effectiveApiKey = abyssApiKey || localStorage.getItem('vhsflix_abyss_key') || '';
+
+    // Engine 1: Tenta backend Express (/api/abyss/register)
     fetch('/api/abyss/register', {
       method: 'POST',
       headers: {
@@ -655,30 +662,60 @@ export default function MovieDetailModal({
         type: 'series',
         title: movie.title,
         season,
-        episode
+        episode,
+        apiKey: effectiveApiKey
       })
     })
-    .then(res => res.json())
+    .then(async res => {
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    })
     .then(data => {
-      setIsCheckingSync(false);
-      if (data.success && data.abyssId && data.usedRealAPI) {
+      if (data.success && data.abyssId && (data.usedRealAPI || data.embedUrl)) {
+        setIsCheckingSync(false);
         setAbyssEpisodeId(data.abyssId);
         setSyncFailedMessage(null);
       } else {
-        setSyncFailedMessage(`A Temporada ${season}, Episódio ${episode} de "${movie.title}" ainda não foi enviada para o seu painel do Abyss.`);
+        throw new Error(data.message || 'Need client fallback');
       }
     })
-    .catch(err => {
-      setIsCheckingSync(false);
-      console.error('[Abyss Player] Erro ao sintonizar episódio:', err);
-      setSyncFailedMessage(`Temporada ${season}, Episódio ${episode} aguardando envio no Abyss.`);
+    .catch(async () => {
+      // Engine 2: Client-side fallback direto via AbyssService (necessário no Netlify / hospedagem estática)
+      try {
+        const searchRes = await AbyssService.findEpisodePlayerUrl(
+          movie.title,
+          season,
+          episode,
+          effectiveApiKey
+        );
+        setIsCheckingSync(false);
+
+        if (searchRes.success && (searchRes.playerUrl || searchRes.fileId)) {
+          const targetId = searchRes.fileId || searchRes.playerUrl;
+          setAbyssEpisodeId(targetId);
+          setSyncFailedMessage(null);
+          if (movie.episodeEmbeds) {
+            movie.episodeEmbeds[`${season}_${episode}`] = targetId;
+          } else {
+            movie.episodeEmbeds = { [`${season}_${episode}`]: targetId };
+          }
+        } else {
+          setSyncFailedMessage(searchRes.message || `A Temporada ${season}, Episódio ${episode} (S${season.toString().padStart(2, '0')}E${episode.toString().padStart(2, '0')}) de "${movie.title}" ainda não existe no seu painel do Abyss.`);
+        }
+      } catch (clientErr: any) {
+        setIsCheckingSync(false);
+        console.error('[Abyss Player Client Fallback] Erro ao sintonizar:', clientErr);
+        setSyncFailedMessage(`O episódio S${season.toString().padStart(2, '0')}E${episode.toString().padStart(2, '0')} de "${movie.title}" aguarda envio no seu painel Abyss.`);
+      }
     });
-  }, [movie?.id, season, episode]);
+  }, [movie?.id, season, episode, abyssApiKey]);
 
   const handleReSyncCurrentEpisode = async () => {
     if (!movie || movie.type !== 'series') return;
     setIsCheckingSync(true);
     setSyncFailedMessage(null);
+
+    const effectiveApiKey = abyssApiKey || localStorage.getItem('vhsflix_abyss_key') || '';
 
     try {
       const res = await fetch('/api/abyss/register', {
@@ -689,20 +726,49 @@ export default function MovieDetailModal({
           type: 'series',
           title: movie.title,
           season,
-          episode
+          episode,
+          apiKey: effectiveApiKey
         })
       });
-      const data = await res.json();
-      setIsCheckingSync(false);
 
-      if (data.success && data.abyssId && data.usedRealAPI) {
-        setAbyssEpisodeId(data.abyssId);
-        setSyncFailedMessage(null);
-        setIsPlaying(true);
-      } else {
-        setSyncFailedMessage(`O episódio S${season.toString().padStart(2, '0')}E${episode.toString().padStart(2, '0')} ainda não foi localizado no seu Abyss. Certifique-se de que o arquivo foi enviado para o seu painel Abyss e tente novamente.`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.abyssId && (data.usedRealAPI || data.embedUrl)) {
+          setIsCheckingSync(false);
+          setAbyssEpisodeId(data.abyssId);
+          setSyncFailedMessage(null);
+          setIsPlaying(true);
+          return;
+        }
       }
     } catch (err) {
+      console.warn('[Abyss Player] Backend indisponível para re-sync, testando client-side...');
+    }
+
+    // Client fallback se o backend falhar
+    try {
+      const searchRes = await AbyssService.findEpisodePlayerUrl(
+        movie.title,
+        season,
+        episode,
+        effectiveApiKey
+      );
+      setIsCheckingSync(false);
+
+      if (searchRes.success && (searchRes.playerUrl || searchRes.fileId)) {
+        const targetId = searchRes.fileId || searchRes.playerUrl;
+        setAbyssEpisodeId(targetId);
+        setSyncFailedMessage(null);
+        setIsPlaying(true);
+        if (movie.episodeEmbeds) {
+          movie.episodeEmbeds[`${season}_${episode}`] = targetId;
+        } else {
+          movie.episodeEmbeds = { [`${season}_${episode}`]: targetId };
+        }
+      } else {
+        setSyncFailedMessage(searchRes.message || `O vídeo do episódio (S${season.toString().padStart(2, '0')}E${episode.toString().padStart(2, '0')}) ainda não existe no Abyss.`);
+      }
+    } catch (clientErr: any) {
       setIsCheckingSync(false);
       setSyncFailedMessage(`Erro de conexão ao verificar o episódio S${season}E${episode} no Abyss.`);
     }
@@ -1387,6 +1453,55 @@ export default function MovieDetailModal({
                         <RefreshCw className={`w-3.5 h-3.5 ${isCheckingSync ? 'animate-spin' : ''}`} />
                         {isCheckingSync ? 'Sintonizando no Abyss...' : 'Verificar Se Já Foi Adicionado'}
                       </button>
+
+                      {/* Manual Link Input */}
+                      <div className="w-full mt-4 pt-4 border-t border-zinc-800/80 text-left">
+                        <label className="block text-[11px] font-mono font-semibold text-zinc-400 mb-1.5">
+                          Ou vincule o ID / Link do Player Abyss manualmente:
+                        </label>
+                        <form
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            if (!manualEmbedInput.trim()) return;
+                            const input = manualEmbedInput.trim();
+                            let cleanId = input;
+                            if (input.includes('play.abyssplayer.com/')) {
+                              cleanId = input.split('play.abyssplayer.com/')[1].split('?')[0].split('#')[0];
+                            } else if (input.includes('abyssplayer.com/')) {
+                              cleanId = input.split('abyssplayer.com/')[1].split('?')[0].split('#')[0];
+                            }
+                            
+                            const playerUrl = `https://play.abyssplayer.com/${cleanId}`;
+
+                            if (movie.type === 'series') {
+                              const key = `${season}_${episode}`;
+                              if (!movie.episodeEmbeds) movie.episodeEmbeds = {};
+                              movie.episodeEmbeds[key] = playerUrl;
+                              setAbyssEpisodeId(playerUrl);
+                            } else {
+                              movie.embedUrl = playerUrl;
+                            }
+                            setSyncFailedMessage(null);
+                            setManualEmbedInput('');
+                            setIsPlaying(true);
+                          }}
+                          className="flex gap-2"
+                        >
+                          <input
+                            type="text"
+                            value={manualEmbedInput}
+                            onChange={(e) => setManualEmbedInput(e.target.value)}
+                            placeholder="https://play.abyssplayer.com/{id} ou ID"
+                            className="flex-1 bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-rose-500 font-mono"
+                          />
+                          <button
+                            type="submit"
+                            className="bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs px-3 py-1.5 rounded-lg transition-all font-mono shrink-0 cursor-pointer"
+                          >
+                            Salvar
+                          </button>
+                        </form>
+                      </div>
                     </div>
                   )}
                 </div>

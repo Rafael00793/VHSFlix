@@ -721,8 +721,8 @@ app.get('/api/abyss/resources', async (req, res) => {
 
 // 5. Integração Segura com API do Abyss (Registro)
 app.post('/api/abyss/register', async (req, res) => {
-  const { tmdbId, type, title, season, episode } = req.body;
-  const apiKey = process.env.ABYSS_API_KEY;
+  const { tmdbId, type, title, season, episode, apiKey: bodyApiKey } = req.body;
+  const apiKey = bodyApiKey || process.env.ABYSS_API_KEY;
 
   console.log(`[ABYSS API] Solicitando registro para: ${title} (TMDB ID: ${tmdbId}, Tipo: ${type}, S: ${season}, E: ${episode})`);
 
@@ -735,7 +735,7 @@ app.post('/api/abyss/register', async (req, res) => {
   }
 
   let abyssId = cleanId;
-  let embedUrl = `https://abyssplayer.com/${abyssId}`;
+  let embedUrl = `https://play.abyssplayer.com/${abyssId}`;
   let status = 'active';
   let usedRealAPI = false;
   let apiError = null;
@@ -816,7 +816,7 @@ app.post('/api/abyss/register', async (req, res) => {
       if (foundFile) {
         console.log('[ABYSS API] Arquivo correspondente encontrado com sucesso:', foundFile);
         abyssId = foundFile.id || foundFile.fileId || foundFile.video_id || foundFile.videoId;
-        embedUrl = foundFile.embedUrl || foundFile.embed_url || `https://abyssplayer.com/${abyssId}`;
+        embedUrl = `https://play.abyssplayer.com/${abyssId}`;
         status = foundFile.status || 'active';
         matchedFileName = foundFile.name || foundFile.title || '';
         usedRealAPI = true;
@@ -846,7 +846,7 @@ app.post('/api/abyss/register', async (req, res) => {
           const registerData = await registerResponse.json();
           if (registerData.id || registerData.video_id) {
             abyssId = registerData.id || registerData.video_id;
-            embedUrl = registerData.embed_url || `https://abyssplayer.com/${abyssId}`;
+            embedUrl = `https://play.abyssplayer.com/${abyssId}`;
             status = registerData.status || 'active';
             usedRealAPI = true;
           }

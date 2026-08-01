@@ -704,17 +704,55 @@ export class AbyssService {
     });
 
     if (!seriesFolder) {
-      console.error(`\n==================================================`);
-      console.error(`❌ [ABYSS AUDIT FAILURE] PASTA DA SÉRIE NÃO LOCALIZADA`);
-      console.error(`• Série Procurada: "${cleanTitle}"`);
-      console.error(`• Pastas Verificadas na Raiz:`, rootFolders.map(f => extractAbyssName(f)));
-      console.error(`• Motivo: A pasta correspondente à série "${cleanTitle}" não existe na API de Folders do Abyss.`);
-      console.error(`==================================================\n`);
+      console.log(`[AbyssService] 💡 Pasta da série "${cleanTitle}" não encontrada no Abyss. Executando busca direta por arquivos para "${cleanTitle} ${seasonEpisodeTag}"...`);
+      
+      const searchQueries = [
+        `${cleanTitle} S${sStr}E${eStr}`,
+        `${cleanTitle} ${sNum}x${eStr}`,
+        `${cleanTitle} S${sNum}E${epNum}`,
+        cleanTitle
+      ];
+
+      for (const q of searchQueries) {
+        try {
+          const directSearch = await this.fetchAllPagesSearch(q, 'files', undefined, apiKey);
+          if (directSearch.files && directSearch.files.length > 0) {
+            let bestDirect: AbyssResourceFile | null = null;
+            let bestDirectScore = -1;
+
+            for (const f of directSearch.files) {
+              const name = extractAbyssName(f);
+              const mRes = scoreEpisodeMatch(name, cleanTitle, sNum, epNum, false);
+              if (mRes.matched && mRes.score > bestDirectScore) {
+                bestDirectScore = mRes.score;
+                bestDirect = f;
+              }
+            }
+
+            if (bestDirect) {
+              const rawId = extractAbyssId(bestDirect);
+              const chosenName = extractAbyssName(bestDirect);
+              if (rawId) {
+                const playerUrl = `https://play.abyssplayer.com/${rawId}`;
+                console.log(`🎉 [AbyssService] SUCESSO! Episódio localizado via busca direta de arquivo: "${chosenName}" (ID: ${rawId})`);
+                return {
+                  success: true,
+                  fileId: rawId,
+                  playerUrl,
+                  fileName: chosenName
+                };
+              }
+            }
+          }
+        } catch (err) {
+          console.warn(`[AbyssService] Erro na busca direta para "${q}":`, err);
+        }
+      }
 
       return {
         success: false,
         error: 'SERIES_FOLDER_NOT_FOUND',
-        message: `A pasta da série "${cleanTitle}" não foi encontrada no seu painel Abyss.`
+        message: `O vídeo do episódio (${seasonEpisodeTag}) ainda não existe ou não foi localizado no seu painel Abyss.`
       };
     }
 
@@ -785,19 +823,56 @@ export class AbyssService {
       return false;
     });
 
-    if (!seasonFolder) {
-      console.error(`\n==================================================`);
-      console.error(`❌ [ABYSS AUDIT FAILURE] PASTA DA TEMPORADA NÃO LOCALIZADA`);
-      console.error(`• Série: "${cleanTitle}" (Pasta: "${seriesFolderName}", ID: ${seriesFolderId})`);
-      console.error(`• Temporada Procurada: ${sNum} (${seasonEpisodeTag})`);
-      console.error(`• Subpastas Encontradas:`, seasonFolders.map(f => extractAbyssName(f)));
-      console.error(`• Motivo: A pasta da Temporada ${sNum} não foi encontrada dentro da pasta da série no Abyss.`);
-      console.error(`==================================================\n`);
+    if (!seasonFolder || !seriesFolder) {
+      console.log(`[AbyssService] 💡 Pasta de série/temporada não localizada. Executando busca direta por arquivos no Abyss para "${cleanTitle} ${seasonEpisodeTag}"...`);
+      
+      const searchQueries = [
+        `${cleanTitle} S${sStr}E${eStr}`,
+        `${cleanTitle} ${sNum}x${eStr}`,
+        `${cleanTitle} S${sNum}E${epNum}`,
+        cleanTitle
+      ];
+
+      for (const q of searchQueries) {
+        try {
+          const directSearch = await this.fetchAllPagesSearch(q, 'files', undefined, apiKey);
+          if (directSearch.files && directSearch.files.length > 0) {
+            let bestDirect: AbyssResourceFile | null = null;
+            let bestDirectScore = -1;
+
+            for (const f of directSearch.files) {
+              const name = extractAbyssName(f);
+              const mRes = scoreEpisodeMatch(name, cleanTitle, sNum, epNum, false);
+              if (mRes.matched && mRes.score > bestDirectScore) {
+                bestDirectScore = mRes.score;
+                bestDirect = f;
+              }
+            }
+
+            if (bestDirect) {
+              const rawId = extractAbyssId(bestDirect);
+              const chosenName = extractAbyssName(bestDirect);
+              if (rawId) {
+                const playerUrl = `https://play.abyssplayer.com/${rawId}`;
+                console.log(`🎉 [AbyssService] SUCESSO! Episódio localizado via busca direta de arquivo: "${chosenName}" (ID: ${rawId})`);
+                return {
+                  success: true,
+                  fileId: rawId,
+                  playerUrl,
+                  fileName: chosenName
+                };
+              }
+            }
+          }
+        } catch (err) {
+          console.warn(`[AbyssService] Erro na busca direta para "${q}":`, err);
+        }
+      }
 
       return {
         success: false,
-        error: 'SEASON_FOLDER_NOT_FOUND',
-        message: `A pasta da Temporada ${sNum} não foi encontrada dentro da série "${cleanTitle}" no Abyss.`
+        error: !seriesFolder ? 'SERIES_FOLDER_NOT_FOUND' : 'SEASON_FOLDER_NOT_FOUND',
+        message: `O vídeo do episódio (${seasonEpisodeTag}) ainda não existe ou não foi localizado no seu painel Abyss.`
       };
     }
 
