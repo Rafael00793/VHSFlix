@@ -4,6 +4,12 @@
 [build]
   publish = "dist"
   command = "npm run build"
+  functions = "netlify/functions"
+
+[[redirects]]
+  from = "/api/abyss/*"
+  to = "/.netlify/functions/abyss"
+  status = 200
 
 [[redirects]]
   from = "/*"

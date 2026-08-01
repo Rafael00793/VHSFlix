@@ -1008,8 +1008,8 @@ export default function App() {
       newMovie.posterUrl
     );
 
-    // Registrar fita automaticamente no Abyss
-    fetchApi('/api/abyss/register', {
+    // Registrar fita automaticamente no Abyss via Netlify Function
+    fetchApi('/.netlify/functions/abyss', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -1058,7 +1058,7 @@ export default function App() {
     saveSingleMovieToFirestore(editedMovie);
 
     // Re-registrar no Abyss em caso de edição (como alteração de TMDB ID ou título)
-    fetchApi('/api/abyss/register', {
+    fetchApi('/.netlify/functions/abyss', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'

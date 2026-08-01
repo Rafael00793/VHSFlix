@@ -679,8 +679,8 @@ export default function MovieDetailModal({
 
     const effectiveApiKey = abyssApiKey || localStorage.getItem('vhsflix_abyss_key') || '';
 
-    // Engine 1: Tenta backend Express (/api/abyss/register)
-    fetchApi('/api/abyss/register', {
+    // Engine 1: Tenta backend Netlify Function (/.netlify/functions/abyss)
+    fetchApi('/.netlify/functions/abyss', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -742,7 +742,7 @@ export default function MovieDetailModal({
     const effectiveApiKey = abyssApiKey || localStorage.getItem('vhsflix_abyss_key') || '';
 
     try {
-      const res = await fetchApi('/api/abyss/register', {
+      const res = await fetchApi('/.netlify/functions/abyss', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

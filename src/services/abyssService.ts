@@ -365,7 +365,7 @@ export class AbyssService {
 
       let pageResponse: { files: AbyssResourceFile[]; rawResponse: any; status: number } | null = null;
 
-      // 1. Tentar através do backend Express (/api/abyss/resources)
+      // Consulta exclusivamente via Netlify Function (serverless backend)
       try {
         const queryParams = new URLSearchParams();
         if (cleanQuery) queryParams.set('q', cleanQuery);
@@ -377,11 +377,21 @@ export class AbyssService {
         const clientHeaders: Record<string, string> = { 'Accept': 'application/json' };
         if (apiKey) clientHeaders['Authorization'] = `Bearer ${apiKey}`;
 
-        const res = await fetchApi(`/api/abyss/resources?${queryParams.toString()}`, {
+        // Chama a Netlify Function
+        let res = await fetchApi(`/.netlify/functions/abyss?${queryParams.toString()}`, {
           method: 'GET',
           headers: clientHeaders,
           signal: AbortSignal.timeout(12000)
         });
+
+        // Fallback para rota /api/abyss/resources se necessário
+        if (!res.ok) {
+          res = await fetchApi(`/api/abyss/resources?${queryParams.toString()}`, {
+            method: 'GET',
+            headers: clientHeaders,
+            signal: AbortSignal.timeout(12000)
+          });
+        }
 
         if (res.ok && res.data && res.isJson) {
           const data = res.data;
@@ -404,43 +414,6 @@ export class AbyssService {
         }
       } catch (err: any) {
         if (err.message === 'AUTH_ERROR') throw err;
-      }
-
-      // 2. Fallback: Chamada direta client-side para https://api.abyss.to/v1/resources
-      if (!pageResponse) {
-        try {
-          const directEndpoint = type === 'folders' ? 'https://api.abyss.to/v1/folders/list' : 'https://api.abyss.to/v1/resources';
-          const queryParams = new URLSearchParams();
-          if (cleanQuery) queryParams.set('q', cleanQuery);
-          queryParams.set('type', type);
-          if (folderId) {
-            queryParams.set('folderId', folderId);
-            queryParams.set('folder_id', folderId);
-          }
-          if (currentPageToken) queryParams.set('pageToken', currentPageToken);
-          if (apiKey) queryParams.set('key', apiKey);
-
-          const clientHeaders: Record<string, string> = { 'Accept': 'application/json' };
-          if (apiKey) clientHeaders['Authorization'] = `Bearer ${apiKey}`;
-
-          const res = await fetchApi(`${directEndpoint}?${queryParams.toString()}`, {
-            method: 'GET',
-            headers: clientHeaders,
-            signal: AbortSignal.timeout(12000)
-          });
-
-          if (res.status === 401 || res.status === 403) {
-            throw new Error('AUTH_ERROR');
-          }
-
-          if (res.ok && res.data && res.isJson) {
-            const data = res.data;
-            const extracted = flattenAbyssFiles(data);
-            pageResponse = { files: extracted, rawResponse: data, status: res.status };
-          }
-        } catch (err: any) {
-          if (err.message === 'AUTH_ERROR') throw err;
-        }
       }
 
       if (!pageResponse) {

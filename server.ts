@@ -872,6 +872,16 @@ app.post('/api/abyss/register', async (req, res) => {
   });
 });
 
+// Alias handler para a Netlify Function no ambiente local
+app.all('/.netlify/functions/abyss', (req, res) => {
+  if (req.method === 'GET') {
+    return app._router.handle({ ...req, url: '/api/abyss/resources', path: '/api/abyss/resources' }, res);
+  } else if (req.method === 'POST') {
+    return app._router.handle({ ...req, url: '/api/abyss/register', path: '/api/abyss/register' }, res);
+  }
+  res.status(405).json({ error: 'Method Not Allowed' });
+});
+
 app.get('/api/abyss/status/:abyssId', async (req, res) => {
   const { abyssId } = req.params;
   const apiKey = process.env.ABYSS_API_KEY;
