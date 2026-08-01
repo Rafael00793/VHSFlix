@@ -20,6 +20,28 @@ import { onSnapshot, collection, doc, setDoc, getDoc } from 'firebase/firestore'
 
 
 
+// Auxiliar para obter peso de ordenação: fitas recém-adicionadas (customizadas pelo admin) ficam no topo.
+// As fitas originais (id como m_2026_x) ficam logo abaixo, mantendo sua ordem de índice original intacta.
+function getMovieSortingWeight(m: Movie): number {
+  if (!m.id) return 0;
+  const customMatch = m.id.match(/^m_(\d{10,})$/);
+  if (customMatch) {
+    return parseInt(customMatch[1]); // ex: timestamp Date.now() ~ 1.7e12
+  }
+  const digitsMatch = m.id.match(/\d{8,}/);
+  if (digitsMatch) {
+    return parseInt(digitsMatch[0]);
+  }
+  if (m.abyssEmbedUrl || m.embedUrl) {
+    return 200000000;
+  }
+  const initialMatch = m.id.match(/^m_2026_(\d+)$/);
+  if (initialMatch) {
+    return 100000 - parseInt(initialMatch[1]);
+  }
+  return 50000;
+}
+
 export default function App() {
   // --- ESTADOS DE SESSÃO E PERSISTÊNCIA GERAL ---
   const [users, setUsers] = useState<User[]>(() => {
@@ -100,6 +122,15 @@ export default function App() {
   const [tmdbApiKey, setTmdbApiKey] = useState<string>(() => {
     return localStorage.getItem('vhsflix_tmdb_key') || '9ba478ffe785bbc34fa2b10c46296580';
   });
+
+  const [abyssApiKey, setAbyssApiKey] = useState<string>(() => {
+    return localStorage.getItem('vhsflix_abyss_key') || '';
+  });
+
+  const handleUpdateAbyssApiKey = (key: string) => {
+    setAbyssApiKey(key);
+    localStorage.setItem('vhsflix_abyss_key', key);
+  };
 
   const [adguardEnabled, setAdguardEnabled] = useState<boolean>(() => {
     const saved = localStorage.getItem('vhsflix_adguard_enabled');
@@ -575,20 +606,27 @@ export default function App() {
     return [...movies].sort((a, b) => (b.votesLikes || 0) - (a.votesLikes || 0));
   }, [movies]);
 
-  // Lançamentos VHS (Ordenado por ano decrescente e rating)
+  // Lançamentos VHS (Ordenado dinamicamente por recém-adicionados, ano de lançamento mais recente e data de criação)
   const moviesSortedByYear = useMemo(() => {
     return [...movies].sort((a, b) => {
-      if (b.year !== a.year) return b.year - a.year;
+      const yearA = a.year || 1990;
+      const yearB = b.year || 1990;
+      if (yearB !== yearA) return yearB - yearA;
+
+      const weightA = getMovieSortingWeight(a);
+      const weightB = getMovieSortingWeight(b);
+      if (weightB !== weightA) return weightB - weightA;
+
       return (b.rating || 0) - (a.rating || 0);
     });
   }, [movies]);
 
-  // Transição automática das fitas de destaque rotativas a cada 7 segundos sem travamentos
+  // Transição automática das fitas de destaque rotativas a cada 10 segundos
   useEffect(() => {
     if (featuredHighlights.length <= 1) return;
     const interval = setInterval(() => {
       setActiveHighlightIndex(prev => (prev + 1) % featuredHighlights.length);
-    }, 7000);
+    }, 10000);
     return () => clearInterval(interval);
   }, [featuredHighlights]);
 
@@ -597,28 +635,6 @@ export default function App() {
   useEffect(() => {
     // Sincronização automática desativada para manter o controle exclusivo do acervo com você
   }, [tmdbApiKey]);
-
-  // Auxiliar para obter peso de ordenação: fitas recém-adicionadas (customizadas pelo admin) ficam no topo.
-  // As fitas originais (id como m_2026_x) ficam logo abaixo, mantendo sua ordem de índice original intacta.
-  const getMovieSortingWeight = (m: Movie) => {
-    if (!m.id) return 0;
-    const customMatch = m.id.match(/^m_(\d{10,})$/);
-    if (customMatch) {
-      return parseInt(customMatch[1]); // ex: timestamp Date.now() ~ 1.7e12
-    }
-    const digitsMatch = m.id.match(/\d{8,}/);
-    if (digitsMatch) {
-      return parseInt(digitsMatch[0]);
-    }
-    if (m.abyssEmbedUrl || m.embedUrl) {
-      return 200000000;
-    }
-    const initialMatch = m.id.match(/^m_2026_(\d+)$/);
-    if (initialMatch) {
-      return 100000 - parseInt(initialMatch[1]);
-    }
-    return 50000;
-  };
 
   // Filtra catálogo com base em busca e na aba ativa
   const filteredMovies = useMemo(() => {
@@ -927,16 +943,49 @@ export default function App() {
       return false;
     });
 
-    if (isDuplicate) {
-      // Disparar uma notificação elegante de erro do sistema
-      const tipo = newMovieData.type === 'series' ? 'Série' : 'Filme';
+    const existingMovie = movies.find(m => {
+      if (m.type !== newMovieData.type) return false;
+      if (newMovieData.tmdbId && m.tmdbId && m.tmdbId === newMovieData.tmdbId) return true;
+      const existingTitle = (m.title || '').trim().toLowerCase();
+      const incomingTitle = (newMovieData.title || '').trim().toLowerCase();
+      if (existingTitle === incomingTitle) {
+        const y1 = m.year ? String(m.year).trim() : '';
+        const y2 = newMovieData.year ? String(newMovieData.year).trim() : '';
+        if (y1 && y2 && y1 !== y2) return false;
+        return true;
+      }
+      return false;
+    });
+
+    if (existingMovie) {
+      // Atualizar o título existente no acervo mesclando as novas informações de temporadas/episódios
+      const updatedMovie: Movie = {
+        ...existingMovie,
+        ...newMovieData,
+        id: existingMovie.id,
+        episodeEmbeds: {
+          ...(existingMovie.episodeEmbeds || {}),
+          ...(newMovieData.episodeEmbeds || {})
+        },
+        seasonsConfig: {
+          ...(existingMovie.seasonsConfig || {}),
+          ...(newMovieData.seasonsConfig || {})
+        }
+      };
+
+      setMovies(prev => prev.map(m => m.id === existingMovie.id ? updatedMovie : m));
+      saveSingleMovieToFirestore(updatedMovie);
+
+      const tipo = updatedMovie.type === 'series' ? 'Série' : 'Filme';
       triggerNotification(
-        '⚠️ Título Duplicado!',
-        `Este(a) ${tipo} ("${newMovieData.title}") já está adicionado(a) no acervo retrô do VHSFLIX!`,
-        '',
-        'system'
+        '🔄 Item Atualizado!',
+        `${tipo} "${updatedMovie.title}" foi atualizado(a) com sucesso com as novas temporadas e episódios!`,
+        updatedMovie.id,
+        updatedMovie.type === 'series' ? 'series' : 'movie',
+        updatedMovie.posterUrl
       );
-      return false; // Retorna falso para avisar o caller que falhou
+
+      return true; // Sucesso ao atualizar
     }
 
     const newMovieId = 'm_' + Date.now();
@@ -1025,9 +1074,9 @@ export default function App() {
           if (m.id === editedMovie.id) {
             const updated = {
               ...m,
-              abyssId: data.abyssId,
-              abyssEmbedUrl: data.embedUrl,
-              abyssStatus: data.status
+              abyssId: data.abyssId || m.abyssId,
+              abyssEmbedUrl: editedMovie.type === 'movie' ? (data.embedUrl || m.abyssEmbedUrl) : m.abyssEmbedUrl,
+              abyssStatus: data.status || m.abyssStatus
             };
             saveSingleMovieToFirestore(updated);
             return updated;
@@ -1349,6 +1398,8 @@ export default function App() {
               allProfiles={allProfiles}
               tmdbApiKey={tmdbApiKey}
               onUpdateTmdbApiKey={setTmdbApiKey}
+              abyssApiKey={abyssApiKey}
+              onUpdateAbyssApiKey={handleUpdateAbyssApiKey}
               onAddMovie={handleAddMovie}
               onEditMovie={handleEditMovie}
               onDeleteMovie={handleDeleteMovie}
@@ -1448,30 +1499,42 @@ export default function App() {
                       </motion.div>
                     </AnimatePresence>
 
-                    {/* Botões do destaque */}
-                    <div className="flex items-center gap-3 sm:gap-4 mt-6 sm:mt-10">
-                      <button
+                    {/* Botões do destaque com animação de entrada e interatividade motion/react estilo Netflix/Amazon */}
+                    <motion.div
+                      key={`hero-btns-${featuredMovie.id}`}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.5, delay: 0.15 }}
+                      className="flex items-center gap-3 sm:gap-4 mt-6 sm:mt-10"
+                    >
+                      <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
                         onClick={() => handleFeaturedPlay(featuredMovie)}
-                        className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs sm:text-sm px-5 py-3 sm:px-7 sm:py-4 rounded-lg flex items-center gap-2.5 shadow-lg shadow-rose-600/30 active:scale-95 transition-all cursor-pointer tracking-widest"
+                        className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs sm:text-sm px-5 py-3 sm:px-7 sm:py-4 rounded-lg flex items-center gap-2.5 shadow-lg shadow-rose-600/30 transition-all cursor-pointer tracking-widest"
                         id="btn-hero-play"
                       >
                         <Play className="w-4 h-4 sm:w-5 sm:h-5 fill-white" />
                         <span>PLAY</span>
-                      </button>
+                      </motion.button>
 
-                      <button
+                      <motion.button
+                        whileHover={{ scale: 1.04 }}
+                        whileTap={{ scale: 0.96 }}
                         onClick={() => handleSelectMovie(featuredMovie)}
                         className="bg-zinc-900/80 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 hover:text-white font-semibold text-xs sm:text-sm px-5 py-3 sm:px-6 sm:py-4 rounded-lg flex items-center gap-2 transition-colors cursor-pointer tracking-wider"
                         id="btn-hero-details"
                       >
                         <Info className="w-4 h-4 sm:w-5 sm:h-5" />
                         <span>Ficha Técnica</span>
-                      </button>
+                      </motion.button>
 
                       {/* Botão rápido lista */}
-                      <button
+                      <motion.button
+                        whileHover={{ scale: 1.08 }}
+                        whileTap={{ scale: 0.90 }}
                         onClick={() => handleToggleMyList(featuredMovie.id)}
-                        className={`p-3 sm:p-4 border rounded-full transition-all active:scale-90 flex items-center justify-center ${
+                        className={`p-3 sm:p-4 border rounded-full transition-all flex items-center justify-center cursor-pointer ${
                           activeProfile.myList.includes(featuredMovie.id)
                             ? 'bg-rose-500/10 border-rose-500 text-rose-400'
                             : 'border-zinc-750 text-zinc-400 hover:text-white hover:border-zinc-500 bg-zinc-900/60'
@@ -1480,32 +1543,9 @@ export default function App() {
                         id="btn-hero-add-list"
                       >
                         {activeProfile.myList.includes(featuredMovie.id) ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-                      </button>
-                    </div>
+                      </motion.button>
+                    </motion.div>
                   </div>
-
-                  {/* Botões direcionais de navegação no Carrossel Hero */}
-                  {featuredHighlights.length > 1 && (
-                    <>
-                      <button
-                        onClick={() => setActiveHighlightIndex(prev => (prev - 1 + featuredHighlights.length) % featuredHighlights.length)}
-                        className="absolute left-3 sm:left-6 top-1/2 -translate-y-1/2 z-30 p-2.5 sm:p-3.5 rounded-full bg-black/40 hover:bg-black/80 text-zinc-300 hover:text-white border border-white/10 hover:border-white/30 backdrop-blur-md transition-all cursor-pointer opacity-70 hover:opacity-100 hover:scale-110 active:scale-95 shadow-xl"
-                        title="Destaque Anterior"
-                        id="btn-hero-prev"
-                      >
-                        <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6" />
-                      </button>
-
-                      <button
-                        onClick={() => setActiveHighlightIndex(prev => (prev + 1) % featuredHighlights.length)}
-                        className="absolute right-3 sm:right-6 top-1/2 -translate-y-1/2 z-30 p-2.5 sm:p-3.5 rounded-full bg-black/40 hover:bg-black/80 text-zinc-300 hover:text-white border border-white/10 hover:border-white/30 backdrop-blur-md transition-all cursor-pointer opacity-70 hover:opacity-100 hover:scale-110 active:scale-95 shadow-xl"
-                        title="Próximo Destaque"
-                        id="btn-hero-next"
-                      >
-                        <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6" />
-                      </button>
-                    </>
-                  )}
 
                 </div>
               )}

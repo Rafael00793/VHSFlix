@@ -345,15 +345,12 @@ export const GENRE_CATEGORIES = [
   'Reality',
   'Documentário',
   'Animação',
-  'Família',
   'Fantasia',
   'Crime',
   'Musical',
   'Guerra',
   'Faroeste',
-  'Romance',
-  'História',
-  'Biografia'
+  'Romance'
 ];
 
 /**
@@ -516,12 +513,35 @@ export async function getMovieDetailsTMDB(id: number, type: 'movie' | 'tv', apiK
     const year = parseInt(dateStr.split('-')[0]) || 1990;
     
     let duration = '2h';
+    const seasonsConfig: { [seasonNumber: number]: number } = {};
+
     if (mediaType === 'movie') {
       const runtime = data.runtime || 120;
       duration = `${Math.floor(runtime / 60)}h ${runtime % 60}m`;
     } else {
-      const seasons = data.number_of_seasons || 1;
-      duration = `${seasons}ª Temporada${seasons > 1 ? 's' : ''}`;
+      if (Array.isArray(data.seasons) && data.seasons.length > 0) {
+        for (const sObj of data.seasons) {
+          if (sObj && typeof sObj === 'object') {
+            const seasonNum = typeof sObj.season_number === 'number' ? sObj.season_number : parseInt(sObj.season_number);
+            const epCount = typeof sObj.episode_count === 'number' ? sObj.episode_count : parseInt(sObj.episode_count);
+            // Considerar apenas temporadas regulares (season_number > 0) com pelo menos 1 episódio
+            if (!isNaN(seasonNum) && seasonNum > 0 && !isNaN(epCount) && epCount > 0) {
+              seasonsConfig[seasonNum] = epCount;
+            }
+          }
+        }
+      }
+
+      // Fallback caso seasons estivesse ausente na resposta
+      if (Object.keys(seasonsConfig).length === 0) {
+        const numSeasons = data.number_of_seasons || 1;
+        for (let s = 1; s <= numSeasons; s++) {
+          seasonsConfig[s] = 10;
+        }
+      }
+
+      const totalSeasons = Object.keys(seasonsConfig).length;
+      duration = `${totalSeasons} Temporada${totalSeasons > 1 ? 's' : ''}`;
     }
 
     // Achar um trailer do youtube relevante no retorno
@@ -544,9 +564,9 @@ export async function getMovieDetailsTMDB(id: number, type: 'movie' | 'tv', apiK
       80: 'Crime',
       99: 'Documentário',
       18: 'Drama',
-      10751: 'Família',
+      10751: 'Comédia', // Família redirecionado para Comédia/Aventura/Animação
       14: 'Fantasia',
-      36: 'História',
+      36: 'Drama',
       27: 'Terror',
       10402: 'Musical',
       9648: 'Suspense',
@@ -556,7 +576,7 @@ export async function getMovieDetailsTMDB(id: number, type: 'movie' | 'tv', apiK
       10752: 'Guerra',
       37: 'Faroeste',
       10759: 'Ação',
-      10762: 'Família',
+      10762: 'Animação', // Kids/Infantil -> Animação
       10764: 'Reality',
       10765: 'Ficção Científica',
       10766: 'Drama',
@@ -565,7 +585,28 @@ export async function getMovieDetailsTMDB(id: number, type: 'movie' | 'tv', apiK
     };
 
     let resolvedCategory = mediaType === 'tv' ? 'Séries' : 'Ação';
-    if (data.genres && data.genres.length > 0) {
+
+    // Verificar se é Animação/Desenho/Disney/Pixar/Anime (Regra Estreita: Sempre categoria "Animação")
+    const lowerTitle = title.toLowerCase();
+    const lowerDesc = description.toLowerCase();
+    const hasAnimationGenre = data.genres && data.genres.some((g: any) => g.id === 16 || g.id === 10762 || (g.name && (g.name.toLowerCase().includes('anim') || g.name.toLowerCase().includes('kid') || g.name.toLowerCase().includes('desenho'))));
+    const isAnimationKeyword = 
+      lowerTitle.includes('disney') ||
+      lowerTitle.includes('pixar') ||
+      lowerTitle.includes('desenho') ||
+      lowerTitle.includes('animação') ||
+      lowerTitle.includes('animado') ||
+      lowerTitle.includes('anime') ||
+      lowerTitle.includes('cartoon') ||
+      lowerDesc.includes('animação') ||
+      lowerDesc.includes('desenho animado') ||
+      lowerDesc.includes('estúdio ghibli') ||
+      lowerDesc.includes('pixar') ||
+      lowerDesc.includes('walt disney');
+
+    if (hasAnimationGenre || isAnimationKeyword) {
+      resolvedCategory = 'Animação';
+    } else if (data.genres && data.genres.length > 0) {
       const tmdbGenreId = data.genres[0].id;
       if (TMDB_GENRE_MAP[tmdbGenreId]) {
         resolvedCategory = TMDB_GENRE_MAP[tmdbGenreId];
@@ -575,10 +616,10 @@ export async function getMovieDetailsTMDB(id: number, type: 'movie' | 'tv', apiK
           resolvedCategory = 'Reality';
         } else if (firstGenreName.includes('document')) {
           resolvedCategory = 'Documentário';
-        } else if (firstGenreName.includes('anima')) {
+        } else if (firstGenreName.includes('anima') || firstGenreName.includes('desenho') || firstGenreName.includes('kid')) {
           resolvedCategory = 'Animação';
         } else if (firstGenreName.includes('fam')) {
-          resolvedCategory = 'Família';
+          resolvedCategory = 'Comédia';
         } else if (firstGenreName.includes('fantas')) {
           resolvedCategory = 'Fantasia';
         } else if (firstGenreName.includes('crim')) {
@@ -591,10 +632,6 @@ export async function getMovieDetailsTMDB(id: number, type: 'movie' | 'tv', apiK
           resolvedCategory = 'Faroeste';
         } else if (firstGenreName.includes('rom')) {
           resolvedCategory = 'Romance';
-        } else if (firstGenreName.includes('hist')) {
-          resolvedCategory = 'História';
-        } else if (firstGenreName.includes('biog')) {
-          resolvedCategory = 'Biografia';
         } else if (firstGenreName.includes('christ') || firstGenreName.includes('crist')) {
           resolvedCategory = 'Cristão';
         } else if (firstGenreName.includes('science') || firstGenreName.includes('ficç')) {
@@ -624,7 +661,8 @@ export async function getMovieDetailsTMDB(id: number, type: 'movie' | 'tv', apiK
       category: resolvedCategory,
       rating: Number((data.vote_average || 7.5).toFixed(1)),
       trailerUrl: `https://www.youtube.com/embed/${trailerKey}`,
-      tmdbId: id
+      tmdbId: id,
+      seasonsConfig: mediaType === 'tv' ? seasonsConfig : undefined
     };
   } catch (err) {
     console.error('Erro de detalhamento TMDB:', err);

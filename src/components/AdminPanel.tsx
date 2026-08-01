@@ -3,12 +3,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Movie, User, Profile, getSubscriptionDaysLeft, renewSubscription } from '../types';
 import { GENRE_CATEGORIES, searchMoviesTMDB, getMovieDetailsTMDB, PROFILE_AVATARS } from '../data';
 import { Trash, Edit, Plus, Users, Library, Settings, Search, Import, Download, Star, Shield, Film, Tv, Play, AlertTriangle, ShieldAlert, RefreshCw, Check, LayoutDashboard, Activity, Clock, TrendingUp, User as UserIcon, Lock as LockIcon, Eye, EyeOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { compressImage, saveMoviesToFirestore } from '../lib/firebase';
+import { AbyssService } from '../services/abyssService';
 
 interface AdminPanelProps {
   movies: any[]; // para maior flexibilidade se houver types
@@ -16,6 +17,8 @@ interface AdminPanelProps {
   allProfiles: { [userId: string]: Profile[] };
   tmdbApiKey: string;
   onUpdateTmdbApiKey: (key: string) => void;
+  abyssApiKey?: string;
+  onUpdateAbyssApiKey?: (key: string) => void;
   onAddMovie: (movie: Omit<Movie, 'id'>) => boolean | void;
   onEditMovie: (movie: Movie) => void;
   onDeleteMovie: (movieId: string) => void;
@@ -38,6 +41,8 @@ export default function AdminPanel({
   allProfiles,
   tmdbApiKey,
   onUpdateTmdbApiKey,
+  abyssApiKey = '',
+  onUpdateAbyssApiKey,
   onAddMovie,
   onEditMovie,
   onDeleteMovie,
@@ -58,6 +63,7 @@ export default function AdminPanel({
   // Estados de Seleção em Lote e Exclusão Coletiva
   const [selectedMovieIds, setSelectedMovieIds] = useState<string[]>([]);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+  const [catalogSearchQuery, setCatalogSearchQuery] = useState('');
 
   // Estados com confirmação customizada segura
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
@@ -127,6 +133,16 @@ export default function AdminPanel({
   const [isSearchingTMDB, setIsSearchingTMDB] = useState(false);
   const [tmdbError, setTmdbError] = useState('');
 
+  // Estados de busca e sincronização com a API do Abyss
+  const [isSearchingAbyss, setIsSearchingAbyss] = useState(false);
+  const [abyssStatusMessage, setAbyssStatusMessage] = useState<{ text: string; type: 'info' | 'success' | 'warning' | 'error' } | null>(null);
+  const [auditReport, setAuditReport] = useState<{
+    seriesTitle: string;
+    totalEps: number;
+    imported: Array<{ season: number; episode: number; tag: string; playerUrl: string }>;
+    failed: Array<{ season: number; episode: number; tag: string; reason: string; attempts: number; errorStack?: string }>;
+  } | null>(null);
+
   // Limpa formulário
   const resetForm = () => {
     setFormTitle('');
@@ -147,6 +163,8 @@ export default function AdminPanel({
     setFormSeasonsConfig({ 1: 8 });
     setActiveConfigSeason(1);
     setEditingMovie(null);
+    setIsSearchingAbyss(false);
+    setAbyssStatusMessage(null);
   };
 
   const handleOpenCreateForm = () => {
@@ -180,12 +198,34 @@ export default function AdminPanel({
     e.preventDefault();
     if (!formTitle.trim() || !formDescription.trim()) return;
 
+    // Regra: Desenhos e Animações (Disney, Pixar, etc.) entram sempre como "Animação"
+    let finalCategory = formCategory;
+    const lowerTitle = formTitle.toLowerCase();
+    const lowerDesc = formDescription.toLowerCase();
+    const isAnimation = 
+      lowerTitle.includes('disney') ||
+      lowerTitle.includes('pixar') ||
+      lowerTitle.includes('desenho') ||
+      lowerTitle.includes('animação') ||
+      lowerTitle.includes('animado') ||
+      lowerTitle.includes('anime') ||
+      lowerTitle.includes('cartoon') ||
+      lowerDesc.includes('animação') ||
+      lowerDesc.includes('desenho animado') ||
+      lowerDesc.includes('estúdio ghibli') ||
+      lowerDesc.includes('pixar') ||
+      lowerDesc.includes('walt disney');
+
+    if (isAnimation) {
+      finalCategory = 'Animação';
+    }
+
     const movieData = {
       title: formTitle,
       description: formDescription,
       posterUrl: formPosterUrl || 'https://image.tmdb.org/t/p/w780/8uO0gUMYrj5BNZ6Z9ZgWaS9Stj3.jpg',
       backdropUrl: formBackdropUrl || 'https://image.tmdb.org/t/p/original/vKof7jZ50vS2pYgO569ofCidG9y.jpg',
-      category: formCategory,
+      category: finalCategory,
       year: formYear,
       duration: formType === 'series' 
         ? `${Object.keys(formSeasonsConfig).length} Temporada${Object.keys(formSeasonsConfig).length > 1 ? 's' : ''}` 
@@ -235,6 +275,144 @@ export default function AdminPanel({
     }
   };
 
+  // Rotina de importação e sincronização inteligente de episódios sem loops infinitos
+  const syncSeriesEpisodesWithResilience = async (
+    seriesTitle: string,
+    seasonsConfig: { [season: number]: number },
+    apiKey: string
+  ) => {
+    const seasonKeys = Object.keys(seasonsConfig).map(Number).sort((a, b) => a - b);
+    const totalEps = seasonKeys.reduce((acc, k) => acc + (seasonsConfig[k] || 0), 0);
+
+    const importedList: Array<{ season: number; episode: number; tag: string; playerUrl: string }> = [];
+    const failedList: Array<{ season: number; episode: number; tag: string; reason: string; attempts: number; errorStack?: string }> = [];
+
+    let processedCount = 0;
+    let missingSeasonDetected = false;
+    let missingSeasonNum = 0;
+
+    console.log(`==================================================`);
+    console.log(`🚀 INICIANDO AUTOMAÇÃO INTELIGENTE DE EPISÓDIOS`);
+    console.log(`Série: "${seriesTitle}" | Temporadas no TMDB: ${seasonKeys.length} | Total de Episódios: ${totalEps}`);
+    console.log(`==================================================`);
+
+    for (const sNum of seasonKeys) {
+      if (missingSeasonDetected) {
+        console.log(`[Import Engine] 🛑 Interrompido: Temporada ${sNum} pulada pois a Temporada ${missingSeasonNum} ainda não existe no Abyss.`);
+        break;
+      }
+
+      const epCount = seasonsConfig[sNum] || 0;
+      let consecutiveEpFailures = 0;
+
+      for (let epNum = 1; epNum <= epCount; epNum++) {
+        processedCount++;
+        const sStr = String(sNum).padStart(2, '0');
+        const eStr = String(epNum).padStart(2, '0');
+        const epTag = `S${sStr}E${eStr}`;
+
+        setAbyssStatusMessage({
+          text: `🔍 Sintonizando no Abyss (${processedCount}/${totalEps}): ${epTag} de "${seriesTitle}"...`,
+          type: 'info'
+        });
+
+        console.log(`[Import Engine] 🔄 Verificando ${epTag} (Temporada ${sNum}, Ep ${epNum})...`);
+
+        const startTime = Date.now();
+        let res;
+        try {
+          res = await AbyssService.findEpisodePlayerUrl(seriesTitle, sNum, epNum, apiKey);
+        } catch (err: any) {
+          res = { success: false, error: 'API_ERROR', message: err?.message || String(err) };
+        }
+
+        const reqTime = Date.now() - startTime;
+        console.log(`[Import Engine] 📡 Resposta para ${epTag} em ${reqTime}ms:`, res);
+
+        const key = `${sNum}_${epNum}`;
+
+        if (res.success && res.playerUrl) {
+          importedList.push({ season: sNum, episode: epNum, tag: epTag, playerUrl: res.playerUrl });
+          setFormEpisodeEmbeds(prev => ({ ...prev, [key]: res.playerUrl }));
+          consecutiveEpFailures = 0;
+          console.log(`🎉 [Import Engine] SUCESSO para ${epTag}! Player URL: ${res.playerUrl}`);
+        } else {
+          // Se a pasta da série inteira não for encontrada no Abyss
+          if (res.error === 'SERIES_FOLDER_NOT_FOUND') {
+            console.warn(`🛑 [Import Engine] Pasta da série "${seriesTitle}" não localizada no Abyss. Interrompendo sincronização.`);
+            missingSeasonDetected = true;
+            missingSeasonNum = sNum;
+            failedList.push({
+              season: sNum,
+              episode: epNum,
+              tag: epTag,
+              reason: res.message || 'Pasta da série não localizada no Abyss.',
+              attempts: 1
+            });
+            break;
+          }
+
+          // Se a pasta da temporada específica não existir (ex: The Walking Dead só tem até a Temporada 5)
+          if (res.error === 'SEASON_FOLDER_NOT_FOUND') {
+            console.warn(`🛑 [Import Engine] Pasta da Temporada ${sNum} não foi encontrada no Abyss. Pausando busca para a Temporada ${sNum} e posteriores.`);
+            missingSeasonDetected = true;
+            missingSeasonNum = sNum;
+            failedList.push({
+              season: sNum,
+              episode: epNum,
+              tag: epTag,
+              reason: `A Temporada ${sNum} ainda não foi adicionada no seu painel Abyss.`,
+              attempts: 1
+            });
+            break; // Interrompe imediatamente esta e próximas temporadas
+          }
+
+          // Caso o episódio individual não seja encontrado dentro de uma pasta de temporada existente (ex: lançamento semanal)
+          const totalFilesInSeason = (res as any).totalFilesCount;
+          if (res.error === 'EPISODE_NOT_FOUND_IN_SEASON' && typeof totalFilesInSeason === 'number' && epNum > totalFilesInSeason) {
+            console.warn(`🛑 [Import Engine] A pasta da Temporada ${sNum} possui ${totalFilesInSeason} arquivos. O episódio ${epNum} e os seguintes ainda não foram enviados ao Abyss. Pausando busca desta temporada.`);
+            failedList.push({
+              season: sNum,
+              episode: epNum,
+              tag: epTag,
+              reason: `Episódio ${epNum} em diante aguarda envio semanal no Abyss (${totalFilesInSeason} arquivo(s) na pasta).`,
+              attempts: 1
+            });
+            break; // Não tenta buscar episódios superiores ao total de arquivos existentes na pasta
+          }
+
+          failedList.push({
+            season: sNum,
+            episode: epNum,
+            tag: epTag,
+            reason: res.message || 'Episódio ainda não disponibilizado no Abyss.',
+            attempts: 1
+          });
+
+          consecutiveEpFailures++;
+
+          // Se 2 episódios consecutivos de uma temporada existente não forem encontrados, pausar a busca desta temporada
+          if (consecutiveEpFailures >= 2) {
+            console.warn(`🛑 [Import Engine] ${consecutiveEpFailures} episódios consecutivos não localizados na Temporada ${sNum}. Pausando busca desta temporada.`);
+            break;
+          }
+        }
+      }
+    }
+
+    const report = {
+      seriesTitle,
+      totalEps,
+      imported: importedList,
+      failed: failedList,
+      missingSeasonDetected,
+      missingSeasonNum
+    };
+
+    setAuditReport(report);
+    return report;
+  };
+
   // Importar o título selecionado do TMDB
   const handleImportTMDBMovie = async (id: number, mediaType: 'movie' | 'tv') => {
     setIsSearchingTMDB(true);
@@ -253,16 +431,84 @@ export default function AdminPanel({
         setFormRating(imported.rating || 8.0);
         setFormTrailerUrl(imported.trailerUrl || 'https://www.youtube.com/embed/qvsgGtIvCBY');
         setFormTmdbId(imported.tmdbId);
+
+        if (imported.seasonsConfig) {
+          setFormSeasonsConfig(imported.seasonsConfig);
+        }
+
         setTmdbSearchResults([]);
         setTmdbSearchQuery('');
         setTmdbError('');
         setIsFormOpen(true);
+
         setTimeout(() => {
           const formElem = document.getElementById('movie-form-section');
           if (formElem) {
             formElem.scrollIntoView({ behavior: 'smooth' });
           }
         }, 150);
+
+        // --- AUTOMATIZAÇÃO DA BUSCA DE PLAYER NO ABYSS EM SEGUNDO PLANO ---
+        // Sincroniza automaticamente a URL do player assim que os dados do TMDB são importados
+        if (imported.title) {
+          const currentAbyssKey = abyssApiKey || AbyssService.getApiKey();
+          setIsSearchingAbyss(true);
+          setAbyssStatusMessage({
+            text: `🔍 Pesquisando vídeo no Abyss para "${imported.title}"...`,
+            type: 'info'
+          });
+
+          if (imported.type === 'movie') {
+            AbyssService.findMoviePlayerUrl(imported.title, currentAbyssKey)
+              .then(res => {
+                setIsSearchingAbyss(false);
+                if (res.success && res.playerUrl) {
+                  setFormEmbedUrl(res.playerUrl);
+                  if (res.fileId) setFormAbyssId(res.fileId);
+                  setAbyssStatusMessage({
+                    text: `✅ Player URL do Abyss obtido e preenchido automaticamente! (${res.playerUrl})`,
+                    type: 'success'
+                  });
+                  console.log(`[Abyss Auto] Sucesso ao preencher Player URL: ${res.playerUrl}`);
+                } else {
+                  setAbyssStatusMessage({
+                    text: `⚠️ O vídeo ainda não existe no Abyss. O cadastro do filme pode continuar normalmente.`,
+                    type: 'warning'
+                  });
+                  console.log(`[Abyss Auto] ${res.message || 'Vídeo não encontrado no Abyss.'}`);
+                }
+              })
+              .catch(err => {
+                setIsSearchingAbyss(false);
+                setAbyssStatusMessage({
+                  text: `⚠️ O vídeo ainda não existe no Abyss. O cadastro do filme pode continuar normalmente.`,
+                  type: 'warning'
+                });
+                console.error('[Abyss Auto Error]', err);
+              });
+          } else if (imported.type === 'series') {
+            const seasons = imported.seasonsConfig || { 1: 10 };
+
+            (async () => {
+              setIsSearchingAbyss(true);
+              const report = await syncSeriesEpisodesWithResilience(imported.title, seasons, currentAbyssKey);
+              setIsSearchingAbyss(false);
+
+              if (report.imported.length > 0) {
+                setAbyssStatusMessage({
+                  text: `✅ ${report.imported.length} de ${report.totalEps} episódio(s) localizados e sintonizados! (${report.failed.length} ignorados/falhas)`,
+                  type: report.failed.length === 0 ? 'success' : 'warning'
+                });
+              } else {
+                setAbyssStatusMessage({
+                  text: `⚠️ Os episódios de "${imported.title}" ainda não foram localizados no Abyss. O cadastro pode continuar normalmente.`,
+                  type: 'warning'
+                });
+              }
+            })();
+          }
+        }
+
       } else {
         setTmdbError('Erro ao obter detalhes específicos.');
       }
@@ -270,6 +516,114 @@ export default function AdminPanel({
       setTmdbError('Erro ao importar título.');
     } finally {
       setIsSearchingTMDB(false);
+    }
+  };
+
+  // Pesquisa manual de player de Filme no Abyss
+  const handleManualAbyssMovieSearch = async () => {
+    if (!formTitle.trim()) {
+      setAbyssStatusMessage({ text: 'Por favor, informe o título do filme primeiro.', type: 'warning' });
+      return;
+    }
+    setIsSearchingAbyss(true);
+    setAbyssStatusMessage({ text: `Pesquisando "${formTitle}" no Abyss...`, type: 'info' });
+
+    try {
+      const currentAbyssKey = abyssApiKey || AbyssService.getApiKey();
+      const res = await AbyssService.findMoviePlayerUrl(formTitle, currentAbyssKey);
+      if (res.success && res.playerUrl) {
+        setFormEmbedUrl(res.playerUrl);
+        if (res.fileId) setFormAbyssId(res.fileId);
+        setAbyssStatusMessage({
+          text: `✅ Player URL preenchida automaticamente: ${res.playerUrl}`,
+          type: 'success'
+        });
+      } else {
+        setAbyssStatusMessage({
+          text: `⚠️ O vídeo ainda não existe no Abyss.`,
+          type: 'warning'
+        });
+      }
+    } catch (err) {
+      setAbyssStatusMessage({
+        text: `⚠️ O vídeo ainda não existe no Abyss.`,
+        type: 'warning'
+      });
+    } finally {
+      setIsSearchingAbyss(false);
+    }
+  };
+
+  // Pesquisa manual de player de Episódio no Abyss
+  const handleManualAbyssEpisodeSearch = async (seasonNum: number, epNum: number) => {
+    if (!formTitle.trim()) {
+      setAbyssStatusMessage({ text: 'Por favor, informe o título da série primeiro.', type: 'warning' });
+      return;
+    }
+    const sStr = String(seasonNum).padStart(2, '0');
+    const eStr = String(epNum).padStart(2, '0');
+    const epTag = `S${sStr}E${eStr}`;
+
+    setIsSearchingAbyss(true);
+    setAbyssStatusMessage({ text: `Pesquisando ${epTag} para "${formTitle}" no Abyss...`, type: 'info' });
+
+    try {
+      const currentAbyssKey = abyssApiKey || AbyssService.getApiKey();
+      const res = await AbyssService.findEpisodePlayerUrl(formTitle, seasonNum, epNum, currentAbyssKey);
+      const key = `${seasonNum}_${epNum}`;
+      if (res.success && res.playerUrl) {
+        setFormEpisodeEmbeds(prev => ({ ...prev, [key]: res.playerUrl }));
+        setAbyssStatusMessage({
+          text: `✅ Episódio ${epTag} sintonizado com sucesso! (${res.playerUrl})`,
+          type: 'success'
+        });
+      } else {
+        setAbyssStatusMessage({
+          text: `⚠️ O vídeo do episódio (${epTag}) ainda não existe no Abyss.`,
+          type: 'warning'
+        });
+      }
+    } catch (err) {
+      setAbyssStatusMessage({
+        text: `⚠️ O vídeo do episódio (${epTag}) ainda não existe no Abyss.`,
+        type: 'warning'
+      });
+    } finally {
+      setIsSearchingAbyss(false);
+    }
+  };
+
+  // Pesquisa em lote de TODOS os episódios de TODAS as temporadas da série no Abyss
+  const handleSyncAllSeriesEpisodesWithAbyss = async () => {
+    if (!formTitle.trim()) {
+      setAbyssStatusMessage({ text: 'Por favor, informe o título da série primeiro.', type: 'warning' });
+      return;
+    }
+
+    const seasons = formSeasonsConfig;
+    const seasonKeys = Object.keys(seasons).map(Number).sort((a,b)=>a-b);
+    if (seasonKeys.length === 0) {
+      setAbyssStatusMessage({ text: 'Nenhuma temporada configurada para esta série.', type: 'warning' });
+      return;
+    }
+
+    const currentAbyssKey = abyssApiKey || AbyssService.getApiKey();
+    setIsSearchingAbyss(true);
+
+    const report = await syncSeriesEpisodesWithResilience(formTitle, seasons, currentAbyssKey);
+
+    setIsSearchingAbyss(false);
+
+    if (report.imported.length > 0) {
+      setAbyssStatusMessage({
+        text: `✅ ${report.imported.length} de ${report.totalEps} episódio(s) localizados e sintonizados com o Abyss! (${report.failed.length} ignorados/falhas)`,
+        type: report.failed.length === 0 ? 'success' : 'warning'
+      });
+    } else {
+      setAbyssStatusMessage({
+        text: `⚠️ Nenhum episódio de "${formTitle}" foi localizado no Abyss no momento.`,
+        type: 'warning'
+      });
     }
   };
 
@@ -293,6 +647,17 @@ export default function AdminPanel({
   const fitasConcluidas = allHistoryProgressList.filter(ph => ph.progress >= 100 || ph.isFinished).length;
   const totalSomaSegundos = allHistoryProgressList.reduce((acc, ph) => acc + (ph.currentTime || 0), 0);
   const totalMinutosReproduzidos = Math.round(totalSomaSegundos / 60);
+
+  // Catálogo de mídias filtrado pelo campo de busca no Admin
+  const filteredAdminMovies = useMemo(() => {
+    if (!catalogSearchQuery.trim()) return movies;
+    const query = catalogSearchQuery.toLowerCase().trim();
+    return movies.filter(m => 
+      m.title.toLowerCase().includes(query) ||
+      m.category.toLowerCase().includes(query) ||
+      (m.description && m.description.toLowerCase().includes(query))
+    );
+  }, [movies, catalogSearchQuery]);
 
   // Fita VHS Mais Popular (Que mais vezes aparece em myList)
   const myListCounts: { [movieId: string]: number } = {};
@@ -648,33 +1013,56 @@ export default function AdminPanel({
                   </button>
                 </div>
 
-                {/* Barra de Seleção e Ações em Lote */}
-                <div className="flex flex-col sm:flex-row justify-between items-center bg-zinc-900/50 border border-zinc-850 px-5 py-3 rounded-lg gap-3">
-                  <div className="flex items-center gap-3">
-                    <label className="flex items-center gap-2 text-xs font-mono text-zinc-300 cursor-pointer select-none">
+                {/* Barra de Seleção, Pesquisa e Ações em Lote */}
+                <div className="flex flex-col md:flex-row justify-between items-center bg-zinc-900/50 border border-zinc-850 px-5 py-3 rounded-lg gap-3">
+                  <div className="flex flex-col sm:flex-row items-center gap-3.5 w-full md:w-auto">
+                    <label className="flex items-center gap-2 text-xs font-mono text-zinc-300 cursor-pointer select-none shrink-0">
                       <input
                         type="checkbox"
-                        checked={movies.length > 0 && selectedMovieIds.length === movies.length}
+                        checked={filteredAdminMovies.length > 0 && selectedMovieIds.length === filteredAdminMovies.length}
                         onChange={() => {
-                          if (selectedMovieIds.length === movies.length) {
+                          if (selectedMovieIds.length === filteredAdminMovies.length) {
                             setSelectedMovieIds([]);
                           } else {
-                            setSelectedMovieIds(movies.map(m => m.id));
+                            setSelectedMovieIds(filteredAdminMovies.map(m => m.id));
                           }
                         }}
                         className="rounded border-zinc-800 bg-zinc-950 text-rose-600 focus:ring-0 w-4 h-4 cursor-pointer"
                       />
-                      <span>Selecionar Todos ({movies.length})</span>
+                      <span>Selecionar Todos ({filteredAdminMovies.length})</span>
                     </label>
                     {selectedMovieIds.length > 0 && (
-                      <span className="text-xs font-mono text-rose-500 font-bold">
+                      <span className="text-xs font-mono text-rose-500 font-bold shrink-0">
                         • {selectedMovieIds.length} selecionados
                       </span>
                     )}
+
+                    {/* Campo de Pesquisa com Ampulheta/Lupa no Catálogo */}
+                    <div className="relative flex-1 max-w-xs sm:max-w-sm w-full">
+                      <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        placeholder="Pesquisar filme ou série por nome..."
+                        value={catalogSearchQuery}
+                        onChange={e => setCatalogSearchQuery(e.target.value)}
+                        className="w-full bg-zinc-950 border border-zinc-800 focus:border-rose-500 text-xs font-mono pl-8 pr-7 py-1.5 rounded-lg text-white focus:outline-none transition-colors"
+                        id="input-admin-catalog-search"
+                      />
+                      {catalogSearchQuery && (
+                        <button
+                          type="button"
+                          onClick={() => setCatalogSearchQuery('')}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white text-xs font-bold font-mono px-1"
+                          title="Limpar busca"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {selectedMovieIds.length > 0 && (
-                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <div className="flex items-center gap-2 w-full md:w-auto">
                       <button
                         onClick={() => setSelectedMovieIds([])}
                         className="flex-1 sm:flex-initial text-zinc-400 hover:text-white bg-zinc-850 hover:bg-zinc-800 border border-zinc-800 font-semibold font-mono text-[11px] px-3.5 py-1.5 rounded transition-all cursor-pointer"
@@ -692,9 +1080,17 @@ export default function AdminPanel({
                   )}
                 </div>
 
+                {filteredAdminMovies.length === 0 && (
+                  <div className="p-12 text-center bg-zinc-900/30 border border-zinc-850 rounded-xl space-y-2 font-mono">
+                    <Search className="w-8 h-8 text-rose-500 mx-auto opacity-60" />
+                    <p className="text-sm text-zinc-300 font-bold">Nenhum título encontrado</p>
+                    <p className="text-xs text-zinc-500">Nenhum filme ou série corresponde à busca "{catalogSearchQuery}".</p>
+                  </div>
+                )}
+
                 {/* Grid Compacto de Filmes do Admin */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                  {movies.map(movie => {
+                  {filteredAdminMovies.map(movie => {
                     const isSelected = selectedMovieIds.includes(movie.id);
                     return (
                       <div 
@@ -906,7 +1302,6 @@ export default function AdminPanel({
                       <h3 className="font-bold text-md text-white font-display uppercase tracking-tight">
                         {editingMovie ? 'Editar Dados da Fita' : 'Cadastrar Registro Manual'}
                       </h3>
-                      <p className="text-xs text-zinc-500">Insira as informações do título que irá para a estante digital.</p>
                     </div>
                     <button
                       type="button"
@@ -1088,22 +1483,107 @@ export default function AdminPanel({
                       </div>
                     </div>
 
-                    {/* Sintonizadores Adicionais: TMDB */}
-                    <div className="bg-zinc-950/40 p-4 border border-zinc-850 rounded">
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-zinc-300 font-bold uppercase tracking-wider text-[10px]">ID do TMDB (Opcional)</label>
-                        <input
-                          type="number"
-                          value={formTmdbId || ''}
-                          onChange={e => setFormTmdbId(e.target.value ? Number(e.target.value) : undefined)}
-                          placeholder="Ex: 105"
-                          className="w-full bg-zinc-950 border border-zinc-850 px-3.5 py-2 rounded focus:outline-none focus:border-rose-500 text-sm"
-                        />
-                        <span className="text-[9px] text-zinc-600 leading-relaxed font-mono">
-                          ID de referência do filme ou série no TheMovieDatabase para auto-gerar posters e títulos de episódios se necessário.
-                        </span>
+
+
+                    {/* ALERTA E STATUS DE AUTOMAÇÃO COM O ABYSS */}
+                    {abyssStatusMessage && (
+                      <div className={`p-3 rounded-lg border text-xs font-mono flex items-center justify-between gap-2 transition-all ${
+                        abyssStatusMessage.type === 'success' 
+                          ? 'bg-emerald-950/40 border-emerald-500/30 text-emerald-300' 
+                          : abyssStatusMessage.type === 'warning' 
+                          ? 'bg-amber-950/40 border-amber-500/30 text-amber-300' 
+                          : abyssStatusMessage.type === 'error'
+                          ? 'bg-rose-950/40 border-rose-500/30 text-rose-300'
+                          : 'bg-zinc-900 border-zinc-800 text-zinc-300'
+                      }`}>
+                        <div className="flex items-center gap-2">
+                          {isSearchingAbyss ? (
+                            <RefreshCw className="w-3.5 h-3.5 text-rose-500 animate-spin flex-shrink-0" />
+                          ) : abyssStatusMessage.type === 'success' ? (
+                            <Check className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                          ) : (
+                            <AlertTriangle className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+                          )}
+                          <span>{abyssStatusMessage.text}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setAbyssStatusMessage(null)}
+                          className="text-zinc-500 hover:text-white text-xs px-1 font-bold cursor-pointer"
+                        >
+                          ✕
+                        </button>
                       </div>
-                    </div>
+                    )}
+
+                    {/* RELATÓRIO DE AUDITORIA DE IMPORTAÇÃO DE EPISÓDIOS */}
+                    {auditReport && (
+                      <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 space-y-3 font-mono text-xs animate-fade-in shadow-2xl">
+                        <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
+                          <div className="flex items-center gap-2">
+                            <Film className="w-4 h-4 text-rose-500" />
+                            <span className="font-bold text-zinc-100 uppercase tracking-wider text-[11px]">
+                              Relatório de Auditoria: {auditReport.seriesTitle}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setAuditReport(null)}
+                            className="text-zinc-500 hover:text-zinc-200 px-2 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-[10px] cursor-pointer"
+                          >
+                            Fechar
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                          <div className="bg-zinc-900/80 border border-zinc-800 p-2.5 rounded-lg text-center">
+                            <span className="text-[10px] text-zinc-500 block uppercase">Total Episódios</span>
+                            <span className="text-sm font-bold text-zinc-200">{auditReport.totalEps}</span>
+                          </div>
+                          <div className="bg-emerald-950/30 border border-emerald-500/30 p-2.5 rounded-lg text-center">
+                            <span className="text-[10px] text-emerald-400 block uppercase">Importados</span>
+                            <span className="text-sm font-bold text-emerald-300">{auditReport.imported.length}</span>
+                          </div>
+                          <div className="bg-rose-950/30 border border-rose-500/30 p-2.5 rounded-lg text-center col-span-2 sm:col-span-1">
+                            <span className="text-[10px] text-rose-400 block uppercase">Ignorados / Falhas</span>
+                            <span className="text-sm font-bold text-rose-300">{auditReport.failed.length}</span>
+                          </div>
+                        </div>
+
+                        {auditReport.failed.length > 0 && (
+                          <div className="space-y-2 pt-1">
+                            <div className="flex items-center justify-between text-[11px] font-bold text-rose-400 uppercase tracking-wider">
+                              <span>Detalhamento de Falhas ({auditReport.failed.length})</span>
+                              <span className="text-[10px] text-zinc-500 font-normal">RETENTATIVAS: 3x (2s DELAY)</span>
+                            </div>
+                            <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1 custom-scrollbar">
+                              {auditReport.failed.map((fail, idx) => (
+                                <div key={idx} className="bg-zinc-900/90 border border-rose-500/20 p-2 rounded flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1">
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    <span className="px-1.5 py-0.5 bg-rose-950 text-rose-300 border border-rose-800 font-bold rounded text-[10px]">
+                                      {fail.tag}
+                                    </span>
+                                    <span className="text-zinc-300 font-medium">
+                                      Temp. {fail.season}, Ep. {fail.episode}
+                                    </span>
+                                  </div>
+                                  <div className="text-[10px] text-zinc-400 font-normal truncate max-w-md">
+                                    <span className="text-rose-400 font-semibold">Motivo:</span> {fail.reason}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {auditReport.imported.length > 0 && (
+                          <div className="text-[10px] text-emerald-400 flex items-center gap-1.5 pt-1 border-t border-zinc-900">
+                            <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                            <span>{auditReport.imported.length} episódios foram sintonizados e salvos com sucesso no formulário.</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* CONFIGURAÇÃO DE EMBED URL PERSONALIZADO (FILME / SÉRIE) */}
                     {formType === 'movie' ? (
@@ -1112,26 +1592,50 @@ export default function AdminPanel({
                           <label className="text-zinc-300 font-bold uppercase tracking-wider text-[10px] flex items-center gap-1.5">
                             <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span> URL do Player / Embed URL (Filme)
                           </label>
-                          <span className="text-[9px] text-rose-400 font-mono font-bold bg-rose-950/50 border border-rose-500/20 px-2 py-0.5 rounded">REPRODUTOR MANUAL</span>
+                          <span className="text-[9px] text-rose-400 font-mono font-bold bg-rose-950/50 border border-rose-500/20 px-2 py-0.5 rounded">AUTOMÁTICO ABYSS</span>
                         </div>
-                        <input
-                          type="text"
-                          value={formEmbedUrl}
-                          onChange={e => setFormEmbedUrl(e.target.value)}
-                          placeholder="Cole o Embed do Abyss ou URL de Vídeo (MP4/MKV)"
-                          className="w-full bg-zinc-950 border border-zinc-850 px-3.5 py-2 rounded focus:outline-none focus:border-rose-500 text-sm text-zinc-100 font-mono"
-                        />
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={formEmbedUrl}
+                            onChange={e => setFormEmbedUrl(e.target.value)}
+                            placeholder="https://play.abyssplayer.com/{id}"
+                            className="flex-1 bg-zinc-950 border border-zinc-850 px-3.5 py-2 rounded focus:outline-none focus:border-rose-500 text-sm text-zinc-100 font-mono"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleManualAbyssMovieSearch}
+                            disabled={isSearchingAbyss || !formTitle.trim()}
+                            className="px-3 py-2 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white rounded text-xs font-mono font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 shadow-md"
+                            title="Pesquisar vídeo automaticamente na API do Abyss"
+                          >
+                            {isSearchingAbyss ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3 fill-current" />}
+                            <span>Buscar no Abyss</span>
+                          </button>
+                        </div>
                         <span className="text-[9px] text-zinc-500 leading-relaxed font-mono">
-                          Suporta URLs do Abyss Player ou links diretos de arquivos MP4/MKV.
+                          Preenchido automaticamente ao importar do TMDB (formato: https://play.abyssplayer.com/&#123;id&#125;).
                         </span>
                       </div>
                     ) : (
                       <div className="flex flex-col gap-3 bg-zinc-950/40 p-4 border border-zinc-850 rounded">
-                        <div className="flex items-center justify-between border-b border-zinc-850 pb-2">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-zinc-850 pb-2 gap-2">
                           <label className="text-zinc-300 font-bold uppercase tracking-wider text-[10px] flex items-center gap-1.5">
-                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span> Gerenciador de Temporadas & Episódios
+                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span> Gerenciador de Temporadas & Episódios ({Object.keys(formSeasonsConfig).length} Temporadas)
                           </label>
-                          <span className="text-[9px] text-rose-400 font-mono font-bold bg-rose-950/50 border border-rose-500/20 px-2 py-0.5 rounded">SÉRIE / ANIME</span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={handleSyncAllSeriesEpisodesWithAbyss}
+                              disabled={isSearchingAbyss || !formTitle.trim()}
+                              className="px-3 py-1 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white rounded text-[10px] font-mono font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow"
+                              title="Sintonizar e buscar links de todos os episódios de todas as temporadas no Abyss"
+                            >
+                              {isSearchingAbyss ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3 fill-current" />}
+                              <span>Sintonizar Todas as Temporadas no Abyss</span>
+                            </button>
+                            <span className="text-[9px] text-rose-400 font-mono font-bold bg-rose-950/50 border border-rose-500/20 px-2 py-0.5 rounded">AUTOMÁTICO ABYSS SXXEXX</span>
+                          </div>
                         </div>
 
                         {/* Abas das Temporadas */}
@@ -1221,16 +1725,28 @@ export default function AdminPanel({
                                   <span className="text-[10px] font-mono font-bold text-zinc-400 min-w-[100px] uppercase tracking-wider">
                                     Episódio {epNum.toString().padStart(2, '0')}
                                   </span>
-                                  <input
-                                    type="text"
-                                    value={formEpisodeEmbeds[key] || ''}
-                                    onChange={e => {
-                                      const val = e.target.value;
-                                      setFormEpisodeEmbeds(prev => ({ ...prev, [key]: val }));
-                                    }}
-                                    placeholder="Abyss Player ou URL de Vídeo (MP4/MKV)"
-                                    className="flex-1 bg-zinc-950 border border-zinc-850 px-3 py-1.5 rounded focus:outline-none focus:border-rose-500 text-xs text-zinc-100 font-mono placeholder-zinc-700"
-                                  />
+                                  <div className="flex items-center gap-1.5 flex-1">
+                                    <input
+                                      type="text"
+                                      value={formEpisodeEmbeds[key] || ''}
+                                      onChange={e => {
+                                        const val = e.target.value;
+                                        setFormEpisodeEmbeds(prev => ({ ...prev, [key]: val }));
+                                      }}
+                                      placeholder="https://play.abyssplayer.com/{id}"
+                                      className="flex-1 bg-zinc-950 border border-zinc-850 px-3 py-1.5 rounded focus:outline-none focus:border-rose-500 text-xs text-zinc-100 font-mono placeholder-zinc-700"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => handleManualAbyssEpisodeSearch(activeConfigSeason, epNum)}
+                                      disabled={isSearchingAbyss || !formTitle.trim()}
+                                      className="px-2.5 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-rose-400 hover:text-rose-300 rounded text-[10px] font-mono font-bold flex items-center gap-1 transition-all cursor-pointer shrink-0"
+                                      title="Pesquisar episódio no Abyss"
+                                    >
+                                      <Search className="w-2.5 h-2.5" />
+                                      <span>Abyss</span>
+                                    </button>
+                                  </div>
                                 </div>
                               );
                             })}
@@ -1944,6 +2460,46 @@ export default function AdminPanel({
                     <span className="text-[11px] font-bold text-zinc-300 block font-sans">Status da Conexão</span>
                     <span className="text-[10px] text-zinc-500 mt-0.5 block leading-relaxed font-mono">
                       {tmdbApiKey ? 'Chave personalizada inserida. Buscas live mundiais ativas!' : 'Utilizando banco de dados local retro de contingência.'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Bloco Abyss API Config */}
+            <div className="bg-zinc-900 border border-zinc-850 rounded-xl p-5 md:p-6 space-y-5">
+              <div className="border-b border-zinc-800 pb-4">
+                <h3 className="font-bold text-md text-white font-display uppercase tracking-tight flex items-center gap-2">
+                  <Play className="w-4.5 h-4.5 text-rose-500" /> API do Player Abyss (GET /v1/resources)
+                </h3>
+                <p className="text-xs text-zinc-500 mt-1">Sintonizador automático de player de mídia (https://play.abyssplayer.com/&#123;id&#125;).</p>
+              </div>
+
+              <div className="space-y-4 text-xs font-mono">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-zinc-400 font-bold uppercase tracking-wider text-[10px]">ABYSS API KEY</label>
+                  <input
+                    type="password"
+                    placeholder="Cole aqui sua chave de API do Abyss"
+                    value={abyssApiKey}
+                    onChange={e => {
+                      if (onUpdateAbyssApiKey) onUpdateAbyssApiKey(e.target.value);
+                      AbyssService.setApiKey(e.target.value);
+                    }}
+                    className="w-full bg-zinc-950 border border-zinc-800 px-3.5 py-2.5 rounded text-xs text-white focus:outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500"
+                    id="input-abyss-key-entry"
+                  />
+                  <p className="text-[10px] text-zinc-500 mt-1 leading-relaxed">
+                    Com esta chave ativa, ao buscar no TMDB o campo Embed URL é preenchido automaticamente com o player no formato <strong>https://play.abyssplayer.com/&#123;id&#125;</strong>.
+                  </p>
+                </div>
+
+                <div className="p-4 bg-zinc-950 rounded border border-zinc-800 flex items-start gap-2">
+                  <Check className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                  <div>
+                    <span className="text-[11px] font-bold text-zinc-300 block font-sans">Sintonização Automática</span>
+                    <span className="text-[10px] text-zinc-500 mt-0.5 block leading-relaxed font-mono">
+                      {abyssApiKey ? 'Chave do Abyss ativa! Preenchimento automático ativado.' : 'Utilizando chave padrão do servidor para automação.'}
                     </span>
                   </div>
                 </div>

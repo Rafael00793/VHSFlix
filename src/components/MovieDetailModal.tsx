@@ -475,6 +475,38 @@ export default function MovieDetailModal({
   const [activeTab, setActiveTab] = useState<'episodes' | 'related' | 'details'>('episodes');
   const [isSeasonDropdownOpen, setIsSeasonDropdownOpen] = useState(false);
   const [abyssEpisodeId, setAbyssEpisodeId] = useState<string>('');
+  const [smartTrailerUrl, setSmartTrailerUrl] = useState<string>(movie?.trailerUrl || '');
+
+  // Efeito para busca e sincronização inteligente de trailers
+  useEffect(() => {
+    if (!movie) return;
+
+    if (movie.trailerUrl && movie.trailerUrl.includes('youtube.com/embed/')) {
+      setSmartTrailerUrl(movie.trailerUrl);
+    } else {
+      fetch('/api/trailer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: movie.title,
+          tmdbId: movie.tmdbId,
+          type: movie.type,
+          movieId: movie.id
+        })
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.success && data.trailerUrl) {
+            setSmartTrailerUrl(data.trailerUrl);
+            movie.trailerUrl = data.trailerUrl;
+            movie.youtubeVideoId = data.videoId;
+          }
+        })
+        .catch(err => {
+          console.warn('[FRONTEND TRAILER] Erro ao carregar trailer inteligente:', err);
+        });
+    }
+  }, [movie?.id, movie?.title, movie?.trailerUrl]);
   
   // Qualidade preferencial de reprodução (persiste em localStorage para máxima fluidez)
   const [preferredQuality, setPreferredQuality] = useState<string>(() => {
@@ -482,6 +514,9 @@ export default function MovieDetailModal({
   });
   const [isMuted, setIsMuted] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+
+  const [isCheckingSync, setIsCheckingSync] = useState(false);
+  const [syncFailedMessage, setSyncFailedMessage] = useState<string | null>(null);
 
   const getQualityParams = (quality: string) => {
     const num = quality.replace('p', '');
@@ -498,13 +533,13 @@ export default function MovieDetailModal({
       } else if (abyssEpisodeId) {
         return abyssEpisodeId.startsWith('http://') || abyssEpisodeId.startsWith('https://') ? abyssEpisodeId : `https://abyssplayer.com/${abyssEpisodeId}`;
       } else {
-        return `https://abyssplayer.com/series-${movie.tmdbId || '1396'}-${season}-${episode}`;
+        return ''; // Retorna vazio se ainda não foi localizado no Abyss para evitar player quebrado
       }
     } else {
       if (movie.embedUrl) {
         return movie.embedUrl.startsWith('http://') || movie.embedUrl.startsWith('https://') ? movie.embedUrl : `https://abyssplayer.com/${movie.embedUrl}`;
       } else {
-        return `https://abyssplayer.com/${movie.abyssId || movie.tmdbId || '105'}`;
+        return movie.abyssId ? `https://abyssplayer.com/${movie.abyssId}` : '';
       }
     }
   };
@@ -570,6 +605,17 @@ export default function MovieDetailModal({
   const currentTimeRef = useRef(currentTime);
   const playerContainerRef = useRef<HTMLDivElement>(null);
 
+  // Trava de rolagem do fundo da página (body scroll lock) quando o modal estiver aberto
+  useEffect(() => {
+    if (isOpen) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = originalOverflow || '';
+      };
+    }
+  }, [isOpen]);
+
   // Reiniciar estados de reprodução e abas ativos quando altera o filme em exibição
   useEffect(() => {
     if (!movie) return;
@@ -584,10 +630,21 @@ export default function MovieDetailModal({
     if (!movie) return;
     if (movie.type !== 'series') {
       setAbyssEpisodeId('');
+      setSyncFailedMessage(null);
       return;
     }
+
+    const key = `${season}_${episode}`;
+    if (movie.episodeEmbeds && movie.episodeEmbeds[key]) {
+      setAbyssEpisodeId(movie.episodeEmbeds[key]);
+      setSyncFailedMessage(null);
+      return;
+    }
+
     setAbyssEpisodeId(''); // Reset temporário para sintonização
-    
+    setSyncFailedMessage(null);
+    setIsCheckingSync(true);
+
     fetch('/api/abyss/register', {
       method: 'POST',
       headers: {
@@ -603,14 +660,53 @@ export default function MovieDetailModal({
     })
     .then(res => res.json())
     .then(data => {
-      if (data.success && data.abyssId) {
+      setIsCheckingSync(false);
+      if (data.success && data.abyssId && data.usedRealAPI) {
         setAbyssEpisodeId(data.abyssId);
+        setSyncFailedMessage(null);
+      } else {
+        setSyncFailedMessage(`A Temporada ${season}, Episódio ${episode} de "${movie.title}" ainda não foi enviada para o seu painel do Abyss.`);
       }
     })
     .catch(err => {
+      setIsCheckingSync(false);
       console.error('[Abyss Player] Erro ao sintonizar episódio:', err);
+      setSyncFailedMessage(`Temporada ${season}, Episódio ${episode} aguardando envio no Abyss.`);
     });
   }, [movie?.id, season, episode]);
+
+  const handleReSyncCurrentEpisode = async () => {
+    if (!movie || movie.type !== 'series') return;
+    setIsCheckingSync(true);
+    setSyncFailedMessage(null);
+
+    try {
+      const res = await fetch('/api/abyss/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tmdbId: movie.tmdbId,
+          type: 'series',
+          title: movie.title,
+          season,
+          episode
+        })
+      });
+      const data = await res.json();
+      setIsCheckingSync(false);
+
+      if (data.success && data.abyssId && data.usedRealAPI) {
+        setAbyssEpisodeId(data.abyssId);
+        setSyncFailedMessage(null);
+        setIsPlaying(true);
+      } else {
+        setSyncFailedMessage(`O episódio S${season.toString().padStart(2, '0')}E${episode.toString().padStart(2, '0')} ainda não foi localizado no seu Abyss. Certifique-se de que o arquivo foi enviado para o seu painel Abyss e tente novamente.`);
+      }
+    } catch (err) {
+      setIsCheckingSync(false);
+      setSyncFailedMessage(`Erro de conexão ao verificar o episódio S${season}E${episode} no Abyss.`);
+    }
+  };
 
   // Busca fitas correspondentes inteligentes sintonizadas na mesma categoria e tipo
   const relatedList = React.useMemo(() => {
@@ -998,24 +1094,28 @@ export default function MovieDetailModal({
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className={`fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-md transition-all duration-300 ${
-          isPlaying && !isTapeLoading ? 'p-0 overflow-hidden h-[100dvh]' : 'p-0 md:p-4 overflow-y-auto'
-        }`}>
-          {/* Backdrop de click para fechar */}
-          <div className="absolute inset-0 z-10 hidden md:block" onClick={onClose} />
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.25, ease: "easeInOut" }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-md p-0 overflow-hidden h-[100dvh] w-screen"
+        >
+          {/* Backdrop apenas estético - Sem fechar ao clicar fora, fechamento exclusivo no X */}
+          <div className="fixed inset-0 z-10 bg-black/80 backdrop-blur-sm pointer-events-none" />
 
-          {/* Card Principal do Detalhe (Estilo Caixa Estojo VHS) */}
+          {/* Container Principal do Detalhe Full-Screen Estilo Prime Video / Netflix */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 15 }}
+            initial={{ opacity: 0, scale: 0.96, y: 15 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 15 }}
-            transition={{ duration: 0.25 }}
-            className={`relative z-20 bg-zinc-950 overflow-hidden shadow-2xl flex flex-col transition-all duration-300 ${
+            exit={{ opacity: 0, scale: 0.92, y: 10 }}
+            transition={{ duration: 0.25, ease: "easeInOut" }}
+            className={`relative z-20 bg-[#0f171e] transition-all duration-300 ${
               isPlaying && !isTapeLoading
-                ? "w-screen h-[100dvh] max-w-none max-h-[100dvh] rounded-none border-0 m-0 p-0"
-                : "w-full max-w-4xl border-0 md:border border-zinc-800 rounded-none md:rounded-xl h-[100dvh] md:h-auto md:max-h-[92vh]"
+                ? "w-screen h-[100dvh] max-w-none max-h-[100dvh] rounded-none border-0 m-0 p-0 overflow-hidden"
+                : "w-full h-[100dvh] max-h-[100dvh] overflow-y-auto border-0 rounded-none m-0 p-0 shadow-2xl"
             }`}
-            id={`detail-modal-${movie.id}`}
+            id="movie-detail-modal"
           >
             {/* REPRODUÇÃO DO PLAYER DE VÍDEO COMPLETO E REAL (OCUPA TODO O MODAL EM REPRODUÇÃO) */}
             {isPlaying && !isTapeLoading && (
@@ -1257,7 +1357,7 @@ export default function MovieDetailModal({
                         </div>
                       </div>
                     </div>
-                  ) : (
+                  ) : parsedVideo.url ? (
                     <iframe
                       src={(() => {
                             const sep = parsedVideo.url.includes('?') ? '&' : '?';
@@ -1270,6 +1370,24 @@ export default function MovieDetailModal({
                       allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
                       referrerPolicy="origin"
                     />
+                  ) : (
+                    <div className="w-full max-w-md p-6 bg-zinc-900/90 border border-amber-500/30 rounded-2xl flex flex-col items-center justify-center text-center shadow-xl backdrop-blur-md">
+                      <div className="w-14 h-14 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mb-3 text-amber-400">
+                        <Tv className="w-7 h-7" />
+                      </div>
+                      <h3 className="text-lg font-bold text-white mb-2">Aguardando Envio no Abyss</h3>
+                      <p className="text-zinc-400 text-xs leading-relaxed mb-5">
+                        {syncFailedMessage || `A Temporada ${season}, Episódio ${episode} de "${movie.title}" ainda não está disponível no seu painel Abyss.`}
+                      </p>
+                      <button
+                        onClick={handleReSyncCurrentEpisode}
+                        disabled={isCheckingSync}
+                        className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs flex items-center gap-2 transition-all shadow-lg shadow-amber-500/20 active:scale-95 disabled:opacity-50 cursor-pointer"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${isCheckingSync ? 'animate-spin' : ''}`} />
+                        {isCheckingSync ? 'Sintonizando no Abyss...' : 'Verificar Se Já Foi Adicionado'}
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -1445,20 +1563,21 @@ export default function MovieDetailModal({
               </div>
             )}
 
-            {/* Botão de Fechar Modal (Visível apenas quando não está reproduzindo o vídeo real ou configurando) */}
+            {/* Botão de Fechar Modal (Visível em posição fixa no topo direito da tela) */}
             {(!isPlaying || isTapeLoading) && !isConfiguringPlayer && (
               <button
                 onClick={onClose}
-                className="absolute top-[calc(env(safe-area-inset-top)+1rem)] right-4 bg-black/80 hover:bg-rose-600 hover:text-white text-zinc-300 p-4 sm:p-2.5 rounded-full z-45 border border-zinc-800 transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none"
+                className="fixed top-4 right-4 sm:top-6 sm:right-8 bg-zinc-900/90 hover:bg-rose-600 hover:text-white text-zinc-100 p-3.5 rounded-full z-[70] border border-zinc-700/80 shadow-2xl transition-all duration-200 active:scale-90 hover:scale-110 cursor-pointer focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none flex items-center justify-center"
                 id="btn-close-modal"
-                aria-label="Fechar Modal"
+                aria-label="Fechar Modal (Exclusivo)"
+                title="Fechar Detalhes"
               >
-                <X className="w-5 h-5" />
+                <X className="w-6 h-6 stroke-[2.5]" />
               </button>
             )}
 
             {/* --- ÁREA SUPERIOR: BANNER OU CARREGAMENTO DA FITA --- */}
-            <div className="relative min-h-[350px] xs:min-h-[290px] sm:min-h-0 sm:aspect-[16/9] w-full bg-zinc-950 border-b border-zinc-900 overflow-hidden flex flex-col justify-end">
+            <div className="relative h-[42vh] min-h-[320px] xs:min-h-[360px] sm:h-[55vh] sm:min-h-[440px] md:h-[64vh] md:min-h-[500px] lg:h-[72vh] lg:min-h-[560px] w-full bg-zinc-950 overflow-hidden flex flex-col justify-end">
               {isTapeLoading ? (
                 /* CASO 2: ANIMAÇÃO ESTÉTICA DE CARREGAMENTO DA FITA VHS */
                 <div className="absolute inset-0 bg-black flex flex-col justify-center items-center font-mono text-zinc-400 z-30 select-none vhs-crt-flicker p-4">
@@ -1477,39 +1596,61 @@ export default function MovieDetailModal({
                   </div>
                 </div>
               ) : (
-                /* CASO 3: TELA DE DETALHE PADRÃO COM HERO BANNER */
+                /* CASO 3: TELA DE DETALHE PADRÃO COM HERO BANNER CINEMATOGRÁFICO WIDESCREEN ESTILO PRIME VIDEO */
                 <>
                   <img
                     src={movie.backdropUrl}
                     alt={movie.title}
-                    className="w-full h-full object-cover select-none"
+                    className="w-full h-full object-cover object-center select-none scale-100 transform duration-700 hover:scale-105"
                     referrerPolicy="no-referrer"
                   />
-                  {/* Sombreado elegante estilo cinema */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/20 to-black/40" />
+                  
+                  {/* Sombreado elegante estilo Prime Video / Netflix */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#0f171e] via-[#0f171e]/60 via-40% to-black/30 z-10" />
+                  <div className="absolute inset-0 bg-gradient-to-r from-[#0f171e]/90 via-[#0f171e]/40 to-transparent z-10 hidden sm:block" />
+                  <div className="absolute top-0 inset-x-0 h-28 bg-gradient-to-b from-black/80 via-black/20 to-transparent z-10" />
 
                   {/* Detalhes Rápidos no Banner */}
-                  <div className="absolute bottom-3 left-3 sm:bottom-8 sm:left-8 right-3 text-left z-20 flex flex-col items-start">
+                  <div className="absolute bottom-6 left-6 sm:bottom-12 sm:left-12 lg:bottom-14 lg:left-16 right-6 sm:right-12 lg:right-16 text-left z-20 flex flex-col items-start max-w-5xl">
                     
-                    {/* Categoria */}
-                    <span className="bg-rose-600 text-white font-mono text-[9px] sm:text-xs font-black px-2 py-0.5 sm:px-2.5 sm:py-1 rounded tracking-wider uppercase mb-1.5 sm:mb-4 shadow-lg border border-rose-500/20">
-                      {movie.category}
-                    </span>
+                    {/* Linha de Badges / Tags estilo Prime Video */}
+                    <div className="flex items-center flex-wrap gap-2 mb-2 sm:mb-4">
+                      <span className="bg-rose-600 text-white font-mono text-[10px] sm:text-xs font-black px-2.5 py-1 rounded-md tracking-wider uppercase shadow-lg border border-rose-500/30">
+                        {movie.category}
+                      </span>
+                      {movie.rating && (
+                        <span className="bg-zinc-900/90 border border-zinc-700/80 text-amber-400 font-bold text-[11px] sm:text-xs px-2.5 py-1 rounded-md flex items-center gap-1 shadow-md">
+                          ★ {movie.rating} TMDB
+                        </span>
+                      )}
+                      <span className="bg-zinc-900/80 border border-zinc-800 text-zinc-300 font-medium text-[11px] sm:text-xs px-2.5 py-1 rounded-md">
+                        {movie.year}
+                      </span>
+                      {movie.type === 'series' ? (
+                        <span className="bg-zinc-950/90 border border-rose-500/30 text-rose-400 font-bold text-[11px] sm:text-xs px-2.5 py-1 rounded-md uppercase tracking-wide">
+                          Série de TV
+                        </span>
+                      ) : (
+                        <span className="bg-zinc-900/80 border border-zinc-800 text-zinc-300 font-medium text-[11px] sm:text-xs px-2.5 py-1 rounded-md">
+                          Filme
+                        </span>
+                      )}
+                    </div>
 
-                    {/* Título Principal */}
-                    <h2 className="text-xl xs:text-2xl sm:text-4xl md:text-5xl font-black font-display text-white tracking-tight leading-tight uppercase text-shadow">
+                    {/* Título Principal Amplo e Imponente */}
+                    <h2 className="text-2xl xs:text-3xl sm:text-5xl md:text-6xl font-black font-display text-white tracking-tight leading-[1.1] uppercase text-shadow drop-shadow-2xl">
                       {movie.title}
                     </h2>
 
-                    {/* Botões Rápidos */}
-                    <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-4 mt-3 sm:mt-6 w-full sm:w-auto">
+                    {/* Botões Rápidos e Interativos */}
+                    <div className="flex flex-col sm:flex-row items-center gap-2.5 sm:gap-4 mt-4 sm:mt-8 w-full sm:w-auto">
                       
                       <button
                         onClick={handlePlayClick}
-                        className="w-full sm:w-auto bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs sm:text-sm px-5 py-2.5 sm:px-7 sm:py-3.5 rounded-lg transition-transform active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-rose-600/20 cursor-pointer focus-visible:ring-4 focus-visible:ring-rose-500 focus-visible:outline-none focus-visible:scale-[1.02]"
+                        className="w-full sm:w-auto bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs sm:text-base px-6 py-3 sm:px-8 sm:py-4 rounded-xl transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2.5 shadow-xl shadow-rose-600/30 cursor-pointer focus-visible:ring-4 focus-visible:ring-rose-500 focus-visible:outline-none tracking-wide"
                         id="btn-modal-play"
                       >
-                        <Play className="w-4.5 h-4.5 sm:w-5 sm:h-5 fill-white" />
+                        <Play className="w-5 h-5 sm:w-6 sm:h-6 fill-white" />
                         <span>
                           {progressState && progressState.progress > 0 
                             ? `Continuar (${Math.round(progressState.progress)}%)` 
@@ -1520,21 +1661,21 @@ export default function MovieDetailModal({
 
                       <button
                         onClick={() => onToggleMyList(movie.id)}
-                        className={`w-full sm:w-auto text-xs sm:text-sm font-semibold px-5 py-2.5 sm:px-5 sm:py-3.5 rounded-lg border transition-all active:scale-95 flex items-center justify-center gap-2 focus-visible:ring-4 focus-visible:ring-rose-500 focus-visible:outline-none focus-visible:scale-[1.02] ${
+                        className={`w-full sm:w-auto text-xs sm:text-base font-semibold px-6 py-3 sm:px-7 sm:py-4 rounded-xl border transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2.5 cursor-pointer focus-visible:ring-4 focus-visible:ring-rose-500 focus-visible:outline-none ${
                           isAddedToList 
                             ? 'bg-rose-500/10 border-rose-500 text-rose-400' 
-                            : 'border-zinc-700 text-zinc-300 hover:text-white hover:border-zinc-400 bg-zinc-900/60'
+                            : 'border-zinc-700/80 text-zinc-200 hover:text-white hover:border-zinc-400 bg-zinc-900/80 backdrop-blur-md'
                         }`}
                         id="btn-modal-mylist"
                       >
                         {isAddedToList ? (
                           <>
-                            <Check className="w-4 h-4 text-rose-500" />
+                            <Check className="w-5 h-5 text-rose-500" />
                             <span>Remover da Lista</span>
                           </>
                         ) : (
                           <>
-                            <Plus className="w-4 h-4" />
+                            <Plus className="w-5 h-5" />
                             <span>Minha Lista</span>
                           </>
                         )}
@@ -1544,7 +1685,7 @@ export default function MovieDetailModal({
                       {progressState && progressState.progress > 0 && (
                         <button
                           onClick={handleResetProgress}
-                          className="w-full sm:w-auto bg-zinc-900/80 border border-zinc-800 text-zinc-400 hover:text-rose-500 px-5 py-2.5 sm:p-3.5 rounded-lg transition-transform active:scale-95 flex items-center justify-center gap-2 focus-visible:ring-4 focus-visible:ring-rose-500 focus-visible:outline-none focus-visible:scale-[1.02]"
+                          className="w-full sm:w-auto bg-zinc-900/80 border border-zinc-800 text-zinc-400 hover:text-rose-500 px-5 py-3 sm:p-4 rounded-xl transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-2 cursor-pointer focus-visible:ring-4 focus-visible:ring-rose-500 focus-visible:outline-none"
                           title="Recomeçar do início (Rebobinar de forma digital)"
                           id="btn-modal-rewind"
                         >
@@ -1558,16 +1699,16 @@ export default function MovieDetailModal({
               )}
             </div>
 
-            {/* --- ÁREA INFERIOR: ABAS DE DETALHES E TRAILER EMBED --- */}
-            <div className="flex-1 overflow-y-auto p-5 sm:p-8 text-left bg-[#0f171e] text-zinc-300 font-sans border-t border-zinc-900">
+            {/* --- ÁREA INFERIOR: ABAS DE DETALHES E TRAILER EMBED (WIDE E ESPAÇOSO ESTILO STREAMING) --- */}
+            <div className="w-full px-5 sm:px-10 lg:px-16 xl:px-20 py-8 sm:py-12 text-left bg-[#0f171e] text-zinc-300 font-sans border-t border-zinc-800/80 min-h-[50vh]">
               
               {/* Menu de Abas Estilo Prime Video */}
-              <div className="flex items-center justify-between border-b border-zinc-800 pb-3 mb-6">
-                <div className="flex gap-6 sm:gap-8 font-sans font-medium text-sm">
+              <div className="flex items-center justify-between border-b border-zinc-800/80 pb-4 mb-8">
+                <div className="flex gap-8 sm:gap-12 font-sans font-bold text-base sm:text-lg">
                   {movie.type === 'series' && (
                     <button
                       onClick={() => setActiveTab('episodes')}
-                      className={`relative pb-3 text-sm transition-all focus:outline-none cursor-pointer ${
+                      className={`relative pb-3 text-sm sm:text-base transition-all focus:outline-none cursor-pointer ${
                         activeTab === 'episodes' 
                           ? 'text-white font-bold' 
                           : 'text-zinc-500 hover:text-zinc-300'
@@ -1581,7 +1722,7 @@ export default function MovieDetailModal({
                   )}
                   <button
                     onClick={() => setActiveTab('related')}
-                    className={`relative pb-3 text-sm transition-all focus:outline-none cursor-pointer ${
+                    className={`relative pb-3 text-sm sm:text-base transition-all focus:outline-none cursor-pointer ${
                         activeTab === 'related' 
                           ? 'text-white font-bold' 
                           : 'text-zinc-500 hover:text-zinc-300'
@@ -1594,7 +1735,7 @@ export default function MovieDetailModal({
                   </button>
                   <button
                     onClick={() => setActiveTab('details')}
-                    className={`relative pb-3 text-sm transition-all focus:outline-none cursor-pointer ${
+                    className={`relative pb-3 text-sm sm:text-base transition-all focus:outline-none cursor-pointer ${
                         activeTab === 'details' 
                           ? 'text-white font-bold' 
                           : 'text-zinc-500 hover:text-zinc-300'
@@ -1609,8 +1750,8 @@ export default function MovieDetailModal({
 
                 {/* Rating Badge */}
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] sm:text-[11px] font-mono px-2 py-0.5 bg-zinc-900 border border-zinc-800 rounded-md text-zinc-400">
-                    TMDB {movie.rating}
+                  <span className="text-xs font-mono px-3 py-1 bg-zinc-900 border border-zinc-800 rounded-md text-amber-400 font-bold">
+                    TMDB ★ {movie.rating}
                   </span>
                 </div>
               </div>
@@ -1679,12 +1820,12 @@ export default function MovieDetailModal({
                       <p className="text-sm text-zinc-400 font-mono uppercase tracking-widest">Sintonizando episódios da fita...</p>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mt-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 sm:gap-8 mt-6">
                       {(tmdbEpisodes[`${movie.id}_s${season}`] || getEpisodesForSeries(movie, season)).map((ep) => (
                         <div
                           key={ep.number}
                           onClick={() => handleEpisodeClick(ep.number)}
-                          className="group flex flex-col bg-[#1a242f]/30 border border-zinc-850 hover:border-rose-500/40 rounded-xl overflow-hidden cursor-pointer hover:shadow-lg hover:shadow-black/60 hover:scale-[1.02] transition-all duration-300 relative"
+                          className="group flex flex-col bg-[#1a242f]/40 border border-zinc-800/80 hover:border-rose-500/50 rounded-2xl overflow-hidden cursor-pointer hover:shadow-2xl hover:shadow-black/80 hover:scale-[1.03] transition-all duration-300 relative"
                         >
                           {/* Imagem do Capítulo (Thumbnail) */}
                           <div className="relative aspect-[16/9] w-full bg-zinc-950 overflow-hidden">
@@ -1696,36 +1837,36 @@ export default function MovieDetailModal({
                             />
                             {/* Play HUD Overlay */}
                             <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all duration-300">
-                              <div className="w-10 h-10 rounded-full bg-rose-600 flex items-center justify-center text-white shadow-xl transform scale-75 group-hover:scale-100 transition-transform duration-300">
-                                <Play className="w-5 h-5 fill-current ml-0.5" />
+                              <div className="w-12 h-12 rounded-full bg-rose-600 flex items-center justify-center text-white shadow-2xl transform scale-75 group-hover:scale-100 transition-transform duration-300">
+                                <Play className="w-6 h-6 fill-current ml-0.5" />
                               </div>
                             </div>
 
                             {/* Duração Badge */}
-                            <div className="absolute bottom-2 right-2 px-1.5 py-0.5 bg-black/80 rounded text-[9px] font-bold font-mono text-zinc-300">
+                            <div className="absolute bottom-2.5 right-2.5 px-2 py-0.5 bg-black/80 backdrop-blur-md rounded-md text-[10px] font-bold font-mono text-zinc-200">
                               {ep.duration}
                             </div>
 
                             {/* Número do Episódio Header Badge */}
-                            <div className="absolute top-2 left-2 px-2 py-0.5 bg-black/80 rounded font-serif text-[10px] font-black italic tracking-widest text-[#10b981]">
+                            <div className="absolute top-2.5 left-2.5 px-2.5 py-1 bg-black/80 backdrop-blur-md rounded-md font-sans text-[11px] font-extrabold uppercase tracking-wider text-rose-400 border border-rose-500/20">
                               EP {ep.number}
                             </div>
                           </div>
 
                           {/* Detalhes do Episódio */}
-                          <div className="p-4 flex-1 flex flex-col justify-between">
-                            <div className="space-y-1.5">
-                              <h4 className="font-bold text-sm text-zinc-100 group-hover:text-rose-400 transition-colors leading-snug line-clamp-1">
+                          <div className="p-5 flex-1 flex flex-col justify-between">
+                            <div className="space-y-2">
+                              <h4 className="font-bold text-base text-zinc-100 group-hover:text-rose-400 transition-colors leading-snug line-clamp-1">
                                 {ep.number}. {ep.title}
                               </h4>
-                              <p className="text-zinc-400 text-xs leading-relaxed font-sans font-normal line-clamp-2">
+                              <p className="text-zinc-400 text-xs sm:text-sm leading-relaxed font-sans font-normal line-clamp-3">
                                 {ep.description}
                               </p>
                             </div>
 
                             {/* Labels e stamps do episódio no rodapé do card */}
-                            <div className="flex items-center gap-2 mt-4 pt-4 border-t border-zinc-900 text-[10px] text-zinc-500 font-mono font-semibold">
-                              <span className="px-1 bg-zinc-900 border border-zinc-800 text-zinc-400 rounded text-[9px] font-bold">
+                            <div className="flex items-center gap-2.5 mt-5 pt-4 border-t border-zinc-800/60 text-[11px] text-zinc-400 font-mono font-medium">
+                              <span className="px-1.5 py-0.5 bg-zinc-900 border border-zinc-800 text-zinc-300 rounded text-[10px] font-bold">
                                 {ep.ratingCode}
                               </span>
                               <span>CC</span>
@@ -1744,18 +1885,18 @@ export default function MovieDetailModal({
               {activeTab === 'related' && (
                 <div className="space-y-6">
                   <div className="flex flex-col">
-                    <h3 className="text-zinc-400 text-xs font-mono font-bold uppercase mb-1 tracking-wider flex items-center gap-1.5 flex-wrap">
-                      <Film className="w-3.5 h-3.5 text-rose-500 animate-pulse" /> Tópicos e Fitas Recomendadas no Mesmo Segmento
+                    <h3 className="text-zinc-300 text-sm font-sans font-bold uppercase mb-1 tracking-wider flex items-center gap-2 flex-wrap">
+                      <Film className="w-4 h-4 text-rose-500 animate-pulse" /> Títulos Recomendados no Mesmo Segmento
                     </h3>
-                    <p className="text-xs text-zinc-500 font-sans mt-0.5">Espécimes catalogados na mesma categoria: <span className="text-rose-400 font-semibold">{movie.category}</span></p>
+                    <p className="text-xs sm:text-sm text-zinc-400 font-sans mt-0.5">Obras recomendadas na mesma categoria: <span className="text-rose-400 font-semibold">{movie.category}</span></p>
                   </div>
  
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6 sm:gap-8 mt-6">
                     {relatedList.length > 0 ? (
                       relatedList.map((rMovie) => (
                         <div 
                           key={rMovie.id}
-                          className="group relative cursor-pointer overflow-hidden rounded-lg bg-zinc-900 border border-zinc-800 hover:border-rose-500 hover:shadow-xl hover:shadow-rose-600/15 focus-visible:ring-4 focus-visible:ring-rose-500 transition-all duration-300"
+                          className="group relative cursor-pointer overflow-hidden rounded-2xl bg-zinc-900/80 border border-zinc-800 hover:border-rose-500 hover:shadow-2xl hover:shadow-rose-600/20 focus-visible:ring-4 focus-visible:ring-rose-500 transition-all duration-300"
                           onClick={() => {
                             if (onSelectMovie) {
                               onSelectMovie(rMovie);
@@ -1772,20 +1913,20 @@ export default function MovieDetailModal({
                             />
                             
                             {/* Tape Sticker Badge in Card */}
-                            <div className="absolute top-1.5 right-1.5 px-1 py-0.5 rounded text-[8px] font-mono font-bold uppercase text-zinc-950 z-20 bg-rose-500 select-none">
+                            <div className="absolute top-2 right-2 px-2 py-0.5 rounded text-[9px] font-mono font-bold uppercase text-zinc-950 z-20 bg-rose-500 select-none shadow-md">
                               {rMovie.category}
                             </div>
 
-                            {/* Retro Tape Overlay on Hover */}
-                            <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/20 to-transparent flex flex-col justify-end p-2.5 sm:p-3 bg-black/35 group-hover:bg-black/50 transition-all">
+                            {/* Overlay no Hover */}
+                            <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/30 to-transparent flex flex-col justify-end p-3 sm:p-4 bg-black/20 group-hover:bg-black/60 transition-all">
                               <div>
-                                <span className="text-[8px] font-mono font-black uppercase tracking-wider text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/10 inline-block">
+                                <span className="text-[9px] font-mono font-black uppercase tracking-wider text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20 inline-block">
                                   {rMovie.type === 'movie' ? 'Filme' : 'Série'}
                                 </span>
-                                <h4 className="text-white font-bold text-[11px] sm:text-xs mt-1.5 font-sans truncate drop-shadow">{rMovie.title}</h4>
-                                <div className="flex items-center justify-between mt-1 text-[9px] text-zinc-400 font-mono">
+                                <h4 className="text-white font-bold text-xs sm:text-sm mt-1.5 font-sans truncate drop-shadow">{rMovie.title}</h4>
+                                <div className="flex items-center justify-between mt-1 text-[10px] sm:text-xs text-zinc-300 font-mono">
                                   <span>{rMovie.year}</span>
-                                  <span className="text-yellow-400 font-bold">★ {rMovie.rating || '8.2'}</span>
+                                  <span className="text-amber-400 font-bold">★ {rMovie.rating || '8.2'}</span>
                                 </div>
                               </div>
                             </div>
@@ -1793,8 +1934,8 @@ export default function MovieDetailModal({
                         </div>
                       ))
                     ) : (
-                      <div className="col-span-full py-10 bg-zinc-900/10 rounded-xl border border-dashed border-zinc-850 text-center text-zinc-500 text-xs font-mono uppercase">
-                        Nenhuma outra fita cadastrada nesta categoria ou segmento
+                      <div className="col-span-full py-14 bg-zinc-900/20 rounded-2xl border border-dashed border-zinc-800 text-center text-zinc-500 text-sm font-mono uppercase">
+                        Nenhuma outra obra cadastrada nesta categoria
                       </div>
                     )}
                   </div>
@@ -1803,7 +1944,7 @@ export default function MovieDetailModal({
 
               {/* Aba de Detalhes Completo */}
               {activeTab === 'details' && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-10">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 sm:gap-12 lg:gap-16 mt-6">
                   
                   {/* Lado Esquerdo/Centro: Sinopse, Opinião */}
                   <div className="md:col-span-2 flex flex-col gap-6">
@@ -1951,7 +2092,7 @@ export default function MovieDetailModal({
                       </h3>
                       <div className="relative aspect-[16/9] w-full max-w-4xl mx-auto rounded-xl overflow-hidden border border-zinc-850 shadow-2xl shadow-black/90 bg-zinc-900">
                         <iframe
-                          src={`${movie.trailerUrl}?controls=1&autoplay=0&mute=0&vq=hd1080&rel=0`}
+                          src={`${smartTrailerUrl || movie.trailerUrl || 'https://www.youtube.com/embed/mqq_H30_u5Q'}?controls=1&autoplay=0&mute=0&vq=hd1080&rel=0`}
                           title={`Trailer de ${movie.title}`}
                           className="w-full h-full border-0 absolute inset-0 font-sans"
                           allowFullScreen
@@ -1969,7 +2110,7 @@ export default function MovieDetailModal({
               )}
             </div>
           </motion.div>
-        </div>
+        </motion.div>
       )}
     </AnimatePresence>
   );

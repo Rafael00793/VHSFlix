@@ -346,5 +346,24 @@
       "tmdbId": 215151
     }
   ],
-  "adguardEnabled": true
+  "adguardEnabled": true,
+  "trailerCache": {
+    "title_deadpool___wolverine": {
+      "videoId": "K6lJSJXSdfI",
+      "trailerUrl": "https://www.youtube.com/embed/K6lJSJXSdfI",
+      "source": "tmdb"
+    },
+    "title_auto_da_compadecida_2": {
+      "videoId": "sSfNUsCLsww",
+      "trailerUrl": "https://www.youtube.com/embed/sSfNUsCLsww",
+      "source": "tmdb"
+    },
+    "title_filme_nacional_independente_sem_tmdb_2024": {
+      "videoId": "rpSgcEE5sHw",
+      "trailerUrl": "https://www.youtube.com/embed/rpSgcEE5sHw",
+      "source": "youtube",
+      "channelTitle": "ingresso.com",
+      "queryUsed": "Filme Nacional Independente Sem TMDB 2024 Trailer Oficial Dublado"
+    }
+  }
 }
