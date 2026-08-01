@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { fetchApi } from '../lib/apiClient';
+
 export interface AbyssResourceFile {
   id?: string;
   name?: string;
@@ -365,24 +367,24 @@ export class AbyssService {
 
       // 1. Tentar através do backend Express (/api/abyss/resources)
       try {
-        const backendUrl = new URL('/api/abyss/resources', window.location.origin);
-        if (cleanQuery) backendUrl.searchParams.set('q', cleanQuery);
-        backendUrl.searchParams.set('type', type);
-        if (folderId) backendUrl.searchParams.set('folderId', folderId);
-        if (currentPageToken) backendUrl.searchParams.set('pageToken', currentPageToken);
-        if (apiKey) backendUrl.searchParams.set('key', apiKey);
+        const queryParams = new URLSearchParams();
+        if (cleanQuery) queryParams.set('q', cleanQuery);
+        queryParams.set('type', type);
+        if (folderId) queryParams.set('folderId', folderId);
+        if (currentPageToken) queryParams.set('pageToken', currentPageToken);
+        if (apiKey) queryParams.set('key', apiKey);
 
         const clientHeaders: Record<string, string> = { 'Accept': 'application/json' };
         if (apiKey) clientHeaders['Authorization'] = `Bearer ${apiKey}`;
 
-        const res = await fetch(backendUrl.toString(), {
+        const res = await fetchApi(`/api/abyss/resources?${queryParams.toString()}`, {
           method: 'GET',
           headers: clientHeaders,
           signal: AbortSignal.timeout(12000)
         });
 
-        if (res.ok) {
-          const data = await res.json();
+        if (res.ok && res.data && res.isJson) {
+          const data = res.data;
           const raw = data.rawResponse || data;
           const extracted = flattenAbyssFiles(raw);
 
@@ -408,20 +410,20 @@ export class AbyssService {
       if (!pageResponse) {
         try {
           const directEndpoint = type === 'folders' ? 'https://api.abyss.to/v1/folders/list' : 'https://api.abyss.to/v1/resources';
-          const directUrl = new URL(directEndpoint);
-          if (cleanQuery) directUrl.searchParams.set('q', cleanQuery);
-          directUrl.searchParams.set('type', type);
+          const queryParams = new URLSearchParams();
+          if (cleanQuery) queryParams.set('q', cleanQuery);
+          queryParams.set('type', type);
           if (folderId) {
-            directUrl.searchParams.set('folderId', folderId);
-            directUrl.searchParams.set('folder_id', folderId);
+            queryParams.set('folderId', folderId);
+            queryParams.set('folder_id', folderId);
           }
-          if (currentPageToken) directUrl.searchParams.set('pageToken', currentPageToken);
-          if (apiKey) directUrl.searchParams.set('key', apiKey);
+          if (currentPageToken) queryParams.set('pageToken', currentPageToken);
+          if (apiKey) queryParams.set('key', apiKey);
 
           const clientHeaders: Record<string, string> = { 'Accept': 'application/json' };
           if (apiKey) clientHeaders['Authorization'] = `Bearer ${apiKey}`;
 
-          const res = await fetch(directUrl.toString(), {
+          const res = await fetchApi(`${directEndpoint}?${queryParams.toString()}`, {
             method: 'GET',
             headers: clientHeaders,
             signal: AbortSignal.timeout(12000)
@@ -431,8 +433,8 @@ export class AbyssService {
             throw new Error('AUTH_ERROR');
           }
 
-          if (res.ok) {
-            const data = await res.json();
+          if (res.ok && res.data && res.isJson) {
+            const data = res.data;
             const extracted = flattenAbyssFiles(data);
             pageResponse = { files: extracted, rawResponse: data, status: res.status };
           }

@@ -1,11 +1,22 @@
 # Configuration file for Netlify Deployment
-# Ensures index.html is never cached and assets are cached optimally.
+# Single Page Application (SPA) routing + Header Optimization
+
+[build]
+  publish = "dist"
+  command = "npm run build"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
 
 [[headers]]
   for = "/*"
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
     Access-Control-Allow-Origin = "*"
+    Access-Control-Allow-Headers = "*"
+    Access-Control-Allow-Methods = "GET, POST, PUT, DELETE, OPTIONS"
 
 [[headers]]
   for = "/assets/*"

@@ -4,6 +4,7 @@
  */
 
 import { Movie, Profile, User } from './types';
+import { fetchApi } from './lib/apiClient';
 
 export const PROFILE_AVATARS = [
   { id: 'av1', name: 'Retro Punk', url: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80', color: 'border-rose-500 text-rose-500' },
@@ -444,12 +445,12 @@ export async function searchMoviesTMDB(query: string, apiKey: string): Promise<a
 
   try {
     const url = `https://api.themoviedb.org/3/search/multi?api_key=${encodeURIComponent(apiKey)}&query=${encodeURIComponent(query)}&language=pt-BR&include_adult=false`;
-    const res = await fetch(url);
-    if (!res.ok) {
+    const res = await fetchApi(url);
+    if (!res.ok || !res.data) {
       throw new Error('Chave TMDB inválida ou limite excedido, usando fallback embutido.');
     }
-    const data = await res.json();
-    return data.results.filter((item: any) => item.media_type === 'movie' || item.media_type === 'tv');
+    const data = res.data;
+    return (data.results || []).filter((item: any) => item.media_type === 'movie' || item.media_type === 'tv');
   } catch (err) {
     console.warn('Erro ao conectar com a API do TMDB. Usando banco simulado.', err);
     return fallbackTMDBSearch(query);
@@ -500,9 +501,9 @@ export async function getMovieDetailsTMDB(id: number, type: 'movie' | 'tv', apiK
 
   try {
     const url = `https://api.themoviedb.org/3/${mediaType}/${id}?api_key=${encodeURIComponent(apiKey)}&language=pt-BR&append_to_response=videos`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error('Não foi possível obter detalhes do TMDB');
-    const data = await res.json();
+    const res = await fetchApi(url);
+    if (!res.ok || !res.data) throw new Error('Não foi possível obter detalhes do TMDB');
+    const data = res.data;
     
     const title = data.title || data.name || 'Título Sem Nome';
     const description = data.overview || 'Sem descrição cadastrada.';

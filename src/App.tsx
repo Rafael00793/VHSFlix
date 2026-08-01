@@ -17,6 +17,7 @@ import { Play, Info, Sparkles, Star, Plus, Check, Shield, HelpCircle, AlertCircl
 import { motion, AnimatePresence } from 'motion/react';
 import { db, saveUsersToFirestore, deleteUserFromFirestore, saveProfilesToFirestore, saveMoviesToFirestore, saveSingleMovieToFirestore, deleteMovieFromFirestore, saveSettingsToFirestore, saveRequestsToFirestore, deleteRequestFromFirestore, handleFirestoreError, OperationType, saveSingleNotificationToFirestore, deleteNotificationFromFirestore } from './lib/firebase';
 import { onSnapshot, collection, doc, setDoc, getDoc } from 'firebase/firestore';
+import { fetchApi } from './lib/apiClient';
 
 
 
@@ -1008,7 +1009,7 @@ export default function App() {
     );
 
     // Registrar fita automaticamente no Abyss
-    fetch('/api/abyss/register', {
+    fetchApi('/api/abyss/register', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -1016,12 +1017,13 @@ export default function App() {
       body: JSON.stringify({
         tmdbId: newMovie.tmdbId,
         type: newMovie.type,
-        title: newMovie.title
+        title: newMovie.title,
+        apiKey: abyssApiKey || localStorage.getItem('vhsflix_abyss_key') || ''
       })
     })
-    .then(res => res.json())
-    .then(data => {
-      if (data.success) {
+    .then(res => {
+      if (res.ok && res.data && res.data.success) {
+        const data = res.data;
         setMovies(prev => prev.map(m => {
           if (m.id === newMovieId) {
             const updated = {
@@ -1056,7 +1058,7 @@ export default function App() {
     saveSingleMovieToFirestore(editedMovie);
 
     // Re-registrar no Abyss em caso de edição (como alteração de TMDB ID ou título)
-    fetch('/api/abyss/register', {
+    fetchApi('/api/abyss/register', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -1064,12 +1066,13 @@ export default function App() {
       body: JSON.stringify({
         tmdbId: editedMovie.tmdbId,
         type: editedMovie.type,
-        title: editedMovie.title
+        title: editedMovie.title,
+        apiKey: abyssApiKey || localStorage.getItem('vhsflix_abyss_key') || ''
       })
     })
-    .then(res => res.json())
-    .then(data => {
-      if (data.success) {
+    .then(res => {
+      if (res.ok && res.data && res.data.success) {
+        const data = res.data;
         setMovies(prev => prev.map(m => {
           if (m.id === editedMovie.id) {
             const updated = {

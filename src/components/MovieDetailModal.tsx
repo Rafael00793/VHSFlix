@@ -9,6 +9,7 @@ import { X, Play, Pause, Plus, Check, Star, RefreshCw, Tv, Clock, HelpCircle, Fi
 import { motion, AnimatePresence } from 'motion/react';
 import { INITIAL_MOVIES } from '../data';
 import { AbyssService } from '../services/abyssService';
+import { fetchApi } from '../lib/apiClient';
 
 export interface Episode {
   number: number;
@@ -488,7 +489,9 @@ export default function MovieDetailModal({
     if (movie.trailerUrl && movie.trailerUrl.includes('youtube.com/embed/')) {
       setSmartTrailerUrl(movie.trailerUrl);
     } else {
-      fetch('/api/trailer', {
+      let isMounted = true;
+
+      fetchApi('/api/trailer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -498,19 +501,44 @@ export default function MovieDetailModal({
           movieId: movie.id
         })
       })
-        .then(res => res.json())
-        .then(data => {
-          if (data.success && data.trailerUrl) {
-            setSmartTrailerUrl(data.trailerUrl);
-            movie.trailerUrl = data.trailerUrl;
-            movie.youtubeVideoId = data.videoId;
+        .then(async res => {
+          if (res.ok && res.data && res.data.success && res.data.trailerUrl) {
+            if (isMounted) {
+              setSmartTrailerUrl(res.data.trailerUrl);
+              movie.trailerUrl = res.data.trailerUrl;
+              movie.youtubeVideoId = res.data.videoId;
+            }
+            return;
           }
+          throw new Error('Fallback to TMDB client direct fetch');
         })
-        .catch(err => {
-          console.warn('[FRONTEND TRAILER] Erro ao carregar trailer inteligente:', err);
+        .catch(async () => {
+          // Client-side fallback via TMDB API (Direct browser query for Netlify deployments)
+          if (movie.tmdbId) {
+            try {
+              const tmdbKey = tmdbApiKey || localStorage.getItem('vhsflix_tmdb_key') || (import.meta as any).env?.VITE_TMDB_API_KEY || '15d20e45d5707b2205d30b4f8f369b74';
+              const tmdbType = movie.type === 'series' ? 'tv' : 'movie';
+              const tmdbRes = await fetchApi(`https://api.themoviedb.org/3/${tmdbType}/${movie.tmdbId}/videos?api_key=${tmdbKey}&language=pt-BR`);
+              
+              if (tmdbRes.ok && tmdbRes.data && Array.isArray(tmdbRes.data.results)) {
+                const videos = tmdbRes.data.results;
+                const trailer = videos.find((v: any) => v.site === 'YouTube' && (v.type === 'Trailer' || v.type === 'Teaser')) || videos[0];
+                if (trailer?.key && isMounted) {
+                  const embedUrl = `https://www.youtube.com/embed/${trailer.key}`;
+                  setSmartTrailerUrl(embedUrl);
+                  movie.trailerUrl = embedUrl;
+                  movie.youtubeVideoId = trailer.key;
+                }
+              }
+            } catch (err) {
+              console.warn('[FRONTEND TRAILER FALLBACK] Erro na busca direta TMDb:', err);
+            }
+          }
         });
+
+      return () => { isMounted = false; };
     }
-  }, [movie?.id, movie?.title, movie?.trailerUrl]);
+  }, [movie?.id, movie?.title, movie?.trailerUrl, tmdbApiKey]);
   
   // Qualidade preferencial de reprodução (persiste em localStorage para máxima fluidez)
   const [preferredQuality, setPreferredQuality] = useState<string>(() => {
@@ -652,7 +680,7 @@ export default function MovieDetailModal({
     const effectiveApiKey = abyssApiKey || localStorage.getItem('vhsflix_abyss_key') || '';
 
     // Engine 1: Tenta backend Express (/api/abyss/register)
-    fetch('/api/abyss/register', {
+    fetchApi('/api/abyss/register', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -667,16 +695,12 @@ export default function MovieDetailModal({
       })
     })
     .then(async res => {
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return res.json();
-    })
-    .then(data => {
-      if (data.success && data.abyssId && (data.usedRealAPI || data.embedUrl)) {
+      if (res.ok && res.data && res.data.success && res.data.abyssId && (res.data.usedRealAPI || res.data.embedUrl)) {
         setIsCheckingSync(false);
-        setAbyssEpisodeId(data.abyssId);
+        setAbyssEpisodeId(res.data.abyssId);
         setSyncFailedMessage(null);
       } else {
-        throw new Error(data.message || 'Need client fallback');
+        throw new Error(res.data?.message || 'Need client fallback');
       }
     })
     .catch(async () => {
@@ -718,7 +742,7 @@ export default function MovieDetailModal({
     const effectiveApiKey = abyssApiKey || localStorage.getItem('vhsflix_abyss_key') || '';
 
     try {
-      const res = await fetch('/api/abyss/register', {
+      const res = await fetchApi('/api/abyss/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -731,15 +755,12 @@ export default function MovieDetailModal({
         })
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && data.abyssId && (data.usedRealAPI || data.embedUrl)) {
-          setIsCheckingSync(false);
-          setAbyssEpisodeId(data.abyssId);
-          setSyncFailedMessage(null);
-          setIsPlaying(true);
-          return;
-        }
+      if (res.ok && res.data && res.data.success && res.data.abyssId && (res.data.usedRealAPI || res.data.embedUrl)) {
+        setIsCheckingSync(false);
+        setAbyssEpisodeId(res.data.abyssId);
+        setSyncFailedMessage(null);
+        setIsPlaying(true);
+        return;
       }
     } catch (err) {
       console.warn('[Abyss Player] Backend indisponível para re-sync, testando client-side...');
@@ -812,9 +833,9 @@ export default function MovieDetailModal({
       setIsLoadingEpisodes(true);
       try {
         const url = `https://api.themoviedb.org/3/tv/${movie.tmdbId}/season/${season}?api_key=${encodeURIComponent(apiKey)}&language=pt-BR`;
-        const res = await fetch(url);
-        if (!res.ok) throw new Error('Falha ao buscar episódios no TMDB');
-        const data = await res.json();
+        const res = await fetchApi(url);
+        if (!res.ok || !res.data) throw new Error('Falha ao buscar episódios no TMDB');
+        const data = res.data;
         
         if (data && data.episodes && !isCancelled) {
           const eps: Episode[] = data.episodes.map((ep: any) => {
