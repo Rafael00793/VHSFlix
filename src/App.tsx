@@ -86,7 +86,22 @@ export default function App() {
 
   const [allProfiles, setAllProfiles] = useState<{ [userId: string]: Profile[] }>(() => {
     const saved = localStorage.getItem('vhsflix_profiles');
-    return saved ? JSON.parse(saved) : DEFAULT_PROFILES;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        const cleaned: { [userId: string]: Profile[] } = {};
+        for (const [uid, profs] of Object.entries(parsed as { [uid: string]: Profile[] })) {
+          if (Array.isArray(profs) && profs.length > 0) {
+            const valid = profs.filter(p => p.name !== 'Crianças VHS' && p.id !== 'p1_2');
+            cleaned[uid] = valid.length > 0 ? [valid[0]] : [profs[0]];
+          }
+        }
+        return cleaned;
+      } catch (e) {
+        return DEFAULT_PROFILES;
+      }
+    }
+    return DEFAULT_PROFILES;
   });
 
   const [movies, setMovies] = useState<Movie[]>(() => {
@@ -145,11 +160,13 @@ export default function App() {
 
   // Perfis ativos atuais
   const [currentUserId, setCurrentUserId] = useState<string>(() => {
-    return localStorage.getItem('vhsflix_current_uid') || INITIAL_USERS[0].id;
+    const isLoggedIn = sessionStorage.getItem('vhs_session_logged_in') === 'true';
+    return isLoggedIn ? (localStorage.getItem('vhsflix_current_uid') || '') : '';
   });
 
   const [currentProfileId, setCurrentProfileId] = useState<string | null>(() => {
-    return localStorage.getItem('vhsflix_current_pid') || null;
+    const isLoggedIn = sessionStorage.getItem('vhs_session_logged_in') === 'true';
+    return isLoggedIn ? (localStorage.getItem('vhsflix_current_pid') || null) : null;
   });
 
   // Abas de navegação do usuário na plataforma
@@ -251,8 +268,9 @@ export default function App() {
       snapshot.forEach((doc) => {
         hasData = true;
         const data = doc.data();
-        if (data.userId && data.profiles) {
-          fetchedProfiles[data.userId] = data.profiles;
+        if (data.userId && data.profiles && Array.isArray(data.profiles) && data.profiles.length > 0) {
+          const valid = data.profiles.filter((p: Profile) => p.name !== 'Crianças VHS' && p.id !== 'p1_2');
+          fetchedProfiles[data.userId] = valid.length > 0 ? [valid[0]] : [data.profiles[0]];
         }
       });
       if (!hasData) {
@@ -456,7 +474,8 @@ export default function App() {
 
   // --- BUSCADORES AUXILIARES ---
   const activeUser = useMemo(() => {
-    return users.find(u => u.id === currentUserId) || users[0];
+    if (!currentUserId) return null;
+    return users.find(u => u.id === currentUserId) || null;
   }, [users, currentUserId]);
 
   const isUserExpired = useMemo(() => {
@@ -485,7 +504,48 @@ export default function App() {
     }
   }, [activeUser]);
 
+  // Efeito para garantir estritamente 1 perfil por usuário e auto-seleção imediata do perfil único
+  useEffect(() => {
+    if (!currentUserId) return;
+
+    const userObj = users.find(u => u.id === currentUserId);
+    const userProfs = allProfiles[currentUserId] || [];
+    const validProfs = userProfs.filter(p => p.name !== 'Crianças VHS' && p.id !== 'p1_2');
+
+    if (validProfs.length === 0) {
+      // Cria 1 perfil único para o usuário com o nome e avatar da conta
+      const newProf: Profile = {
+        id: 'p_' + Date.now(),
+        name: userObj ? userObj.name.split(' ')[0] : 'Meu Perfil',
+        avatarUrl: userObj?.avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
+        myList: [],
+        watchHistory: {}
+      };
+      setAllProfiles(prev => {
+        const updated = { ...prev, [currentUserId]: [newProf] };
+        saveProfilesToFirestore({ [currentUserId]: [newProf] });
+        return updated;
+      });
+      setCurrentProfileId(newProf.id);
+    } else {
+      const singleProf = validProfs[0];
+      // Se houver perfis extras, remove os extras e mantém somente o único
+      if (userProfs.length > 1 || validProfs.length !== userProfs.length) {
+        setAllProfiles(prev => {
+          const updated = { ...prev, [currentUserId]: [singleProf] };
+          saveProfilesToFirestore({ [currentUserId]: [singleProf] });
+          return updated;
+        });
+      }
+      
+      if (currentProfileId !== singleProf.id) {
+        setCurrentProfileId(singleProf.id);
+      }
+    }
+  }, [currentUserId, allProfiles, users, currentProfileId]);
+
   const activeProfile = useMemo(() => {
+    if (!currentUserId || !currentProfileId) return null;
     const userProfs = allProfiles[currentUserId] || [];
     return userProfs.find(p => p.id === currentProfileId) || null;
   }, [allProfiles, currentUserId, currentProfileId]);
@@ -689,6 +749,14 @@ export default function App() {
     setCurrentUserId(userId);
     setCurrentProfileId(null); // Reseta perfil para escolher
     setIsAdminView(false);
+    if (userId) {
+      localStorage.setItem('vhsflix_current_uid', userId);
+      sessionStorage.setItem('vhs_session_logged_in', 'true');
+    } else {
+      localStorage.removeItem('vhsflix_current_uid');
+      localStorage.removeItem('vhsflix_current_pid');
+      sessionStorage.removeItem('vhs_session_logged_in');
+    }
   };
 
   const handleAddUser = (name: string, email: string, password: string, isAdmin: boolean, avatarUrl?: string): string | null => {
@@ -839,16 +907,29 @@ export default function App() {
   const handleEditProfile = (profileId: string, name: string, avatarUrl: string) => {
     setAllProfiles(prev => {
       const userList = prev[currentUserId] || [];
+      const updatedList = userList.map(p => p.id === profileId ? { ...p, name, avatarUrl } : p);
+      saveProfilesToFirestore({ [currentUserId]: updatedList });
       return {
         ...prev,
-        [currentUserId]: userList.map(p => p.id === profileId ? { ...p, name, avatarUrl } : p)
+        [currentUserId]: updatedList
       };
+    });
+
+    // Sincroniza foto e nome do perfil com a conta de usuário
+    setUsers(prev => {
+      const updatedUsers = prev.map(u => u.id === currentUserId ? { ...u, avatarUrl, name: name || u.name } : u);
+      saveUsersToFirestore(updatedUsers);
+      return updatedUsers;
     });
   };
 
   const handleLogoutProfile = () => {
     setCurrentProfileId(null);
+    setCurrentUserId('');
     setIsAdminView(false);
+    localStorage.removeItem('vhsflix_current_pid');
+    localStorage.removeItem('vhsflix_current_uid');
+    sessionStorage.removeItem('vhs_session_logged_in');
   };
 
   // --- TRATADORES DE LISTA E WATCH HISTORY (LOCALSTORAGE ENGINE) ---
@@ -1355,9 +1436,6 @@ export default function App() {
               <button
                 onClick={() => {
                   handleLogoutProfile();
-                  setCurrentUserId('');
-                  sessionStorage.removeItem('vhs_session_logged_in');
-                  window.location.reload();
                 }}
                 className="w-full bg-zinc-900 hover:bg-zinc-850 text-zinc-400 hover:text-white py-3 px-4 rounded-lg text-sm font-semibold transition-all cursor-pointer border border-zinc-800"
               >
@@ -1376,7 +1454,7 @@ export default function App() {
             profiles={allProfiles[currentUserId] || []}
             onSelectProfile={handleSelectProfile}
             onLogoutProfile={handleLogoutProfile}
-            onSwitchUser={() => setCurrentProfileId(null)}
+            onSwitchUser={handleLogoutProfile}
             searchVal={searchVal}
             onSearchChange={setSearchVal}
             activeTab={activeTab}

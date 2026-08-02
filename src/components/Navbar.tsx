@@ -336,71 +336,33 @@ export default function Navbar({
             <AnimatePresence>
               {showProfileDropdown && (
                 <motion.div
-                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                    className="absolute right-0 mt-2.5 w-60 bg-zinc-950 border border-zinc-800 rounded-lg shadow-2xl z-50 overflow-hidden font-mono text-xs"
-                  >
-                    {/* Lista rápida de Troca de Perfis */}
-                    <div className="p-3 border-b border-zinc-900 bg-zinc-900/30">
-                      <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider mb-2.5">Mudar Perfil</p>
-                      <div className="flex flex-col gap-2">
-                        {profiles
-                          .filter(p => p.id !== activeProfile.id)
-                          .map(p => (
-                            <button
-                              key={p.id}
-                              onClick={() => {
-                                onSelectProfile(p.id);
-                                setShowProfileDropdown(false);
-                              }}
-                              className="flex items-center gap-2.5 text-zinc-400 hover:text-white text-left transition-colors font-sans py-0.5 group"
-                              id={`switch-profile-to-${p.id}`}
-                            >
-                              <img
-                                src={p.avatarUrl}
-                                alt={p.name}
-                                className="w-6 h-6 rounded object-cover border border-zinc-800 group-hover:border-rose-500 transition-all select-none pointer-events-none"
-                                referrerPolicy="no-referrer"
-                                draggable="false"
-                              />
-                              <span className="font-medium text-xs truncate">{p.name}</span>
-                            </button>
-                          ))}
+                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                  className="absolute right-0 mt-2.5 w-64 bg-zinc-950 border border-zinc-800 rounded-xl shadow-2xl z-50 overflow-hidden font-mono text-xs"
+                >
+                  {user.isAdmin ? (
+                    /* Menu Exclusivo para o Administrador (Rafael Gusmão) - Apenas o Painel de Controle */
+                    <div className="p-3 bg-zinc-950 flex flex-col gap-2">
+                      <div className="px-1 py-1 text-[10px] text-zinc-500 font-bold uppercase tracking-wider flex items-center justify-between border-b border-zinc-900 pb-2">
+                        <span>Painel do Administrador</span>
+                        <span className="text-rose-500 bg-rose-500/10 px-1.5 py-0.5 rounded text-[9px] border border-rose-500/20">ADM</span>
                       </div>
-                    </div>
-
-                    {/* Links de Gerenciamento e Configuração */}
-                    <div className="p-2 flex flex-col gap-1">
-                      {/* Área Admin (só para admins cadastrados) */}
-                      {user.isAdmin && (
-                        <button
-                          onClick={() => {
-                            onToggleAdminView(!isAdminView);
-                            setShowProfileDropdown(false);
-                          }}
-                          className={`w-full py-2 px-3 rounded text-left transition-colors flex items-center gap-2 ${
-                            isAdminView
-                              ? 'bg-rose-950/20 text-rose-500 hover:bg-rose-950/30 font-bold border border-rose-500/20'
-                              : 'text-zinc-400 hover:text-rose-500 hover:bg-zinc-900'
-                          }`}
-                          id="nav-admin-panel-link"
-                        >
-                          <Shield className="w-3.5 h-3.5 text-rose-500" />
-                          <span>{isAdminView ? 'Sair do Painel Admin' : 'Painel de Controle'}</span>
-                        </button>
-                      )}
 
                       <button
                         onClick={() => {
-                          onLogoutProfile();
+                          onToggleAdminView(!isAdminView);
                           setShowProfileDropdown(false);
                         }}
-                        className="w-full text-zinc-400 hover:text-white hover:bg-zinc-900 py-2 px-3 rounded text-left transition-colors flex items-center gap-2"
-                        id="btn-logout-profile"
+                        className={`w-full py-3 px-4 rounded-lg font-bold transition-all flex items-center justify-center gap-2.5 shadow-lg cursor-pointer text-xs font-sans uppercase tracking-wider ${
+                          isAdminView
+                            ? 'bg-rose-950/40 text-rose-400 border border-rose-500/40 hover:bg-rose-900/60 shadow-rose-950/20'
+                            : 'bg-zinc-900 hover:bg-zinc-850 text-white border border-zinc-750 hover:border-rose-500/60 shadow-black'
+                        }`}
+                        id="nav-admin-panel-link"
                       >
-                        <Sliders className="w-3.5 h-3.5 text-zinc-500" />
-                        <span>Gerenciar Perfis</span>
+                        <Shield className="w-4 h-4 text-rose-500 animate-pulse" />
+                        <span>{isAdminView ? 'Sair do Painel Admin' : 'Painel de Controle'}</span>
                       </button>
 
                       <button
@@ -408,40 +370,77 @@ export default function Navbar({
                           onSwitchUser();
                           setShowProfileDropdown(false);
                         }}
-                        className="w-full text-zinc-400 hover:text-white hover:bg-zinc-900 py-2 px-3 rounded text-left transition-colors flex items-center gap-2 border-t border-zinc-900 mt-1"
+                        className="w-full text-zinc-500 hover:text-zinc-300 py-1.5 px-2 text-center text-[10px] transition-colors mt-1"
                         id="btn-switch-account-alt"
                       >
-                        <UserCheck className="w-3.5 h-3.5 text-zinc-500" />
-                        <span>Mudar de Conta</span>
+                        Mudar de Conta
                       </button>
                     </div>
+                  ) : (
+                    /* Menu Exclusivo para Usuários - Verde Neon Vibrante com Dias de Acesso */
+                    <div className="p-3.5 bg-zinc-950/95 border border-[#00ff66]/40 rounded-xl shadow-[0_0_25px_rgba(0,255,102,0.18)] flex flex-col font-sans">
+                      <div className="flex items-center justify-between text-[10px] font-mono font-bold uppercase tracking-wider text-[#00ff66] mb-2 drop-shadow-[0_0_6px_rgba(0,255,102,0.8)] border-b border-[#00ff66]/20 pb-2">
+                        <span className="flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-[#00ff66] shadow-[0_0_8px_#00ff66] animate-pulse" />
+                          Tempo de Acesso
+                        </span>
+                        <span className="text-zinc-400 font-normal">VHSFLIX</span>
+                      </div>
 
-                    {/* Informações de Assinatura */}
-                    {!user.isAdmin && (
-                      <div className="px-3 py-2.5 border-t border-zinc-900 bg-zinc-950/40 flex flex-col gap-1.5 select-none font-sans">
-                        <div className="flex justify-between items-center text-[10px] font-mono">
-                          <span className="text-zinc-500 font-bold uppercase tracking-wider">Período de Acesso</span>
-                          <span className={`font-bold ${getSubscriptionDaysLeft(user) <= 5 ? 'text-rose-500 font-black' : 'text-emerald-500'}`}>
-                            {getSubscriptionDaysLeft(user)} dias restantes
-                          </span>
+                      {/* Display em Destaque Verde Neon Vibrante */}
+                      <div className="my-2 p-3 bg-[#00ff66]/10 border-2 border-[#00ff66] rounded-xl text-center shadow-[0_0_20px_rgba(0,255,102,0.2)]">
+                        <div className="text-3xl font-black text-[#00ff66] tracking-tight font-mono drop-shadow-[0_0_12px_rgba(0,255,102,0.9)]">
+                          {getSubscriptionDaysLeft(user)} {getSubscriptionDaysLeft(user) === 1 ? 'DIA' : 'DIAS'}
                         </div>
-                        <div className="w-full bg-zinc-900 h-1.5 rounded-full overflow-hidden">
-                          <div 
-                            className={`h-full rounded-full transition-all duration-500 ${getSubscriptionDaysLeft(user) <= 5 ? 'bg-rose-500' : 'bg-emerald-500'}`} 
-                            style={{ width: `${Math.min(100, (getSubscriptionDaysLeft(user) / 30) * 100)}%` }}
-                          />
+                        <div className="text-[10px] font-extrabold text-[#00ff66] uppercase tracking-widest mt-0.5 drop-shadow-[0_0_5px_rgba(0,255,102,0.6)]">
+                          DE ACESSO RESTANTES
                         </div>
                       </div>
-                    )}
 
-                    {/* Rodapé Logged In */}
-                    <div className="bg-zinc-900/40 p-2.5 border-t border-zinc-900 text-[10px] text-zinc-500 flex justify-between items-center">
-                      <span className="truncate max-w-[120px]" title={user.email}>{user.name}</span>
-                      <span className="bg-zinc-900 px-1 py-0.5 rounded border border-zinc-800 text-[9px]">
-                        {user.isAdmin ? 'ADMIN' : 'USER'}
-                      </span>
+                      {/* Barra de Progresso Neon */}
+                      <div className="w-full bg-zinc-900 h-2.5 rounded-full overflow-hidden border border-[#00ff66]/40 shadow-inner my-1.5">
+                        <div 
+                          className="h-full bg-[#00ff66] rounded-full transition-all duration-500 shadow-[0_0_10px_#00ff66]" 
+                          style={{ width: `${Math.min(100, (getSubscriptionDaysLeft(user) / 30) * 100)}%` }}
+                        />
+                      </div>
+
+                      <div className="mt-3 pt-2.5 border-t border-zinc-900 flex flex-col gap-1.5">
+                        <button
+                          onClick={() => {
+                            onLogoutProfile();
+                            setShowProfileDropdown(false);
+                          }}
+                          className="w-full text-zinc-400 hover:text-white hover:bg-zinc-900 py-2 px-3 rounded-lg text-xs transition-colors flex items-center justify-between border border-zinc-850"
+                          id="btn-logout-profile"
+                        >
+                          <span className="flex items-center gap-2">
+                            <Sliders className="w-3.5 h-3.5 text-zinc-500" />
+                            <span>Gerenciar Perfis</span>
+                          </span>
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            onSwitchUser();
+                            setShowProfileDropdown(false);
+                          }}
+                          className="w-full text-zinc-400 hover:text-white hover:bg-zinc-900 py-2 px-3 rounded-lg text-xs transition-colors flex items-center justify-between border border-zinc-850"
+                          id="btn-switch-account-alt"
+                        >
+                          <span className="flex items-center gap-2">
+                            <UserCheck className="w-3.5 h-3.5 text-zinc-500" />
+                            <span>Mudar de Conta</span>
+                          </span>
+                        </button>
+                      </div>
+
+                      <div className="mt-2.5 text-[10px] text-zinc-500 text-center font-mono truncate pt-1 border-t border-zinc-900/60">
+                        Logado como: <strong className="text-zinc-300">{user.name}</strong>
+                      </div>
                     </div>
-                  </motion.div>
+                  )}
+                </motion.div>
               )}
             </AnimatePresence>
           </div>

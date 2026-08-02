@@ -5,11 +5,18 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Movie, WatchProgress } from '../types';
-import { X, Play, Pause, Plus, Check, Star, RefreshCw, Tv, Clock, HelpCircle, Film, Sparkles, AlertCircle, ExternalLink, Maximize, Shield, Sliders, ThumbsUp, ThumbsDown, ChevronDown, ArrowLeft, Settings, Volume2, VolumeX } from 'lucide-react';
+import { X, Play, Pause, Plus, Check, Star, RefreshCw, Tv, Clock, HelpCircle, Film, Sparkles, AlertCircle, ExternalLink, Maximize, Shield, Sliders, ThumbsUp, ThumbsDown, ChevronDown, ArrowLeft, Settings, Volume2, VolumeX, User, Users } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { INITIAL_MOVIES } from '../data';
 import { AbyssService } from '../services/abyssService';
 import { fetchApi } from '../lib/apiClient';
+
+export interface CastMember {
+  id: number;
+  name: string;
+  character: string;
+  profileUrl: string | null;
+}
 
 export interface Episode {
   number: number;
@@ -477,10 +484,77 @@ export default function MovieDetailModal({
   const [isConfiguringPlayer, setIsConfiguringPlayer] = useState(false);
   const [season, setSeason] = useState<number>(1);
   const [episode, setEpisode] = useState<number>(1);
-  const [activeTab, setActiveTab] = useState<'episodes' | 'related' | 'details'>('episodes');
+  const [activeTab, setActiveTab] = useState<'episodes' | 'related' | 'details' | 'cast'>('episodes');
   const [isSeasonDropdownOpen, setIsSeasonDropdownOpen] = useState(false);
   const [abyssEpisodeId, setAbyssEpisodeId] = useState<string>('');
   const [smartTrailerUrl, setSmartTrailerUrl] = useState<string>(movie?.trailerUrl || '');
+
+  // Estado para elenco do TMDB com foto, ator e personagem
+  const [castList, setCastList] = useState<CastMember[]>([]);
+  const [isLoadingCast, setIsLoadingCast] = useState<boolean>(false);
+
+  // Efeito para busca de Elenco Principal do TMDB
+  useEffect(() => {
+    if (!movie) {
+      setCastList([]);
+      return;
+    }
+
+    let isMounted = true;
+    setIsLoadingCast(true);
+
+    async function fetchCastFromTMDB() {
+      const keyToUse = tmdbApiKey || localStorage.getItem('vhsflix_tmdb_key') || '9ba478ffe785bbc34fa2b10c46296580';
+      const mediaType = movie.type === 'series' ? 'tv' : 'movie';
+      let targetTmdbId = movie.tmdbId;
+
+      try {
+        // Se a mídia não possui tmdbId cadastrado, faz busca pelo título no TMDB
+        if (!targetTmdbId && keyToUse) {
+          const searchRes = await fetchApi(
+            `https://api.themoviedb.org/3/search/${mediaType}?api_key=${encodeURIComponent(keyToUse)}&query=${encodeURIComponent(movie.title)}&language=pt-BR`
+          );
+          if (searchRes.ok && searchRes.data && Array.isArray(searchRes.data.results) && searchRes.data.results.length > 0) {
+            targetTmdbId = searchRes.data.results[0].id;
+          }
+        }
+
+        if (targetTmdbId && keyToUse) {
+          const creditsRes = await fetchApi(
+            `https://api.themoviedb.org/3/${mediaType}/${targetTmdbId}/credits?api_key=${encodeURIComponent(keyToUse)}&language=pt-BR`
+          );
+
+          if (creditsRes.ok && creditsRes.data && Array.isArray(creditsRes.data.cast)) {
+            const castData: CastMember[] = creditsRes.data.cast.slice(0, 24).map((person: any) => ({
+              id: person.id,
+              name: person.name,
+              character: person.character || person.roles?.[0]?.character || '',
+              profileUrl: person.profile_path ? `https://image.tmdb.org/t/p/w300${person.profile_path}` : null
+            }));
+
+            if (isMounted) {
+              setCastList(castData);
+              setIsLoadingCast(false);
+              return;
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Erro ao buscar elenco no TMDB:', err);
+      }
+
+      if (isMounted) {
+        setCastList([]);
+        setIsLoadingCast(false);
+      }
+    }
+
+    fetchCastFromTMDB();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [movie?.id, movie?.tmdbId, movie?.title, movie?.type, tmdbApiKey]);
 
   // Efeito para busca e sincronização inteligente de trailers
   useEffect(() => {
@@ -1882,6 +1956,19 @@ export default function MovieDetailModal({
                       <motion.div layoutId="activeTabUnderline" className="absolute bottom-0 left-0 right-0 h-0.5 bg-rose-500 rounded-full" />
                     )}
                   </button>
+                  <button
+                    onClick={() => setActiveTab('cast')}
+                    className={`relative pb-3 text-sm sm:text-base transition-all focus:outline-none cursor-pointer ${
+                        activeTab === 'cast' 
+                          ? 'text-white font-bold' 
+                          : 'text-zinc-500 hover:text-zinc-300'
+                      }`}
+                  >
+                    Elenco
+                    {activeTab === 'cast' && (
+                      <motion.div layoutId="activeTabUnderline" className="absolute bottom-0 left-0 right-0 h-0.5 bg-rose-500 rounded-full" />
+                    )}
+                  </button>
                 </div>
 
                 {/* Rating Badge */}
@@ -2201,23 +2288,122 @@ export default function MovieDetailModal({
                           </div>
                         )}
                         
-                        {/* Elenco Fictício ou Real com base nas imagens do Prime Video */}
+                        {/* Elenco Principal do TMDB */}
                         <div className="border-t border-zinc-850 pt-3">
                           <span className="text-zinc-500 font-mono uppercase font-bold text-[10px] block mb-2.5 tracking-wider">
                             Elenco Principal
                           </span>
-                          <p className="text-xs text-zinc-300 leading-relaxed">
-                            {movie.id === 'm13' ? (
-                              "Sadie Soverall, Matt Cornett, Michael Bradway"
-                            ) : movie.tmdbId === 66732 ? (
-                              "Millie Bobby Brown, Winona Ryder, David Harbour, Finn Wolfhard"
-                            ) : (
-                              "Atores da fita, Diretores independentes, Equipe de gravação VHS"
-                            )}
+                          <p className="text-xs text-zinc-300 leading-relaxed font-sans font-medium">
+                            {castList.length > 0 
+                              ? castList.slice(0, 5).map(a => a.name).join(', ')
+                              : movie.id === 'm13' ? "Sadie Soverall, Matt Cornett, Michael Bradway"
+                              : movie.tmdbId === 66732 ? "Millie Bobby Brown, Winona Ryder, David Harbour, Finn Wolfhard"
+                              : "Atores da fita, Diretores independentes, Equipe de gravação VHS"
+                            }
                           </p>
                         </div>
                       </div>
                     </div>
+                  </div>
+
+                  {/* --- SEÇÃO DE ELENCO PRINCIPAL TMDB (COM FOTOS, ATORES E PERSONAGENS IGUAL AO TMDB) --- */}
+                  <div className="col-span-full border-t border-zinc-800/80 pt-8 mt-2">
+                    <div className="flex items-center justify-between mb-5">
+                      <div>
+                        <h3 className="text-lg sm:text-xl font-bold font-sans text-white tracking-tight flex items-center gap-2">
+                          <Users className="w-5 h-5 text-rose-500" /> Elenco principal
+                        </h3>
+                        <p className="text-xs text-zinc-400 font-sans mt-0.5">
+                          Atores e papéis em destaque no filme/série obtidos do TMDB
+                        </p>
+                      </div>
+
+                      {/* Botões de Rolagem Lateral */}
+                      <div className="hidden sm:flex items-center gap-2">
+                        <button
+                          onClick={() => {
+                            const el = document.getElementById('cast-scroll-container');
+                            if (el) el.scrollBy({ left: -360, behavior: 'smooth' });
+                          }}
+                          className="p-2 rounded-lg bg-zinc-900 border border-zinc-800 hover:border-rose-500 text-zinc-300 hover:text-white transition-all cursor-pointer"
+                          title="Rolar para esquerda"
+                        >
+                          <ChevronDown className="w-4 h-4 rotate-90" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            const el = document.getElementById('cast-scroll-container');
+                            if (el) el.scrollBy({ left: 360, behavior: 'smooth' });
+                          }}
+                          className="p-2 rounded-lg bg-zinc-900 border border-zinc-800 hover:border-rose-500 text-zinc-300 hover:text-white transition-all cursor-pointer"
+                          title="Rolar para direita"
+                        >
+                          <ChevronDown className="w-4 h-4 -rotate-90" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {isLoadingCast ? (
+                      <div className="flex items-center gap-4 overflow-x-auto pb-4 no-scrollbar">
+                        {[1, 2, 3, 4, 5, 6].map(i => (
+                          <div key={i} className="flex-shrink-0 w-32 sm:w-36 md:w-40 bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden animate-pulse">
+                            <div className="aspect-[2/3] bg-zinc-800" />
+                            <div className="p-3 space-y-2">
+                              <div className="h-3.5 bg-zinc-800 rounded w-3/4" />
+                              <div className="h-2.5 bg-zinc-850 rounded w-1/2" />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : castList.length > 0 ? (
+                      <div
+                        id="cast-scroll-container"
+                        className="flex items-stretch gap-3.5 sm:gap-4 overflow-x-auto pb-4 pt-1 snap-x snap-mandatory scroll-smooth no-scrollbar"
+                      >
+                        {castList.map(actor => (
+                          <div
+                            key={actor.id}
+                            className="snap-start flex-shrink-0 w-32 sm:w-36 md:w-40 bg-zinc-900/90 border border-zinc-800/80 hover:border-rose-500/60 rounded-xl overflow-hidden shadow-xl hover:shadow-2xl hover:scale-[1.03] transition-all duration-300 group flex flex-col justify-between"
+                          >
+                            {/* Foto do Ator */}
+                            <div className="relative aspect-[2/3] w-full bg-zinc-950 overflow-hidden">
+                              {actor.profileUrl ? (
+                                <img
+                                  src={actor.profileUrl}
+                                  alt={actor.name}
+                                  referrerPolicy="no-referrer"
+                                  className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500"
+                                  loading="lazy"
+                                />
+                              ) : (
+                                <div className="w-full h-full flex flex-col items-center justify-center bg-zinc-900 text-zinc-600 p-2 text-center">
+                                  <User className="w-10 h-10 mb-1 opacity-40" />
+                                  <span className="text-[10px] font-mono uppercase text-zinc-500">Sem Foto</span>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Nome e Personagem */}
+                            <div className="p-3 flex flex-col justify-between flex-1 bg-[#162029] border-t border-zinc-800/60 text-left">
+                              <div>
+                                <h4 className="font-bold text-xs sm:text-sm text-zinc-100 group-hover:text-rose-400 transition-colors line-clamp-2 leading-tight font-sans">
+                                  {actor.name}
+                                </h4>
+                                {actor.character && (
+                                  <p className="text-[11px] text-zinc-400 mt-1 line-clamp-2 font-normal leading-tight font-sans">
+                                    {actor.character}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="p-6 bg-zinc-900/40 rounded-xl border border-zinc-850 text-center text-zinc-500 text-xs font-mono">
+                        Nenhum dado de elenco disponível para esta fita no momento.
+                      </div>
+                    )}
                   </div>
 
                   {/* Seção Widescreen para o Trailer - Ampla, Grande e Imersiva! */}
@@ -2240,6 +2426,85 @@ export default function MovieDetailModal({
                       <span className="text-[11px] text-zinc-500 font-mono mt-4 block text-center uppercase tracking-wider">
                         Alterne para Tela Cheia no player para melhor experiência cinematográfica
                       </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Aba de Elenco Completo em Grid */}
+              {activeTab === 'cast' && (
+                <div className="space-y-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-zinc-800/80 pb-4">
+                    <div>
+                      <h3 className="text-zinc-200 text-base sm:text-lg font-sans font-bold flex items-center gap-2">
+                        <Users className="w-5 h-5 text-rose-500" /> Elenco Principal e Secundário
+                      </h3>
+                      <p className="text-xs sm:text-sm text-zinc-400 font-sans mt-0.5">
+                        Lista completa de atores e seus respectivos personagens obtidos do TMDB
+                      </p>
+                    </div>
+
+                    <span className="text-xs font-mono text-rose-400 bg-rose-500/10 px-3 py-1 rounded-full border border-rose-500/20 w-fit">
+                      {castList.length} Atores Catalogados
+                    </span>
+                  </div>
+
+                  {isLoadingCast ? (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4 sm:gap-6 mt-6">
+                      {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
+                        <div key={i} className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden animate-pulse">
+                          <div className="aspect-[2/3] bg-zinc-800" />
+                          <div className="p-3 space-y-2">
+                            <div className="h-3.5 bg-zinc-800 rounded w-3/4" />
+                            <div className="h-2.5 bg-zinc-850 rounded w-1/2" />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : castList.length > 0 ? (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-4 sm:gap-6 mt-6">
+                      {castList.map(actor => (
+                        <div
+                          key={actor.id}
+                          className="flex flex-col bg-zinc-900/90 border border-zinc-800/80 hover:border-rose-500/60 rounded-xl overflow-hidden shadow-lg hover:shadow-2xl hover:scale-[1.03] transition-all duration-300 group"
+                        >
+                          {/* Foto do Ator */}
+                          <div className="relative aspect-[2/3] w-full bg-zinc-950 overflow-hidden">
+                            {actor.profileUrl ? (
+                              <img
+                                src={actor.profileUrl}
+                                alt={actor.name}
+                                referrerPolicy="no-referrer"
+                                className="w-full h-full object-cover object-top group-hover:scale-105 transition-transform duration-500"
+                                loading="lazy"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex flex-col items-center justify-center bg-zinc-900 text-zinc-600 p-2 text-center">
+                                <User className="w-10 h-10 mb-1 opacity-40" />
+                                <span className="text-[10px] font-mono uppercase text-zinc-500">Sem Foto</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Nome e Personagem */}
+                          <div className="p-3 flex flex-col justify-between flex-1 bg-[#162029] border-t border-zinc-800/60 text-left">
+                            <div>
+                              <h4 className="font-bold text-xs sm:text-sm text-zinc-100 group-hover:text-rose-400 transition-colors line-clamp-2 leading-snug font-sans">
+                                {actor.name}
+                              </h4>
+                              {actor.character && (
+                                <p className="text-[11px] text-zinc-400 mt-1 line-clamp-2 font-normal leading-tight font-sans">
+                                  {actor.character}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="py-16 bg-zinc-900/20 rounded-2xl border border-dashed border-zinc-800 text-center text-zinc-500 text-sm font-mono uppercase">
+                      Nenhum integrante do elenco encontrado nesta obra.
                     </div>
                   )}
                 </div>

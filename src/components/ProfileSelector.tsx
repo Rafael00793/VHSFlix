@@ -69,8 +69,17 @@ export default function ProfileSelector({
   onEditProfile
 }: ProfileSelectorProps) {
   const [isAccountLoggedIn, setIsAccountLoggedIn] = useState(() => {
-    return sessionStorage.getItem('vhs_session_logged_in') === 'true';
+    return !!currentUserId && sessionStorage.getItem('vhs_session_logged_in') === 'true';
   });
+
+  // Sincroniza estado de login da conta com a seleção de usuário
+  React.useEffect(() => {
+    if (!currentUserId) {
+      setIsAccountLoggedIn(false);
+    } else if (sessionStorage.getItem('vhs_session_logged_in') === 'true') {
+      setIsAccountLoggedIn(true);
+    }
+  }, [currentUserId]);
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [loginError, setLoginError] = useState('');
@@ -405,18 +414,6 @@ export default function ProfileSelector({
                 transition={{ duration: 0.3, delay: idx * 0.08 }}
                 className="group relative flex flex-col items-center"
               >
-                {/* Botão de Exclusão (Se modo gerenciamento e não for único) */}
-                {isManagingProfiles && profiles.length > 1 && (
-                  <button
-                    onClick={() => onDeleteProfile(profile.id)}
-                    className="absolute -top-3 -right-3 bg-red-600 hover:bg-red-700 text-white p-2.5 rounded-full z-30 shadow-2xl border-2 border-zinc-950 transition-transform active:scale-95 cursor-pointer"
-                    title="Excluir Perfil"
-                    id={`delete-profile-${profile.id}`}
-                  >
-                    <Trash className="w-5 h-5" />
-                  </button>
-                )}
-
                 {/* Caixa da Capa do Perfil (Netflix Avatar Box) */}
                 <button
                   onClick={() => {
@@ -452,7 +449,7 @@ export default function ProfileSelector({
                   ) : (
                     <div className="absolute inset-0 bg-black/75 flex flex-col items-center justify-center">
                       <Edit className="w-7 h-7 text-white mb-2 animate-pulse" />
-                      <span className="text-xs text-zinc-200 font-mono font-bold uppercase tracking-widest bg-rose-600/20 px-2.5 py-1 rounded-md border border-rose-500/40">Editar</span>
+                      <span className="text-xs text-zinc-200 font-mono font-bold uppercase tracking-widest bg-rose-600/20 px-2.5 py-1 rounded-md border border-rose-500/40">Editar Foto</span>
                     </div>
                   )}
                 </button>
@@ -470,48 +467,35 @@ export default function ProfileSelector({
                 </div>
               </motion.div>
             ))}
-
-            {/* Adicionar Perfil */}
-            {profiles.length < (activeUser.isAdmin ? 5 : 1) && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="flex flex-col items-center"
-              >
-                <button
-                  onClick={() => setShowAddProfileModal(true)}
-                  className="w-36 h-36 sm:w-44 sm:h-44 md:w-48 md:h-48 rounded-2xl border-2 border-dashed border-zinc-800 hover:border-rose-500 flex flex-col justify-center items-center text-zinc-500 hover:text-rose-500 hover:bg-zinc-900/40 transition-all group scale-100 hover:scale-102 cursor-pointer"
-                  id="btn-add-profile"
-                >
-                  <Plus className="w-10 h-10 group-hover:rotate-90 transition-transform duration-300" />
-                  <span className="text-[10px] sm:text-xs font-black font-mono mt-2.5 uppercase tracking-widest text-zinc-400 group-hover:text-rose-500">Novo Perfil</span>
-                </button>
-                <span className="mt-4 text-transparent text-sm md:text-base select-none">Espaçador</span>
-                <div className="text-[10px] text-transparent mt-0.5">Espaçador</div>
-              </motion.div>
-            )}
           </div>
 
           {/* Opções de Gerenciamento de Perfil (Botão inferior) */}
           <div className="flex flex-col sm:flex-row justify-center items-center gap-4 mt-4">
             <button
-              onClick={() => setIsManagingProfiles(!isManagingProfiles)}
-              className={`px-6 py-2 border font-semibold text-sm transition-all uppercase tracking-wider rounded ${
-                isManagingProfiles 
-                  ? 'bg-rose-600 border-rose-500 text-white text-neon-glow' 
-                  : 'border-zinc-700 text-zinc-500 hover:border-zinc-200 hover:text-white'
-              }`}
+              onClick={() => {
+                if (profiles.length > 0) {
+                  const p = profiles[0];
+                  setEditingProfile(p);
+                  setEditProfileName(p.name);
+                  setEditCustomAvatarUrl(p.avatarUrl);
+                  const matchingIdx = PROFILE_AVATARS.findIndex(avatar => avatar.url === p.avatarUrl);
+                  setEditSelectedAvatarIdx(matchingIdx !== -1 ? matchingIdx : 0);
+                }
+              }}
+              className="px-6 py-2 border border-zinc-700 hover:border-rose-500 text-zinc-300 hover:text-white font-semibold text-sm transition-all uppercase tracking-wider rounded cursor-pointer flex items-center gap-2"
               id="btn-manage-profiles"
             >
-              {isManagingProfiles ? 'Concluir Edição de Perfis' : 'Gerenciar Perfis'}
+              <Edit className="w-4 h-4 text-rose-500" />
+              Editar Foto de Perfil
             </button>
 
             <button
               onClick={() => {
                 sessionStorage.removeItem('vhs_session_logged_in');
                 setIsAccountLoggedIn(false);
+                onSelectUser('');
               }}
-              className="px-6 py-2 border border-zinc-800 bg-zinc-900/40 hover:bg-zinc-800 text-zinc-400 hover:text-white font-semibold text-sm transition-all uppercase tracking-wider rounded"
+              className="px-6 py-2 border border-zinc-800 bg-zinc-900/40 hover:bg-zinc-800 text-zinc-400 hover:text-white font-semibold text-sm transition-all uppercase tracking-wider rounded cursor-pointer"
               id="btn-logout-account-landing"
             >
               Sair da Conta / Trocar Login
@@ -519,144 +503,6 @@ export default function ProfileSelector({
           </div>
         </div>
       </div>
-
-      {/* --- MODAL PARA CRIAR NOVO PERFIL --- */}
-      <AnimatePresence>
-        {showAddProfileModal && (
-          <div className="fixed inset-0 bg-black/90 flex justify-center items-center p-4 z-50 modal-backdrop-blur">
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-zinc-900 border border-zinc-800 max-w-sm sm:max-w-md w-full rounded-xl p-6 md:p-8 text-left shadow-2xl relative max-h-[90vh] overflow-y-auto"
-            >
-              <h3 className="text-2xl font-bold font-display text-white mb-2">Adicionar Perfil</h3>
-              <p className="text-xs text-zinc-500 mb-6 font-sans">Adicione uma lista personalizada para continuar assistindo e organizar categorias.</p>
-
-              <form onSubmit={handleCreateProfile}>
-                {/* Visualizador de Avatar */}
-                <div className="flex flex-col items-center justify-center mb-5 bg-zinc-950 p-4 rounded-xl border border-zinc-850">
-                  <div className="w-24 h-24 rounded-lg overflow-hidden border-2 border-rose-500 shadow-xl mb-4 relative bg-zinc-900">
-                    <img 
-                      src={customAvatarUrl.trim() !== '' ? customAvatarUrl : PROFILE_AVATARS[selectedAvatarIdx].url} 
-                      alt="Avatar prévia" 
-                      className="w-full h-full object-cover"
-                      referrerPolicy="no-referrer"
-                    />
-                  </div>
-                  
-                  {/* Seletor de Carrossel de Avatares */}
-                  <div className="flex items-center gap-2 max-w-full overflow-x-auto p-1.5 no-scrollbar bg-zinc-900 rounded-lg">
-                    {PROFILE_AVATARS.map((avatar, idx) => (
-                      <button
-                        key={avatar.id}
-                        type="button"
-                        onClick={() => {
-                          setSelectedAvatarIdx(idx);
-                          setCustomAvatarUrl(''); // limpa customizada ao escolher predefinido
-                        }}
-                        className={`w-10 h-10 rounded-md overflow-hidden flex-shrink-0 transition-all ${
-                          selectedAvatarIdx === idx && customAvatarUrl.trim() === ''
-                            ? 'ring-2 ring-rose-500 scale-110' 
-                            : 'opacity-50 hover:opacity-100'
-                        }`}
-                      >
-                        <img src={avatar.url} alt={avatar.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                      </button>
-                    ))}
-                  </div>
-                  <span className="text-[10px] text-zinc-500 font-mono mt-1.5 uppercase">
-                    {customAvatarUrl.trim() !== '' ? 'Imagem Personalizada' : `Tema: ${PROFILE_AVATARS[selectedAvatarIdx].name}`}
-                  </span>
-                </div>
-
-                {/* Input de nome */}
-                <div className="mb-4">
-                  <label htmlFor="pname" className="block text-xs font-mono text-zinc-400 mb-2 uppercase tracking-wider">Nome do Perfil</label>
-                  <input
-                    id="pname"
-                    type="text"
-                    required
-                    placeholder="Ex: Sala de Estar, Rafael"
-                    maxLength={15}
-                    value={newProfileName}
-                    onChange={e => setNewProfileName(e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-850 text-white px-4 py-3 rounded-lg text-sm focus:outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500 transition-all font-semibold font-sans"
-                  />
-                </div>
-
-                {/* Imagem do Perfil - Opções Personalizadas Modernas */}
-                <div className="mb-6 space-y-3.5">
-                  <span className="block text-[10px] sm:text-xs font-mono text-zinc-400 uppercase tracking-wider font-extrabold">Capa Personalizada</span>
-                  
-                  {/* Método 1: URL com Ícone */}
-                  <div className="bg-zinc-950/60 rounded-xl p-3 border border-zinc-850 focus-within:border-rose-500/50 transition-colors">
-                    <label className="block text-[9px] font-mono font-bold text-zinc-500 mb-1.5 uppercase tracking-wide">Vincular por URL da Internet</label>
-                    <div className="relative flex items-center">
-                      <Link className="absolute left-3 w-3.5 h-3.5 text-zinc-500" />
-                      <input
-                        type="url"
-                        placeholder="Ex: https://fotos.com/minha-foto.jpg"
-                        value={customAvatarUrl}
-                        onChange={e => setCustomAvatarUrl(e.target.value)}
-                        className="w-full bg-zinc-905 border border-zinc-800 text-white pl-9 pr-3 py-2 rounded-lg text-xs outline-none focus:border-rose-500/50 focus:ring-1 focus:ring-rose-500/30 transition-all font-sans font-medium"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Divisório Estético "OU" */}
-                  <div className="flex items-center text-center justify-center gap-3 py-1 select-none">
-                    <div className="h-[1px] bg-zinc-850 flex-1" />
-                    <span className="text-[9px] text-zinc-500 font-mono font-bold uppercase tracking-widest">OU</span>
-                    <div className="h-[1px] bg-zinc-850 flex-1" />
-                  </div>
-
-                  {/* Método 2: Enviar arquivo com Dropzone Estilizado */}
-                  <div className="bg-zinc-950/60 rounded-xl p-3.5 border border-zinc-850 flex flex-col items-center">
-                    <label className="block w-full text-center text-[9px] font-mono font-bold text-zinc-500 mb-2 uppercase tracking-wide">Fazer Upload Local</label>
-                    
-                    <label className="w-full border-2 border-dashed border-zinc-800 hover:border-rose-500/50 bg-zinc-900/20 hover:bg-rose-500/5 hover:text-rose-400 text-zinc-400 rounded-xl p-4.5 transition-colors flex flex-col items-center justify-center text-center cursor-pointer group select-none">
-                      <Upload className="w-6 h-6 text-zinc-500 group-hover:text-rose-400 group-hover:scale-105 transition-all mb-2" />
-                      
-                      <span className="text-xs font-semibold font-sans mb-1 block text-zinc-200">
-                        {uploadedFileName ? 'Foto carregada!' : 'Selecione ou arraste uma foto'}
-                      </span>
-                      <span className="text-[9px] font-mono text-zinc-500 group-hover:text-rose-400 block break-all font-extrabold uppercase tracking-wide text-rose-500 max-w-full truncate px-1">
-                        {uploadedFileName ? uploadedFileName : 'Nenhum item selecionado'}
-                      </span>
-
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={e => handlePhotoUpload(e, false)}
-                        className="hidden"
-                      />
-                    </label>
-                  </div>
-                </div>
-
-                {/* Ações */}
-                <div className="flex gap-3 justify-end pt-2 border-t border-zinc-850">
-                  <button
-                    type="button"
-                    onClick={() => setShowAddProfileModal(false)}
-                    className="px-4 py-2 rounded text-zinc-400 text-xs hover:text-white transition-colors"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    className="bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold px-5 py-2 rounded transition-colors shadow-lg shadow-rose-600/10"
-                    id="btn-save-profile"
-                  >
-                    Salvar Perfil
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
 
       {/* --- MODAL PARA EDITAR PERFIL COMPLETO --- */}
       <AnimatePresence>

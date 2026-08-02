@@ -64,6 +64,22 @@ export const INITIAL_MOVIES: Movie[] = [
     tmdbId: 83533
   },
   {
+    id: 'm_gran_1',
+    title: 'Como Ganhar Milhões Antes Que a Avó Morra',
+    description: 'M desiste de sua carreira para cuidar de sua avó doente terminal, motivado pelo desejo de receber sua herança multimilionária. No entanto, o tempo que passa ao lado dela o força a reconsiderar suas reais intenções e valores familiares.',
+    posterUrl: 'https://image.tmdb.org/t/p/w780/9p3i8O2g5i3xX1Pq2Pq7wL1Xp9m.jpg',
+    backdropUrl: 'https://image.tmdb.org/t/p/original/9p3i8O2g5i3xX1Pq2Pq7wL1Xp9m.jpg',
+    category: 'Drama',
+    year: 2024,
+    duration: '2h 07m',
+    type: 'movie',
+    rating: 8.3,
+    trailerUrl: 'https://www.youtube.com/embed/S2gXv2dM5Lg',
+    isFeatured: true,
+    vhsTapeColor: '#eab308', // Yellow
+    tmdbId: 1103621
+  },
+  {
     id: 'm1',
     title: 'De Volta para o Futuro',
     description: 'Marty McFly, um adolescente típico dos anos 80, é acidentalmente enviado de volta a 1955 em uma máquina do tempo construída pelo excêntrico cientista Doc Brown. Para voltar, ele precisa fazer com que seus futuros pais se apaixonem.',
@@ -299,13 +315,6 @@ export const DEFAULT_PROFILES: { [userId: string]: Profile[] } = {
         'm1': { movieId: 'm1', progress: 45, currentTime: 3132, duration: 6960, updatedAt: '2026-05-29T10:00:00Z', isFinished: false },
         'm2': { movieId: 'm22', progress: 100, currentTime: 8220, duration: 8220, updatedAt: '2026-05-28T14:20:00Z', isFinished: true }
       }
-    },
-    {
-      id: 'p1_2',
-      name: 'Crianças VHS',
-      avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
-      myList: ['m9'],
-      watchHistory: {}
     }
   ],
   'u2': [
