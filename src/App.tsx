@@ -1515,7 +1515,7 @@ export default function App() {
               
               {/* SEÇÃO HERO SPOTLIGHT (CARROSSEL DINÂMICO EM GRANDE PLANO) */}
               {!searchVal && activeTab === 'all' && featuredMovie && (
-                <div className="relative h-[62vh] sm:h-[84vh] w-full bg-zinc-950 flex flex-col justify-end select-none border-b border-zinc-900/40 overflow-hidden group">
+                <div className="relative min-h-[560px] h-[70vh] sm:h-[84vh] w-full bg-zinc-950 flex flex-col justify-end select-none border-b border-zinc-900/40 overflow-hidden group pt-32 sm:pt-0">
                   
                   {/* Container de transição de imagens con AnimatePresence */}
                   <AnimatePresence mode="wait">
@@ -1540,7 +1540,7 @@ export default function App() {
                   </AnimatePresence>
 
                   {/* Detalhes e botões informativos */}
-                  <div className="relative z-20 max-w-[1400px] w-full mx-auto px-4 sm:px-8 pb-12 sm:pb-24 flex flex-col items-start text-left">
+                  <div className="relative z-20 max-w-[1400px] w-full mx-auto px-4 sm:px-8 pb-10 sm:pb-24 pt-12 sm:pt-0 flex flex-col items-start text-left">
                     <AnimatePresence mode="wait">
                       <motion.div
                         key={`meta-${featuredMovie.id}`}

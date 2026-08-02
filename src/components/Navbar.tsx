@@ -447,70 +447,101 @@ export default function Navbar({
         </div>
       </div>
 
-      {/* Abas mobile estilo Netflix */}
+      {/* Abas mobile estilo Netflix com Pílulas e Scroll Horizontal Fluído */}
       {!isAdminView && (
-        <div className="md:hidden flex justify-around border-t border-zinc-900 bg-zinc-950 mt-3 pt-2 text-xs text-zinc-400 font-medium">
-          <button
-            onClick={() => {
-              onSelectCategory(null);
-              onTabChange('all');
-            }}
-            className={`py-1 flex-1 text-center font-semibold ${activeTab === 'all' && !selectedCategory ? 'text-rose-500 font-extrabold' : ''}`}
-          >
-            Início
-          </button>
-          <button
-            onClick={() => {
-              onSelectCategory(null);
-              onTabChange('movies');
-            }}
-            className={`py-1 flex-1 text-center font-semibold ${activeTab === 'movies' ? 'text-rose-500 font-extrabold' : ''}`}
-          >
-            Filmes
-          </button>
-          <button
-            onClick={() => {
-              onSelectCategory(null);
-              onTabChange('series');
-            }}
-            className={`py-1 flex-1 text-center font-semibold ${activeTab === 'series' ? 'text-rose-500 font-extrabold' : ''}`}
-          >
-            Séries
-          </button>
-          <button
-            onClick={() => {
-              onSelectCategory(null);
-              onTabChange('mylist');
-            }}
-            className={`py-1 flex-1 text-center font-semibold relative ${activeTab === 'mylist' ? 'text-rose-500 font-extrabold' : ''}`}
-          >
-            Lista
-          </button>
-          <button
-            onClick={() => {
-              onSelectCategory(null);
-              onTabChange('requests');
-            }}
-            className={`py-1 flex-1 text-center font-semibold relative ${activeTab === 'requests' ? 'text-rose-500 font-extrabold' : ''}`}
-          >
-            Pedidos
-          </button>
-          <button
-            onClick={() => setShowGenresDropdown(!showGenresDropdown)}
-            className={`py-1 flex-1 text-center font-semibold relative ${selectedCategory ? 'text-rose-500 font-extrabold' : ''}`}
-          >
-            {selectedCategory ? selectedCategory : 'Gêneros'}
-          </button>
-          <button
-            onClick={() => {
-              onSelectCategory(null);
-              onTabChange('support');
-            }}
-            className={`py-1 flex-1 text-center font-bold relative flex items-center justify-center gap-0.5 ${activeTab === 'support' ? 'text-rose-500 font-extrabold' : 'text-rose-400'}`}
-          >
-            <Heart className="w-3 h-3 fill-rose-500 text-rose-500" />
-            <span>Apoiar</span>
-          </button>
+        <div className="md:hidden border-t border-zinc-900/80 bg-zinc-950/95 backdrop-blur-md pt-2 pb-2 px-3 overflow-x-auto no-scrollbar scroll-smooth">
+          <div className="flex items-center gap-2 min-w-max text-xs font-medium">
+            <button
+              onClick={() => {
+                onSelectCategory(null);
+                onTabChange('all');
+              }}
+              className={`px-3.5 py-1.5 rounded-full font-bold transition-all text-xs flex-shrink-0 cursor-pointer whitespace-nowrap ${
+                activeTab === 'all' && !selectedCategory
+                  ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30 ring-1 ring-rose-400 border border-rose-500'
+                  : 'bg-zinc-900/90 text-zinc-300 hover:text-white hover:bg-zinc-800 border border-zinc-800/80'
+              }`}
+            >
+              Início
+            </button>
+            <button
+              onClick={() => {
+                onSelectCategory(null);
+                onTabChange('movies');
+              }}
+              className={`px-3.5 py-1.5 rounded-full font-bold transition-all text-xs flex-shrink-0 cursor-pointer whitespace-nowrap ${
+                activeTab === 'movies'
+                  ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30 ring-1 ring-rose-400 border border-rose-500'
+                  : 'bg-zinc-900/90 text-zinc-300 hover:text-white hover:bg-zinc-800 border border-zinc-800/80'
+              }`}
+            >
+              Filmes
+            </button>
+            <button
+              onClick={() => {
+                onSelectCategory(null);
+                onTabChange('series');
+              }}
+              className={`px-3.5 py-1.5 rounded-full font-bold transition-all text-xs flex-shrink-0 cursor-pointer whitespace-nowrap ${
+                activeTab === 'series'
+                  ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30 ring-1 ring-rose-400 border border-rose-500'
+                  : 'bg-zinc-900/90 text-zinc-300 hover:text-white hover:bg-zinc-800 border border-zinc-800/80'
+              }`}
+            >
+              Séries
+            </button>
+            <button
+              onClick={() => {
+                onSelectCategory(null);
+                onTabChange('mylist');
+              }}
+              className={`px-3.5 py-1.5 rounded-full font-bold transition-all text-xs flex-shrink-0 cursor-pointer whitespace-nowrap ${
+                activeTab === 'mylist'
+                  ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30 ring-1 ring-rose-400 border border-rose-500'
+                  : 'bg-zinc-900/90 text-zinc-300 hover:text-white hover:bg-zinc-800 border border-zinc-800/80'
+              }`}
+            >
+              Minha Lista
+            </button>
+            <button
+              onClick={() => {
+                onSelectCategory(null);
+                onTabChange('requests');
+              }}
+              className={`px-3.5 py-1.5 rounded-full font-bold transition-all text-xs flex-shrink-0 cursor-pointer whitespace-nowrap ${
+                activeTab === 'requests'
+                  ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30 ring-1 ring-rose-400 border border-rose-500'
+                  : 'bg-zinc-900/90 text-zinc-300 hover:text-white hover:bg-zinc-800 border border-zinc-800/80'
+              }`}
+            >
+              Pedidos
+            </button>
+            <button
+              onClick={() => setShowGenresDropdown(!showGenresDropdown)}
+              className={`px-3.5 py-1.5 rounded-full font-bold transition-all text-xs flex-shrink-0 flex items-center gap-1 cursor-pointer whitespace-nowrap ${
+                selectedCategory
+                  ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30 ring-1 ring-rose-400 border border-rose-500'
+                  : 'bg-zinc-900/90 text-zinc-300 hover:text-white hover:bg-zinc-800 border border-zinc-800/80'
+              }`}
+            >
+              <span>{selectedCategory ? selectedCategory : 'Gêneros'}</span>
+              <ChevronDown className="w-3 h-3 text-zinc-400" />
+            </button>
+            <button
+              onClick={() => {
+                onSelectCategory(null);
+                onTabChange('support');
+              }}
+              className={`px-3.5 py-1.5 rounded-full font-bold transition-all text-xs flex-shrink-0 flex items-center gap-1 cursor-pointer whitespace-nowrap ${
+                activeTab === 'support'
+                  ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30 ring-1 ring-rose-400 border border-rose-500'
+                  : 'bg-rose-950/40 text-rose-400 border border-rose-500/30 hover:bg-rose-900/50 hover:text-white'
+              }`}
+            >
+              <Heart className="w-3.5 h-3.5 fill-rose-500 text-rose-500 animate-pulse" />
+              <span>Apoiar</span>
+            </button>
+          </div>
         </div>
       )}
 
