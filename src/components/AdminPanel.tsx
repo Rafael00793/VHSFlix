@@ -128,6 +128,7 @@ export default function AdminPanel({
   const [activeConfigSeason, setActiveConfigSeason] = useState(1);
 
   // Estados de busca do TMDB para Importação de Dados
+  const [movieAddSuccessMsg, setMovieAddSuccessMsg] = useState<string | null>(null);
   const [tmdbSearchQuery, setTmdbSearchQuery] = useState('');
   const [tmdbSearchResults, setTmdbSearchResults] = useState<any[]>([]);
   const [isSearchingTMDB, setIsSearchingTMDB] = useState(false);
@@ -169,10 +170,12 @@ export default function AdminPanel({
 
   const handleOpenCreateForm = () => {
     resetForm();
+    setMovieAddSuccessMsg(null);
     setIsFormOpen(true);
   };
 
   const handleOpenEditForm = (movie: Movie) => {
+    setMovieAddSuccessMsg(null);
     setEditingMovie(movie);
     setFormTitle(movie.title);
     setFormDescription(movie.description);
@@ -247,11 +250,20 @@ export default function AdminPanel({
       onEditMovie({ ...movieData, id: editingMovie.id });
       setIsFormOpen(false);
       resetForm();
+      setMovieAddSuccessMsg(null);
     } else {
       const success = onAddMovie(movieData);
       if (success !== false) {
-        setIsFormOpen(false);
+        // Mantém na mesma página para permitir adicionar múltiplos títulos sequencialmente
+        const addedTitle = movieData.title;
         resetForm();
+        setMovieAddSuccessMsg(`✨ "${addedTitle}" foi adicionado(a) com sucesso! A página permanece aberta para você cadastrar mais mídias.`);
+        setTimeout(() => {
+          const formElem = document.getElementById('movie-form-section');
+          if (formElem) {
+            formElem.scrollIntoView({ behavior: 'smooth' });
+          }
+        }, 80);
       }
     }
   };
@@ -1311,6 +1323,32 @@ export default function AdminPanel({
                       Voltar ao catálogo
                     </button>
                   </div>
+
+                  {/* Notificação de Sucesso ao Adicionar */}
+                  {movieAddSuccessMsg && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="mb-5 p-4 bg-emerald-950/90 border border-emerald-500/60 rounded-xl text-emerald-200 text-xs flex items-center justify-between gap-3 shadow-xl backdrop-blur-md"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center shrink-0">
+                          <Check className="w-4 h-4 text-emerald-400" />
+                        </div>
+                        <div>
+                          <p className="font-bold text-white text-xs">{movieAddSuccessMsg}</p>
+                          <p className="text-[10px] text-emerald-300/80 font-mono mt-0.5">O formulário foi limpo automaticamente para você cadastrar a próxima fita.</p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setMovieAddSuccessMsg(null)}
+                        className="text-emerald-400 hover:text-white text-xs font-bold px-2.5 py-1 bg-emerald-900/60 rounded border border-emerald-500/30 transition-colors cursor-pointer shrink-0"
+                      >
+                        ✕
+                      </button>
+                    </motion.div>
+                  )}
 
                   <form onSubmit={handleSubmitForm} className="space-y-4 text-xs font-mono">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
