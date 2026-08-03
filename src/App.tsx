@@ -160,12 +160,12 @@ export default function App() {
 
   // Perfis ativos atuais
   const [currentUserId, setCurrentUserId] = useState<string>(() => {
-    const isLoggedIn = sessionStorage.getItem('vhs_session_logged_in') === 'true';
+    const isLoggedIn = localStorage.getItem('vhs_session_logged_in') === 'true';
     return isLoggedIn ? (localStorage.getItem('vhsflix_current_uid') || '') : '';
   });
 
   const [currentProfileId, setCurrentProfileId] = useState<string | null>(() => {
-    const isLoggedIn = sessionStorage.getItem('vhs_session_logged_in') === 'true';
+    const isLoggedIn = localStorage.getItem('vhs_session_logged_in') === 'true';
     return isLoggedIn ? (localStorage.getItem('vhsflix_current_pid') || null) : null;
   });
 
@@ -504,16 +504,15 @@ export default function App() {
     }
   }, [activeUser]);
 
-  // Efeito para garantir estritamente 1 perfil por usuário e auto-seleção imediata do perfil único
+  // Efeito para garantir que todo usuário tenha ao menos 1 perfil criado
   useEffect(() => {
     if (!currentUserId) return;
 
     const userObj = users.find(u => u.id === currentUserId);
     const userProfs = allProfiles[currentUserId] || [];
-    const validProfs = userProfs.filter(p => p.name !== 'Crianças VHS' && p.id !== 'p1_2');
 
-    if (validProfs.length === 0) {
-      // Cria 1 perfil único para o usuário com o nome e avatar da conta
+    if (userProfs.length === 0) {
+      // Cria 1 perfil inicial para o usuário com o nome e avatar da conta
       const newProf: Profile = {
         id: 'p_' + Date.now(),
         name: userObj ? userObj.name.split(' ')[0] : 'Meu Perfil',
@@ -526,23 +525,8 @@ export default function App() {
         saveProfilesToFirestore({ [currentUserId]: [newProf] });
         return updated;
       });
-      setCurrentProfileId(newProf.id);
-    } else {
-      const singleProf = validProfs[0];
-      // Se houver perfis extras, remove os extras e mantém somente o único
-      if (userProfs.length > 1 || validProfs.length !== userProfs.length) {
-        setAllProfiles(prev => {
-          const updated = { ...prev, [currentUserId]: [singleProf] };
-          saveProfilesToFirestore({ [currentUserId]: [singleProf] });
-          return updated;
-        });
-      }
-      
-      if (currentProfileId !== singleProf.id) {
-        setCurrentProfileId(singleProf.id);
-      }
     }
-  }, [currentUserId, allProfiles, users, currentProfileId]);
+  }, [currentUserId, allProfiles, users]);
 
   const activeProfile = useMemo(() => {
     if (!currentUserId || !currentProfileId) return null;
@@ -751,11 +735,11 @@ export default function App() {
     setIsAdminView(false);
     if (userId) {
       localStorage.setItem('vhsflix_current_uid', userId);
-      sessionStorage.setItem('vhs_session_logged_in', 'true');
+      localStorage.setItem('vhs_session_logged_in', 'true');
     } else {
       localStorage.removeItem('vhsflix_current_uid');
       localStorage.removeItem('vhsflix_current_pid');
-      sessionStorage.removeItem('vhs_session_logged_in');
+      localStorage.removeItem('vhs_session_logged_in');
     }
   };
 
@@ -929,7 +913,7 @@ export default function App() {
     setIsAdminView(false);
     localStorage.removeItem('vhsflix_current_pid');
     localStorage.removeItem('vhsflix_current_uid');
-    sessionStorage.removeItem('vhs_session_logged_in');
+    localStorage.removeItem('vhs_session_logged_in');
   };
 
   // --- TRATADORES DE LISTA E WATCH HISTORY (LOCALSTORAGE ENGINE) ---
