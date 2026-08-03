@@ -127,10 +127,29 @@ export default function Navbar({
           {/* Abas Estilo Netflix (Oculta se estiver no Admin) */}
           {!isAdminView && (
             <ul className="hidden md:flex items-center gap-5 text-sm font-medium text-zinc-300">
+              {/* Aba "Apoiar o Canal" em primeiro lugar conforme solicitado */}
+              <li>
+                <button
+                  onClick={() => {
+                    onSelectCategory(null);
+                    onTabChange('support');
+                  }}
+                  className={`transition-all py-1 flex items-center gap-1.5 focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none rounded-xl px-3 font-bold cursor-pointer text-xs shadow-sm ${
+                    activeTab === 'support'
+                      ? 'bg-rose-600 text-white font-black shadow-md shadow-rose-600/30 ring-1 ring-rose-400'
+                      : 'text-rose-300 hover:text-white bg-rose-950/40 border border-rose-500/30 hover:bg-rose-900/60 hover:border-rose-400 shadow-rose-950/20'
+                  }`}
+                  id="navbar-apoiar-canal-btn"
+                >
+                  <Heart className={`w-3.5 h-3.5 ${activeTab === 'support' ? 'fill-white text-white' : 'fill-rose-500 text-rose-500 animate-pulse'}`} />
+                  <span>Apoiar o Canal</span>
+                </button>
+              </li>
+
               <li>
                 <button
                   onClick={() => onTabChange('all')}
-                  className={`transition-colors py-1 focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none rounded px-1.5 ${activeTab === 'all' ? 'text-white font-bold border-b-2 border-rose-600' : 'hover:text-zinc-400'}`}
+                  className={`transition-colors py-1 focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none rounded px-1.5 ${activeTab === 'all' && !selectedCategory ? 'text-white font-bold border-b-2 border-rose-600' : 'hover:text-zinc-400'}`}
                 >
                   Início
                 </button>
@@ -213,25 +232,6 @@ export default function Navbar({
                     </motion.div>
                   )}
                 </AnimatePresence>
-              </li>
-
-              {/* Nova Aba "Apoiar o Canal" localizada ao lado de Categorias */}
-              <li>
-                <button
-                  onClick={() => {
-                    onSelectCategory(null);
-                    onTabChange('support');
-                  }}
-                  className={`transition-all py-1 flex items-center gap-1.5 focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none rounded-lg px-2.5 font-bold cursor-pointer text-xs ${
-                    activeTab === 'support'
-                      ? 'bg-rose-600 text-white font-black shadow-md shadow-rose-600/30 ring-1 ring-rose-400'
-                      : 'text-rose-400 hover:text-white bg-rose-950/30 border border-rose-500/20 hover:bg-rose-900/40'
-                  }`}
-                  id="navbar-apoiar-canal-btn"
-                >
-                  <Heart className={`w-3.5 h-3.5 ${activeTab === 'support' ? 'fill-white text-white' : 'fill-rose-500 text-rose-500 animate-pulse'}`} />
-                  <span>Apoiar o Canal</span>
-                </button>
               </li>
             </ul>
           )}
@@ -449,8 +449,26 @@ export default function Navbar({
 
       {/* Abas mobile estilo Netflix com Pílulas e Scroll Horizontal Fluído */}
       {!isAdminView && (
-        <div className="md:hidden border-t border-zinc-900/80 bg-zinc-950/95 backdrop-blur-md pt-2 pb-2 px-3 overflow-x-auto no-scrollbar scroll-smooth">
+        <div className="md:hidden border-t border-zinc-900/80 bg-zinc-950/95 backdrop-blur-md py-2.5 px-3 overflow-x-auto no-scrollbar scroll-smooth">
           <div className="flex items-center gap-2 min-w-max text-xs font-medium">
+            {/* 1º BOTÃO: APOIAR O CANAL (EM DESTAQUE PRIMEIRO LUGAR) */}
+            <button
+              onClick={() => {
+                onSelectCategory(null);
+                onTabChange('support');
+              }}
+              className={`px-3 py-1.5 rounded-full font-black transition-all text-xs flex-shrink-0 flex items-center gap-1.5 cursor-pointer whitespace-nowrap shadow-md ${
+                activeTab === 'support'
+                  ? 'bg-rose-600 text-white ring-2 ring-rose-400 shadow-rose-600/40'
+                  : 'bg-rose-950/70 text-rose-300 border border-rose-500/50 hover:bg-rose-900/80 hover:text-white shadow-rose-950/30'
+              }`}
+              id="mobile-nav-apoiar-btn"
+            >
+              <Heart className="w-3.5 h-3.5 fill-rose-500 text-rose-500 animate-pulse" />
+              <span>Apoiar Canal</span>
+            </button>
+
+            {/* 2º BOTÃO: INÍCIO */}
             <button
               onClick={() => {
                 onSelectCategory(null);
@@ -458,12 +476,14 @@ export default function Navbar({
               }}
               className={`px-3.5 py-1.5 rounded-full font-bold transition-all text-xs flex-shrink-0 cursor-pointer whitespace-nowrap ${
                 activeTab === 'all' && !selectedCategory
-                  ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30 ring-1 ring-rose-400 border border-rose-500'
-                  : 'bg-zinc-900/90 text-zinc-300 hover:text-white hover:bg-zinc-800 border border-zinc-800/80'
+                  ? 'bg-zinc-100 text-black font-extrabold shadow-md'
+                  : 'bg-zinc-900/90 text-zinc-300 hover:text-white hover:bg-zinc-800 border border-zinc-800'
               }`}
             >
               Início
             </button>
+
+            {/* 3º BOTÃO: FILMES */}
             <button
               onClick={() => {
                 onSelectCategory(null);
@@ -471,12 +491,14 @@ export default function Navbar({
               }}
               className={`px-3.5 py-1.5 rounded-full font-bold transition-all text-xs flex-shrink-0 cursor-pointer whitespace-nowrap ${
                 activeTab === 'movies'
-                  ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30 ring-1 ring-rose-400 border border-rose-500'
-                  : 'bg-zinc-900/90 text-zinc-300 hover:text-white hover:bg-zinc-800 border border-zinc-800/80'
+                  ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30 border border-rose-500'
+                  : 'bg-zinc-900/90 text-zinc-300 hover:text-white hover:bg-zinc-800 border border-zinc-800'
               }`}
             >
               Filmes
             </button>
+
+            {/* 4º BOTÃO: SÉRIES */}
             <button
               onClick={() => {
                 onSelectCategory(null);
@@ -484,12 +506,14 @@ export default function Navbar({
               }}
               className={`px-3.5 py-1.5 rounded-full font-bold transition-all text-xs flex-shrink-0 cursor-pointer whitespace-nowrap ${
                 activeTab === 'series'
-                  ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30 ring-1 ring-rose-400 border border-rose-500'
-                  : 'bg-zinc-900/90 text-zinc-300 hover:text-white hover:bg-zinc-800 border border-zinc-800/80'
+                  ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30 border border-rose-500'
+                  : 'bg-zinc-900/90 text-zinc-300 hover:text-white hover:bg-zinc-800 border border-zinc-800'
               }`}
             >
               Séries
             </button>
+
+            {/* 5º BOTÃO: MINHA LISTA */}
             <button
               onClick={() => {
                 onSelectCategory(null);
@@ -497,12 +521,14 @@ export default function Navbar({
               }}
               className={`px-3.5 py-1.5 rounded-full font-bold transition-all text-xs flex-shrink-0 cursor-pointer whitespace-nowrap ${
                 activeTab === 'mylist'
-                  ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30 ring-1 ring-rose-400 border border-rose-500'
-                  : 'bg-zinc-900/90 text-zinc-300 hover:text-white hover:bg-zinc-800 border border-zinc-800/80'
+                  ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30 border border-rose-500'
+                  : 'bg-zinc-900/90 text-zinc-300 hover:text-white hover:bg-zinc-800 border border-zinc-800'
               }`}
             >
               Minha Lista
             </button>
+
+            {/* 6º BOTÃO: PEDIDOS */}
             <button
               onClick={() => {
                 onSelectCategory(null);
@@ -510,36 +536,24 @@ export default function Navbar({
               }}
               className={`px-3.5 py-1.5 rounded-full font-bold transition-all text-xs flex-shrink-0 cursor-pointer whitespace-nowrap ${
                 activeTab === 'requests'
-                  ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30 ring-1 ring-rose-400 border border-rose-500'
-                  : 'bg-zinc-900/90 text-zinc-300 hover:text-white hover:bg-zinc-800 border border-zinc-800/80'
+                  ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30 border border-rose-500'
+                  : 'bg-zinc-900/90 text-zinc-300 hover:text-white hover:bg-zinc-800 border border-zinc-800'
               }`}
             >
               Pedidos
             </button>
+
+            {/* 7º BOTÃO: GÊNEROS */}
             <button
               onClick={() => setShowGenresDropdown(!showGenresDropdown)}
               className={`px-3.5 py-1.5 rounded-full font-bold transition-all text-xs flex-shrink-0 flex items-center gap-1 cursor-pointer whitespace-nowrap ${
                 selectedCategory
-                  ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30 ring-1 ring-rose-400 border border-rose-500'
-                  : 'bg-zinc-900/90 text-zinc-300 hover:text-white hover:bg-zinc-800 border border-zinc-800/80'
+                  ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30 border border-rose-500'
+                  : 'bg-zinc-900/90 text-zinc-300 hover:text-white hover:bg-zinc-800 border border-zinc-800'
               }`}
             >
               <span>{selectedCategory ? selectedCategory : 'Gêneros'}</span>
               <ChevronDown className="w-3 h-3 text-zinc-400" />
-            </button>
-            <button
-              onClick={() => {
-                onSelectCategory(null);
-                onTabChange('support');
-              }}
-              className={`px-3.5 py-1.5 rounded-full font-bold transition-all text-xs flex-shrink-0 flex items-center gap-1 cursor-pointer whitespace-nowrap ${
-                activeTab === 'support'
-                  ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30 ring-1 ring-rose-400 border border-rose-500'
-                  : 'bg-rose-950/40 text-rose-400 border border-rose-500/30 hover:bg-rose-900/50 hover:text-white'
-              }`}
-            >
-              <Heart className="w-3.5 h-3.5 fill-rose-500 text-rose-500 animate-pulse" />
-              <span>Apoiar</span>
             </button>
           </div>
         </div>
