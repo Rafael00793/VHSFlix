@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Movie, User, Profile, WatchProgress, AppNotification, MovieRequest, getSubscriptionDaysLeft, renewSubscription } from './types';
+import { Movie, User, Profile, WatchProgress, AppNotification, MovieRequest, MovieComment, getSubscriptionDaysLeft, renewSubscription } from './types';
 import { INITIAL_MOVIES, INITIAL_USERS, DEFAULT_PROFILES, GENRE_CATEGORIES, getMovieDetailsTMDB } from './data';
 import Navbar from './components/Navbar';
 import ProfileSelector from './components/ProfileSelector';
@@ -15,32 +15,53 @@ import RequestsPanel from './components/RequestsPanel';
 import SupportPanel from './components/SupportPanel';
 import { Play, Info, Sparkles, Star, Plus, Check, Shield, HelpCircle, AlertCircle, Heart, HeartOff, Volume1, Volume2, VolumeX, Bell, X, Flame, LayoutGrid, List, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { db, saveUsersToFirestore, deleteUserFromFirestore, saveProfilesToFirestore, saveMoviesToFirestore, saveSingleMovieToFirestore, deleteMovieFromFirestore, saveSettingsToFirestore, saveRequestsToFirestore, deleteRequestFromFirestore, handleFirestoreError, OperationType, saveSingleNotificationToFirestore, deleteNotificationFromFirestore } from './lib/firebase';
+import { db, saveUsersToFirestore, deleteUserFromFirestore, saveProfilesToFirestore, saveMoviesToFirestore, saveSingleMovieToFirestore, deleteMovieFromFirestore, saveSettingsToFirestore, saveRequestsToFirestore, deleteRequestFromFirestore, handleFirestoreError, OperationType, saveSingleNotificationToFirestore, deleteNotificationFromFirestore, saveSingleCommentToFirestore, deleteCommentFromFirestore } from './lib/firebase';
 import { onSnapshot, collection, doc, setDoc, getDoc } from 'firebase/firestore';
 import { fetchApi } from './lib/apiClient';
 
 
 
-// Auxiliar para obter peso de ordenação: fitas recém-adicionadas (customizadas pelo admin) ficam no topo.
-// As fitas originais (id como m_2026_x) ficam logo abaixo, mantendo sua ordem de índice original intacta.
-function getMovieSortingWeight(m: Movie): number {
-  if (!m.id) return 0;
-  const customMatch = m.id.match(/^m_(\d{10,})$/);
-  if (customMatch) {
-    return parseInt(customMatch[1]); // ex: timestamp Date.now() ~ 1.7e12
+// Auxiliar para peso de adição de mídia (data de criação no admin)
+function getMovieAdditionWeight(m: Movie): number {
+  if (!m) return 0;
+  if (m.id) {
+    const customMatch = m.id.match(/^m_(\d{10,})$/);
+    if (customMatch) {
+      return parseInt(customMatch[1]);
+    }
+    const digitsMatch = m.id.match(/\d{8,}/);
+    if (digitsMatch) {
+      return parseInt(digitsMatch[0]);
+    }
   }
-  const digitsMatch = m.id.match(/\d{8,}/);
-  if (digitsMatch) {
-    return parseInt(digitsMatch[0]);
-  }
-  if (m.abyssEmbedUrl || m.embedUrl) {
-    return 200000000;
-  }
-  const initialMatch = m.id.match(/^m_2026_(\d+)$/);
+  const initialMatch = m.id?.match(/^m_2026_(\d+)$/);
   if (initialMatch) {
     return 100000 - parseInt(initialMatch[1]);
   }
   return 50000;
+}
+
+// Ordenação oficial por Ano de Lançamento / Data de Lançamento (mais recentes primeiro: 2026, 2025, 2024...)
+function sortByReleaseYear(a: Movie, b: Movie): number {
+  const yearA = Number(a.year) || 1990;
+  const yearB = Number(b.year) || 1990;
+  if (yearB !== yearA) {
+    return yearB - yearA; // Ex: 2026 antes de 2025
+  }
+
+  // Mesmo ano: compara data de lançamento se disponível
+  if (a.releaseDate && b.releaseDate) {
+    const tA = Date.parse(a.releaseDate) || 0;
+    const tB = Date.parse(b.releaseDate) || 0;
+    if (tB !== tA) return tB - tA;
+  }
+
+  // Mesmo ano e data: ordena por adição recente
+  const weightA = getMovieAdditionWeight(a);
+  const weightB = getMovieAdditionWeight(b);
+  if (weightB !== weightA) return weightB - weightA;
+
+  return (b.rating || 0) - (a.rating || 0);
 }
 
 export default function App() {
@@ -207,6 +228,17 @@ export default function App() {
     return [];
   });
 
+  // Comentários nos filmes/séries (Sincronização em nuvem e LocalStorage offline)
+  const [comments, setComments] = useState<MovieComment[]>(() => {
+    try {
+      const saved = localStorage.getItem('vhsflix_movie_comments');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.warn('Erro ao restaurar comentários do localStorage:', e);
+    }
+    return [];
+  });
+
   // Gatilho global para disparar uma nova notificação e mostrá-la no carrossel de popups/toast alertadores
   const triggerNotification = (title: string, message: string, movieId: string, type: 'movie' | 'series' | 'system', posterUrl?: string) => {
     const newNotif: AppNotification = {
@@ -259,7 +291,7 @@ export default function App() {
       } else {
         setUsers(fetchedUsers);
       }
-    });
+    }, (err) => console.warn('[FIRESTORE] users listener warning:', err));
 
     // 2. Escuta em tempo real a coleção de perfis
     const unsubProfiles = onSnapshot(collection(db, 'profiles'), (snapshot) => {
@@ -279,7 +311,7 @@ export default function App() {
       } else {
         setAllProfiles(fetchedProfiles);
       }
-    });
+    }, (err) => console.warn('[FIRESTORE] profiles listener warning:', err));
 
     // 3. Escuta em tempo real a coleção de filmes/séries (catálogo)
     const unsubMovies = onSnapshot(collection(db, 'movies'), (snapshot) => {
@@ -306,7 +338,7 @@ export default function App() {
       } else {
         setMovies(fetchedMovies);
       }
-    });
+    }, (err) => console.warn('[FIRESTORE] movies listener warning:', err));
 
     // 4. Escuta em tempo real as configurações gerais (Adguard + Versionamento de Cache)
     const unsubSettings = onSnapshot(collection(db, 'settings'), (snapshot) => {
@@ -360,7 +392,7 @@ export default function App() {
       } else {
         setAdguardEnabled(adguard);
       }
-    });
+    }, (err) => console.warn('[FIRESTORE] settings listener warning:', err));
 
     // 5. Escuta em tempo real os pedidos dos usuários
     const unsubRequests = onSnapshot(collection(db, 'requests'), (snapshot) => {
@@ -371,7 +403,7 @@ export default function App() {
       // Ordenar por data de criação de forma decrescente
       fetchedRequests.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       setRequests(fetchedRequests);
-    });
+    }, (err) => console.warn('[FIRESTORE] requests listener warning:', err));
 
     // 6. Escuta em tempo real as notificações
     const unsubNotifications = onSnapshot(collection(db, 'notifications'), (snapshot) => {
@@ -382,7 +414,17 @@ export default function App() {
       // Ordenar por data de criação de forma decrescente
       fetchedNotifs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       setDbNotifications(fetchedNotifs);
-    });
+    }, (err) => console.warn('[FIRESTORE] notifications listener warning:', err));
+
+    // 7. Escuta em tempo real os comentários
+    const unsubComments = onSnapshot(collection(db, 'comments'), (snapshot) => {
+      const fetchedComments: MovieComment[] = [];
+      snapshot.forEach((doc) => {
+        fetchedComments.push(doc.data() as MovieComment);
+      });
+      fetchedComments.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setComments(fetchedComments);
+    }, (err) => console.warn('[FIRESTORE] comments listener warning:', err));
 
     return () => {
       unsubUsers();
@@ -391,6 +433,7 @@ export default function App() {
       unsubSettings();
       unsubRequests();
       unsubNotifications();
+      unsubComments();
     };
   }, []);
 
@@ -417,6 +460,10 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('vhsflix_movie_requests', JSON.stringify(requests));
   }, [requests]);
+
+  useEffect(() => {
+    localStorage.setItem('vhsflix_movie_comments', JSON.stringify(comments));
+  }, [comments]);
 
   useEffect(() => {
     localStorage.setItem('vhsflix_adguard_enabled', JSON.stringify(adguardEnabled));
@@ -651,19 +698,19 @@ export default function App() {
     return [...movies].sort((a, b) => (b.votesLikes || 0) - (a.votesLikes || 0));
   }, [movies]);
 
-  // Lançamentos VHS (Ordenado dinamicamente por recém-adicionados, ano de lançamento mais recente e data de criação)
+  // Melhores Avaliações (Ordenado por Nota)
+  const moviesSortedByRating = useMemo(() => {
+    return [...movies].sort((a, b) => (b.rating || 0) - (a.rating || 0));
+  }, [movies]);
+
+  // Lançamentos VHS (Ordenado por ano de lançamento mais recente: 2026, 2025, 2024...)
   const moviesSortedByYear = useMemo(() => {
-    return [...movies].sort((a, b) => {
-      const yearA = a.year || 1990;
-      const yearB = b.year || 1990;
-      if (yearB !== yearA) return yearB - yearA;
+    return [...movies].sort(sortByReleaseYear);
+  }, [movies]);
 
-      const weightA = getMovieSortingWeight(a);
-      const weightB = getMovieSortingWeight(b);
-      if (weightB !== weightA) return weightB - weightA;
-
-      return (b.rating || 0) - (a.rating || 0);
-    });
+  // VHS Recém Adicionados (Ordenado estritamente por ordem de adição no admin)
+  const recentlyAddedMovies = useMemo(() => {
+    return [...movies].sort((a, b) => getMovieAdditionWeight(b) - getMovieAdditionWeight(a));
   }, [movies]);
 
   // Transição automática das fitas de destaque rotativas a cada 10 segundos
@@ -681,7 +728,7 @@ export default function App() {
     // Sincronização automática desativada para manter o controle exclusivo do acervo com você
   }, [tmdbApiKey]);
 
-  // Filtra catálogo com base em busca e na aba ativa
+  // Filtra catálogo com base em busca, abas e categorias, sempre ordenado por ano de lançamento
   const filteredMovies = useMemo(() => {
     let list = [...movies];
     
@@ -695,29 +742,28 @@ export default function App() {
       );
     }
 
-    // Filtros por abas do Estilo Netflix
+    // Filtros por abas
     if (activeTab === 'movies') {
       list = list.filter(m => m.type === 'movie');
-      list.sort((a, b) => getMovieSortingWeight(b) - getMovieSortingWeight(a));
     } else if (activeTab === 'series') {
       list = list.filter(m => m.type === 'series');
-      list.sort((a, b) => getMovieSortingWeight(b) - getMovieSortingWeight(a));
     } else if (activeTab === 'mylist' && activeProfile) {
       list = list.filter(m => activeProfile.myList.includes(m.id));
     }
 
-    // Filtro por categoria selecionada (Estática Netflix)
+    // Filtro por categoria selecionada
     if (selectedCategory) {
       if (selectedCategory === 'Melhores Avaliações') {
-        list = list.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+        return list.sort((a, b) => (b.rating || 0) - (a.rating || 0));
       } else if (selectedCategory === 'Séries') {
         list = list.filter(m => m.type === 'series');
-        list.sort((a, b) => getMovieSortingWeight(b) - getMovieSortingWeight(a));
-      } else {
+      } else if (selectedCategory !== 'Todos') {
         list = list.filter(m => m.category === selectedCategory);
-        list.sort((a, b) => getMovieSortingWeight(b) - getMovieSortingWeight(a));
       }
     }
+
+    // Ordenação estrita por Ano de Lançamento (mais recentes primeiro)
+    list.sort(sortByReleaseYear);
 
     return list;
   }, [movies, activeTab, activeProfile, searchVal, selectedCategory]);
@@ -1303,6 +1349,27 @@ export default function App() {
     saveSingleMovieToFirestore(updatedMovie);
   };
 
+  const handleAddComment = async (movieId: string, text: string) => {
+    if (!activeUser || !activeProfile || !text.trim()) return;
+    const newComment: MovieComment = {
+      id: `comment_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      movieId,
+      userId: activeUser.id,
+      userName: activeUser.name,
+      profileName: activeProfile.name,
+      avatarUrl: activeProfile.avatarUrl,
+      text: text.trim(),
+      createdAt: new Date().toISOString()
+    };
+    setComments(prev => [newComment, ...prev]);
+    await saveSingleCommentToFirestore(newComment);
+  };
+
+  const handleDeleteComment = async (commentId: string) => {
+    setComments(prev => prev.filter(c => c.id !== commentId));
+    await deleteCommentFromFirestore(commentId);
+  };
+
   const handleAddRequest = (title: string, type: 'movie' | 'series', richData?: Partial<MovieRequest>) => {
     if (!activeUser || !activeProfile) return;
     const newRequest: MovieRequest = {
@@ -1807,7 +1874,17 @@ export default function App() {
 
                           <MovieRow
                             title="⭐ Melhores Avaliações"
-                            movies={moviesSortedByLikes.filter(m => (m.rating || 0) >= 8.0)} // or sortedByRating
+                            movies={moviesSortedByRating}
+                            watchHistory={activeProfile.watchHistory}
+                            myList={activeProfile.myList}
+                            onMovieClick={handleSelectMovie}
+                            onToggleMyList={handleToggleMyList}
+                            onPlayClick={handleFeaturedPlay}
+                          />
+
+                          <MovieRow
+                            title="📼 VHS Recém Adicionados"
+                            movies={recentlyAddedMovies}
                             watchHistory={activeProfile.watchHistory}
                             myList={activeProfile.myList}
                             onMovieClick={handleSelectMovie}
@@ -2081,79 +2158,75 @@ export default function App() {
                   })()
                 )}
 
-                {/* --- 2.B.III: ROWS TRADICIONAIS DE GÊNEROS --- */}
-                {activeTab !== 'mylist' && (
+                {/* --- 2.B.III: GRID DE FILMES/SÉRIES, BUSCA OU CATEGORIAS SELECIONADAS --- */}
+                {activeTab !== 'mylist' && (searchVal || activeTab === 'movies' || activeTab === 'series' || selectedCategory) && (
                   (() => {
-                    // Se for busca ativa, categoria selecionada ou qualquer aba restrita, renderizamos Grid corrido, senão rows separadas
-                    if (searchVal || activeTab === 'movies' || activeTab === 'series' || selectedCategory) {
-                      if (filteredMovies.length === 0) {
-                        return (
-                          <div className="text-center py-28 px-4 flex flex-col items-center max-w-sm mx-auto">
-                            <AlertCircle className="w-10 h-10 text-rose-500 mb-3" />
-                            <h3 className="font-bold text-sm text-zinc-200">Nenhum título localizado</h3>
-                            <p className="text-[11px] text-zinc-400 mt-1 lines-clamp-3">Infelizmente não encontramos nenhum filme compatível nas prateleiras locais com esse termo pesquisado 🤔</p>
-                          </div>
-                        );
-                      }
-
+                    if (filteredMovies.length === 0) {
                       return (
-                        <div className="px-4 sm:px-8">
-                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-y-6 gap-x-4 sm:gap-x-5">
-                            {filteredMovies.map(movie => (
-                              <div
-                                key={movie.id}
-                                onClick={() => handleSelectMovie(movie)}
-                                className="relative bg-zinc-950 border border-zinc-900 rounded-lg overflow-hidden hover:border-rose-500 hover:shadow-xl hover:shadow-rose-600/10 transition-all cursor-pointer group"
-                                id={`search-grid-card-${movie.id}`}
-                              >
-                                <div className="aspect-[2/3] overflow-hidden bg-zinc-900">
-                                  <img 
-                                    src={movie.posterUrl} 
-                                    alt={movie.title} 
-                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                                    referrerPolicy="no-referrer"
-                                  />
-                                </div>
-                                <div className="p-2 sm:p-3 bg-zinc-950 border-t border-zinc-900 h-14 sm:h-16 flex flex-col justify-between">
-                                  <span className="font-semibold text-xs sm:text-sm text-zinc-200 truncate group-hover:text-rose-500 block">{movie.title}</span>
-                                  <div className="flex justify-between items-center text-[10px] text-zinc-500 font-mono leading-none">
-                                    <span className="text-yellow-400 font-bold flex items-center gap-0.5"><Star className="w-2.5 h-2.5 fill-yellow-400" /> {movie.rating}</span>
-                                    <span>{movie.year}</span>
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
+                        <div className="text-center py-28 px-4 flex flex-col items-center max-w-sm mx-auto">
+                          <AlertCircle className="w-10 h-10 text-rose-500 mb-3" />
+                          <h3 className="font-bold text-sm text-zinc-200">Nenhum título localizado</h3>
+                          <p className="text-[11px] text-zinc-400 mt-1 lines-clamp-3">Infelizmente não encontramos nenhum filme compatível nas prateleiras locais com esse termo pesquisado 🤔</p>
                         </div>
                       );
                     }
 
-                    // Mapeia todas as outras categorias para rows horizontais elegantes
-                    const categoriesToRender = GENRE_CATEGORIES.filter(c => c !== 'Todos');
+                    const getGridTitle = () => {
+                      if (searchVal) return `Resultados para "${searchVal}"`;
+                      if (selectedCategory) return selectedCategory;
+                      if (activeTab === 'movies') return 'Filmes';
+                      if (activeTab === 'series') return 'Séries';
+                      return 'Catálogo Digital';
+                    };
 
                     return (
-                      <div className="flex flex-col">
-                        {categoriesToRender.map(category => {
-                          const categoryMovies = (category === 'Séries'
-                            ? movies.filter(m => m.type === 'series')
-                            : movies.filter(m => m.category === category)
-                          ).sort((a, b) => getMovieSortingWeight(b) - getMovieSortingWeight(a));
+                      <div className="px-4 sm:px-8 py-2">
+                        {/* Cabeçalho do Filtro / Categoria com Indicador de Ordem de Lançamento */}
+                        <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-900/80 pb-4">
+                          <div>
+                            <span className="text-zinc-500 font-mono text-[9px] uppercase font-bold tracking-widest block mb-0.5">
+                              Acervo Retro Digital
+                            </span>
+                            <h2 className="text-xl sm:text-2xl font-black font-display text-white uppercase tracking-tight flex items-center gap-2">
+                              {getGridTitle()}
+                              <span className="text-rose-500 text-sm font-mono font-bold">({filteredMovies.length})</span>
+                            </h2>
+                          </div>
+                          <div className="text-[10px] font-mono text-zinc-300 bg-zinc-950/80 border border-zinc-800 px-3 py-1.5 rounded-lg flex items-center gap-2 self-start sm:self-auto shadow-sm">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                            <span>Ordem: Lançamento & Ano (Mais Recentes Primeiro)</span>
+                          </div>
+                        </div>
 
-                          if (categoryMovies.length === 0) return null;
-
-                          return (
-                            <MovieRow
-                              key={category}
-                              title={category}
-                              movies={categoryMovies}
-                              watchHistory={activeProfile.watchHistory}
-                              myList={activeProfile.myList}
-                              onMovieClick={handleSelectMovie}
-                              onToggleMyList={handleToggleMyList}
-                              onPlayClick={handleFeaturedPlay}
-                            />
-                          );
-                        })}
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-y-6 gap-x-4 sm:gap-x-5">
+                          {filteredMovies.map(movie => (
+                            <div
+                              key={movie.id}
+                              onClick={() => handleSelectMovie(movie)}
+                              className="relative bg-zinc-950 border border-zinc-900 rounded-lg overflow-hidden hover:border-rose-500 hover:shadow-xl hover:shadow-rose-600/10 transition-all cursor-pointer group"
+                              id={`search-grid-card-${movie.id}`}
+                            >
+                              <div className="aspect-[2/3] overflow-hidden bg-zinc-900 relative">
+                                <img 
+                                  src={movie.posterUrl} 
+                                  alt={movie.title} 
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                  referrerPolicy="no-referrer"
+                                />
+                                <div className="absolute top-2 left-2 bg-black/85 border border-zinc-800/80 text-[9px] font-mono font-bold text-zinc-200 px-1.5 py-0.5 rounded shadow">
+                                  {movie.year}
+                                </div>
+                              </div>
+                              <div className="p-2 sm:p-3 bg-zinc-950 border-t border-zinc-900 h-14 sm:h-16 flex flex-col justify-between">
+                                <span className="font-semibold text-xs sm:text-sm text-zinc-200 truncate group-hover:text-rose-500 block">{movie.title}</span>
+                                <div className="flex justify-between items-center text-[10px] text-zinc-500 font-mono leading-none">
+                                  <span className="text-yellow-400 font-bold flex items-center gap-0.5"><Star className="w-2.5 h-2.5 fill-yellow-400" /> {movie.rating}</span>
+                                  <span className="text-zinc-400 font-bold truncate max-w-[80px]">{movie.category}</span>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     );
                   })()
@@ -2225,6 +2298,11 @@ export default function App() {
             abyssApiKey={abyssApiKey}
             movies={movies}
             onSelectMovie={handleSelectMovie}
+            comments={comments}
+            onAddComment={handleAddComment}
+            onDeleteComment={handleDeleteComment}
+            currentUser={activeUser}
+            activeProfile={activeProfile}
           />
 
           {/* --- SISTEMA DE TOAST DE NOTIFICAÇÃO AO VIVO RETRÔ --- */}

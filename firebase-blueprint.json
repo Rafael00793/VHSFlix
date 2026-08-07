@@ -63,6 +63,22 @@
         "posterUrl": { "type": "string" }
       },
       "required": ["id", "title", "message", "createdAt", "type"]
+    },
+    "MovieComment": {
+      "title": "MovieComment",
+      "description": "User comment on a movie or TV show",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "movieId": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "profileName": { "type": "string" },
+        "avatarUrl": { "type": "string" },
+        "text": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "movieId", "userId", "userName", "text", "createdAt"]
     }
   },
   "firestore": {
@@ -85,6 +101,10 @@
     "/notifications/{notificationId}": {
       "schema": "AppNotification",
       "description": "Pushed notifications for movies, series and requests"
+    },
+    "/comments/{commentId}": {
+      "schema": "MovieComment",
+      "description": "Comments left on titles"
     }
   }
 }

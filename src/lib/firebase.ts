@@ -224,3 +224,21 @@ export async function deleteNotificationFromFirestore(notificationId: string) {
     handleFirestoreError(err, OperationType.DELETE, `notifications/${notificationId}`);
   }
 }
+
+export async function saveSingleCommentToFirestore(comment: any) {
+  try {
+    if (!comment.id) return;
+    await setDoc(doc(db, 'comments', comment.id), sanitizeForFirestore(comment), { merge: true });
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, `comments/${comment.id}`);
+  }
+}
+
+export async function deleteCommentFromFirestore(commentId: string) {
+  try {
+    await deleteDoc(doc(db, 'comments', commentId));
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, `comments/${commentId}`);
+  }
+}
+

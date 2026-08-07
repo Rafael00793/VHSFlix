@@ -11,6 +11,7 @@ export interface Movie {
   posterUrl: string;
   category: string; // e.g., "Ação Retro", "Ficção Científica", "Terror VHS", "Clássicos 80s", "Animes & Desenhos"
   year: number;
+  releaseDate?: string; // Data exata de lançamento (ex: "2026-08-01")
   duration: string; // e.g., "1h 56m" ou "3 Temporadas"
   type: 'movie' | 'series';
   rating: number; // e.g., 8.5
@@ -28,6 +29,17 @@ export interface Movie {
   embedUrl?: string; // URL de Player / Embed manual do filme
   episodeEmbeds?: { [key: string]: string }; // Dicionário de URLs de embed para episódios de séries: {"1_1": "url", "1_2": "url"}
   seasonsConfig?: { [season: number]: number }; // Mapeamento de temporada para quantidade de episódios: {1: 8, 2: 10}
+}
+
+export interface MovieComment {
+  id: string;
+  movieId: string;
+  userId: string;
+  userName: string;
+  profileName: string;
+  avatarUrl: string;
+  text: string;
+  createdAt: string; // ISO string
 }
 
 export interface WatchProgress {

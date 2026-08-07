@@ -4,8 +4,8 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Movie, WatchProgress } from '../types';
-import { X, Play, Pause, Plus, Check, Star, RefreshCw, Tv, Clock, HelpCircle, Film, Sparkles, AlertCircle, ExternalLink, Maximize, Shield, Sliders, ThumbsUp, ThumbsDown, ChevronDown, ArrowLeft, Settings, Volume2, VolumeX, User, Users } from 'lucide-react';
+import { Movie, WatchProgress, MovieComment } from '../types';
+import { X, Play, Pause, Plus, Check, Star, RefreshCw, Tv, Clock, HelpCircle, Film, Sparkles, AlertCircle, ExternalLink, Maximize, Shield, Sliders, ThumbsUp, ThumbsDown, ChevronDown, ArrowLeft, Settings, Volume2, VolumeX, User, Users, Send, MessageSquare, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { INITIAL_MOVIES } from '../data';
 import { AbyssService } from '../services/abyssService';
@@ -344,6 +344,11 @@ interface MovieDetailModalProps {
   abyssApiKey?: string;
   movies?: Movie[];
   onSelectMovie?: (movie: Movie) => void;
+  comments?: MovieComment[];
+  onAddComment?: (movieId: string, text: string) => void;
+  onDeleteComment?: (commentId: string) => void;
+  currentUser?: any;
+  activeProfile?: any;
 }
 
 const CATEGORY_COLORS: { [key: string]: string } = {
@@ -471,7 +476,12 @@ export default function MovieDetailModal({
   tmdbApiKey,
   abyssApiKey,
   movies = [],
-  onSelectMovie
+  onSelectMovie,
+  comments = [],
+  onAddComment,
+  onDeleteComment,
+  currentUser,
+  activeProfile
 }: MovieDetailModalProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [manualEmbedInput, setManualEmbedInput] = useState('');
@@ -484,10 +494,20 @@ export default function MovieDetailModal({
   const [isConfiguringPlayer, setIsConfiguringPlayer] = useState(false);
   const [season, setSeason] = useState<number>(1);
   const [episode, setEpisode] = useState<number>(1);
-  const [activeTab, setActiveTab] = useState<'episodes' | 'related' | 'details' | 'cast'>('episodes');
+  const [activeTab, setActiveTab] = useState<'episodes' | 'details' | 'cast'>('details');
   const [isSeasonDropdownOpen, setIsSeasonDropdownOpen] = useState(false);
   const [abyssEpisodeId, setAbyssEpisodeId] = useState<string>('');
   const [smartTrailerUrl, setSmartTrailerUrl] = useState<string>(movie?.trailerUrl || '');
+  const [commentInput, setCommentInput] = useState<string>('');
+
+  const movieComments = (comments || []).filter(c => c.movieId === movie?.id);
+
+  const handleCommentSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!commentInput.trim() || !movie || !onAddComment) return;
+    onAddComment(movie.id, commentInput.trim());
+    setCommentInput('');
+  };
 
   // Estado para elenco do TMDB com foto, ator e personagem
   const [castList, setCastList] = useState<CastMember[]>([]);
@@ -1931,19 +1951,6 @@ export default function MovieDetailModal({
                     </button>
                   )}
                   <button
-                    onClick={() => setActiveTab('related')}
-                    className={`relative pb-3 text-sm sm:text-base transition-all focus:outline-none cursor-pointer ${
-                        activeTab === 'related' 
-                          ? 'text-white font-bold' 
-                          : 'text-zinc-500 hover:text-zinc-300'
-                      }`}
-                  >
-                    Relacionados
-                    {activeTab === 'related' && (
-                      <motion.div layoutId="activeTabUnderline" className="absolute bottom-0 left-0 right-0 h-0.5 bg-rose-500 rounded-full" />
-                    )}
-                  </button>
-                  <button
                     onClick={() => setActiveTab('details')}
                     className={`relative pb-3 text-sm sm:text-base transition-all focus:outline-none cursor-pointer ${
                         activeTab === 'details' 
@@ -2104,73 +2111,114 @@ export default function MovieDetailModal({
                 </div>
               )}
 
-              {/* Aba de Títulos Relacionados */}
-              {activeTab === 'related' && (
-                <div className="space-y-6">
-                  <div className="flex flex-col">
-                    <h3 className="text-zinc-300 text-sm font-sans font-bold uppercase mb-1 tracking-wider flex items-center gap-2 flex-wrap">
-                      <Film className="w-4 h-4 text-rose-500 animate-pulse" /> Títulos Recomendados no Mesmo Segmento
-                    </h3>
-                    <p className="text-xs sm:text-sm text-zinc-400 font-sans mt-0.5">Obras recomendadas na mesma categoria: <span className="text-rose-400 font-semibold">{movie.category}</span></p>
-                  </div>
- 
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6 sm:gap-8 mt-6">
-                    {relatedList.length > 0 ? (
-                      relatedList.map((rMovie) => (
-                        <div 
-                          key={rMovie.id}
-                          className="group relative cursor-pointer overflow-hidden rounded-2xl bg-zinc-900/80 border border-zinc-800 hover:border-rose-500 hover:shadow-2xl hover:shadow-rose-600/20 focus-visible:ring-4 focus-visible:ring-rose-500 transition-all duration-300"
-                          onClick={() => {
-                            if (onSelectMovie) {
-                              onSelectMovie(rMovie);
-                            }
-                          }}
-                        >
-                          <div className="relative aspect-[2/3] w-full bg-zinc-950 overflow-hidden">
-                            <img 
-                              src={rMovie.posterUrl || rMovie.backdropUrl || 'https://image.tmdb.org/t/p/original/vKof7jZ50vS2pYgO569ofCidG9y.jpg'} 
-                              alt={rMovie.title} 
-                              referrerPolicy="no-referrer"
-                              className="w-full h-full object-cover group-hover:scale-108 transition-transform duration-500"
-                              loading="lazy"
-                            />
-                            
-                            {/* Tape Sticker Badge in Card */}
-                            <div className="absolute top-2 right-2 px-2 py-0.5 rounded text-[9px] font-mono font-bold uppercase text-zinc-950 z-20 bg-rose-500 select-none shadow-md">
-                              {rMovie.category}
-                            </div>
-
-                            {/* Overlay no Hover */}
-                            <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/30 to-transparent flex flex-col justify-end p-3 sm:p-4 bg-black/20 group-hover:bg-black/60 transition-all">
-                              <div>
-                                <span className="text-[9px] font-mono font-black uppercase tracking-wider text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20 inline-block">
-                                  {rMovie.type === 'movie' ? 'Filme' : 'Série'}
-                                </span>
-                                <h4 className="text-white font-bold text-xs sm:text-sm mt-1.5 font-sans truncate drop-shadow">{rMovie.title}</h4>
-                                <div className="flex items-center justify-between mt-1 text-[10px] sm:text-xs text-zinc-300 font-mono">
-                                  <span>{rMovie.year}</span>
-                                  <span className="text-amber-400 font-bold">★ {rMovie.rating || '8.2'}</span>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="col-span-full py-14 bg-zinc-900/20 rounded-2xl border border-dashed border-zinc-800 text-center text-zinc-500 text-sm font-mono uppercase">
-                        Nenhuma outra obra cadastrada nesta categoria
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
               {/* Aba de Detalhes Completo */}
               {activeTab === 'details' && (
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 sm:gap-12 lg:gap-16 mt-6">
                   
-                  {/* Lado Esquerdo/Centro: Sinopse, Opinião */}
+                  {/* Lado Esquerdo/Centro: Sinopse, Comentários, Opinião */}
                   <div className="md:col-span-2 flex flex-col gap-6">
+
+                    {/* SEÇÃO DE COMENTÁRIOS DA COMUNIDADE */}
+                    <div className="bg-zinc-900/80 border border-zinc-800 p-5 sm:p-6 rounded-2xl shadow-2xl space-y-4">
+                      <div className="flex items-center justify-between border-b border-zinc-800/80 pb-3.5">
+                        <div className="flex items-center gap-2.5">
+                          <MessageSquare className="w-5 h-5 text-rose-500 animate-pulse" />
+                          <h3 className="text-sm sm:text-base font-bold text-white font-sans tracking-tight">
+                            O que você achou deste {movie.type === 'series' ? 'série' : 'filme'}?
+                          </h3>
+                        </div>
+                        <span className="text-[11px] font-mono font-bold text-rose-400 bg-rose-500/10 border border-rose-500/20 px-3 py-1 rounded-full">
+                          {movieComments.length} {movieComments.length === 1 ? 'comentário' : 'comentários'}
+                        </span>
+                      </div>
+                      
+                      <p className="text-xs sm:text-sm text-zinc-300 font-sans leading-relaxed">
+                        Deixe a sua mensagem sobre a obra! Todos os usuários cadastrados verão sua opinião.
+                      </p>
+
+                      {/* Form de Comentário */}
+                      <form onSubmit={handleCommentSubmit} className="flex flex-col sm:flex-row gap-3 pt-1">
+                        <input
+                          type="text"
+                          value={commentInput}
+                          onChange={(e) => setCommentInput(e.target.value)}
+                          placeholder={`Escreva seu comentário sobre ${movie.title}...`}
+                          maxLength={280}
+                          className="flex-1 bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-xs sm:text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-rose-500 focus:ring-1 focus:ring-rose-500/50 font-sans transition-all shadow-inner"
+                        />
+                        <button
+                          type="submit"
+                          disabled={!commentInput.trim()}
+                          className="px-6 py-3 bg-rose-600 hover:bg-rose-500 disabled:opacity-40 disabled:hover:bg-rose-600 text-white font-bold text-xs sm:text-sm rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-rose-950/50 active:scale-95"
+                        >
+                          <Send className="w-4 h-4" />
+                          <span>Publicar</span>
+                        </button>
+                      </form>
+
+                      {/* Lista de Comentários */}
+                      <div className="space-y-3 pt-2 max-h-[360px] overflow-y-auto pr-1 no-scrollbar">
+                        {movieComments.length === 0 ? (
+                          <div className="p-5 bg-zinc-950/60 border border-dashed border-zinc-800 rounded-xl text-center text-xs text-zinc-500 font-mono uppercase tracking-wider">
+                            Nenhum comentário publicado ainda. Seja o primeiro a comentar!
+                          </div>
+                        ) : (
+                          movieComments.map(c => {
+                            const isAdminUser = currentUser?.isAdmin || currentUser?.email === 'rafaelguaruja09@gmail.com' || currentUser?.id === 'u1';
+                            return (
+                              <div key={c.id} className="bg-zinc-950/90 border border-zinc-800/80 p-3.5 sm:p-4 rounded-xl flex items-start justify-between gap-3 group hover:border-zinc-700 transition-all">
+                                <div className="flex items-start gap-3">
+                                  <img
+                                    src={c.avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80'}
+                                    alt={c.userName}
+                                    className="w-8 h-8 sm:w-9 sm:h-9 rounded-full object-cover border border-zinc-700/60 mt-0.5 flex-shrink-0"
+                                  />
+                                  <div className="space-y-1 text-left">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="text-xs sm:text-sm font-bold text-zinc-100 font-sans">{c.profileName || c.userName}</span>
+                                      {(c.userName === 'Rafael' || c.userId === 'u1' || c.userName.toLowerCase().includes('admin')) && (
+                                        <span className="text-[9px] font-mono font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30 px-1.5 py-0.2 rounded uppercase">Admin</span>
+                                      )}
+                                      <span className="text-[10px] text-zinc-500 font-mono">
+                                        {c.createdAt ? (() => {
+                                          try {
+                                            const d = new Date(c.createdAt);
+                                            const now = new Date();
+                                            const diffMs = now.getTime() - d.getTime();
+                                            const diffMins = Math.floor(diffMs / 60000);
+                                            if (diffMins < 1) return 'Agora mesmo';
+                                            if (diffMins < 60) return `há ${diffMins} min`;
+                                            const diffHours = Math.floor(diffMins / 60);
+                                            if (diffHours < 24) return `há ${diffHours} h`;
+                                            return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                                          } catch (e) {
+                                            return c.createdAt;
+                                          }
+                                        })() : ''}
+                                      </span>
+                                    </div>
+                                    <p className="text-xs sm:text-sm text-zinc-200 font-sans leading-relaxed break-words">
+                                      {c.text}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                {/* Apenas o Administrador Rafael pode excluir comentários */}
+                                {isAdminUser && (
+                                  <button
+                                    onClick={() => onDeleteComment && onDeleteComment(c.id)}
+                                    title="Excluir comentário (Apenas Administrador)"
+                                    className="p-1.5 text-zinc-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-all opacity-80 hover:opacity-100 cursor-pointer flex-shrink-0"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
                     
                     {/* Opinião do Espectador */}
                     <div className="bg-zinc-900/40 border border-zinc-800/60 p-4.5 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-4 select-none">
