@@ -660,6 +660,11 @@ export async function getMovieDetailsTMDB(id: number, type: 'movie' | 'tv', apiK
       }
     }
 
+    const ratingVal = Number((data.vote_average || 7.5).toFixed(1));
+    const tmdbVoteCount = data.vote_count || 1250;
+    const votesLikes = Math.round((ratingVal / 10) * tmdbVoteCount);
+    const votesDislikes = Math.round(((10 - ratingVal) / 10) * tmdbVoteCount * 0.25);
+
     return {
       title,
       description,
@@ -669,7 +674,10 @@ export async function getMovieDetailsTMDB(id: number, type: 'movie' | 'tv', apiK
       duration,
       type: mediaType === 'tv' ? 'series' : 'movie',
       category: resolvedCategory,
-      rating: Number((data.vote_average || 7.5).toFixed(1)),
+      rating: ratingVal,
+      tmdbVoteCount,
+      votesLikes,
+      votesDislikes,
       trailerUrl: `https://www.youtube.com/embed/${trailerKey}`,
       tmdbId: id,
       seasonsConfig: mediaType === 'tv' ? seasonsConfig : undefined
@@ -679,3 +687,48 @@ export async function getMovieDetailsTMDB(id: number, type: 'movie' | 'tv', apiK
     return null;
   }
 }
+
+/**
+ * Busca Filmes e Séries em Tendência Hoje no TMDB (Trending / Popular)
+ */
+export async function getTMDBTrendingMovies(apiKey: string): Promise<any[]> {
+  if (!apiKey || apiKey === 'MY_GEMINI_API_KEY' || apiKey.trim() === '') {
+    const mockDb = await fallbackTMDBSearch('');
+    return mockDb.map(item => ({
+      id: item.id,
+      title: item.title,
+      name: item.title,
+      popularity: item.vote_average * 10,
+      vote_average: item.vote_average,
+      media_type: 'movie',
+      poster_path: item.poster_path,
+      backdrop_path: item.backdrop_path,
+      overview: item.overview
+    }));
+  }
+
+  try {
+    const url = `https://api.themoviedb.org/3/trending/all/day?api_key=${encodeURIComponent(apiKey)}&language=pt-BR`;
+    const res = await fetchApi(url);
+    if (!res.ok || !res.data) {
+      throw new Error('Falha ao obter tendências do TMDB');
+    }
+    const results = res.data.results || [];
+    return results;
+  } catch (err) {
+    console.warn('Erro ao obter tendências do TMDB, usando banco simulado:', err);
+    const mockDb = await fallbackTMDBSearch('');
+    return mockDb.map(item => ({
+      id: item.id,
+      title: item.title,
+      name: item.title,
+      popularity: item.vote_average * 10,
+      vote_average: item.vote_average,
+      media_type: 'movie',
+      poster_path: item.poster_path,
+      backdrop_path: item.backdrop_path,
+      overview: item.overview
+    }));
+  }
+}
+

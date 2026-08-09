@@ -6,7 +6,7 @@
 import React, { useState, useMemo } from 'react';
 import { Movie, User, Profile, getSubscriptionDaysLeft, renewSubscription } from '../types';
 import { GENRE_CATEGORIES, searchMoviesTMDB, getMovieDetailsTMDB, PROFILE_AVATARS } from '../data';
-import { Trash, Edit, Plus, Users, Library, Settings, Search, Import, Download, Star, Shield, Film, Tv, Play, AlertTriangle, ShieldAlert, RefreshCw, Check, LayoutDashboard, Activity, Clock, TrendingUp, User as UserIcon, Lock as LockIcon, Eye, EyeOff } from 'lucide-react';
+import { Trash, Edit, Plus, Users, Library, Settings, Search, Import, Download, Star, Shield, Film, Tv, Play, AlertTriangle, ShieldAlert, RefreshCw, Check, LayoutDashboard, Activity, Clock, TrendingUp, User as UserIcon, Lock as LockIcon, Eye, EyeOff, Flame, Sparkles, Pin, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { compressImage, saveMoviesToFirestore } from '../lib/firebase';
 import { AbyssService } from '../services/abyssService';
@@ -33,6 +33,8 @@ interface AdminPanelProps {
   adguardEnabled: boolean;
   onToggleAdguardEnabled: (enabled: boolean) => void;
   onPublishUpdate?: () => void;
+  pinnedMostDesiredId?: string | null;
+  onTogglePinMostDesired?: (movieId: string | null) => void;
 }
 
 export default function AdminPanel({
@@ -56,7 +58,9 @@ export default function AdminPanel({
   onEditProfile,
   adguardEnabled,
   onToggleAdguardEnabled,
-  onPublishUpdate
+  onPublishUpdate,
+  pinnedMostDesiredId,
+  onTogglePinMostDesired
 }: AdminPanelProps) {
   const [activeAdminTab, setActiveAdminTab] = useState<'dashboard' | 'catalog' | 'users' | 'myaccount' | 'settings'>('dashboard');
 
@@ -64,6 +68,24 @@ export default function AdminPanel({
   const [selectedMovieIds, setSelectedMovieIds] = useState<string[]>([]);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [catalogSearchQuery, setCatalogSearchQuery] = useState('');
+
+  // Estado para busca rápida com lupa da Fita Específica para Fixar
+  const [pinSearchQuery, setPinSearchQuery] = useState('');
+  const [isPinPickerOpen, setIsPinPickerOpen] = useState(false);
+
+  const filteredPinMovies = useMemo(() => {
+    if (!pinSearchQuery.trim()) return movies.slice(0, 10);
+    const q = pinSearchQuery.toLowerCase().trim();
+    return movies.filter(m => 
+      m.title.toLowerCase().includes(q) || 
+      m.category.toLowerCase().includes(q) || 
+      String(m.year).includes(q)
+    );
+  }, [movies, pinSearchQuery]);
+
+  const currentlyPinnedMovie = useMemo(() => {
+    return pinnedMostDesiredId ? movies.find(m => m.id === pinnedMostDesiredId) : null;
+  }, [movies, pinnedMostDesiredId]);
 
   // Estados com confirmação customizada segura
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
@@ -1025,6 +1047,191 @@ export default function AdminPanel({
                   </button>
                 </div>
 
+                {/* PAINEL DE CONTROLE DA FITA VHS MAIS DESEJADA */}
+                <div className="bg-gradient-to-r from-zinc-950 via-rose-950/20 to-zinc-950 border border-rose-500/30 rounded-xl p-4 sm:p-5 shadow-lg space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-500">
+                        <Flame className="w-5 h-5 animate-pulse" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-white font-display uppercase tracking-wide flex items-center gap-2">
+                          Fita VHS Mais Desejada
+                          {pinnedMostDesiredId ? (
+                            <span className="text-[10px] font-mono bg-rose-500 text-white px-2 py-0.5 rounded font-black uppercase flex items-center gap-1">
+                              <Pin className="w-3 h-3 fill-current" />
+                              Fixada Manualmente
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-mono bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded font-bold uppercase flex items-center gap-1">
+                              <Flame className="w-3 h-3 text-amber-400 fill-current" />
+                              Seleção Automática (Destaques)
+                            </span>
+                          )}
+                        </h4>
+                        <p className="text-xs text-zinc-400 mt-0.5">
+                          {pinnedMostDesiredId
+                            ? "Você fixou um título específico do acervo para ser a Fita VHS Mais Desejada no topo da tela inicial."
+                            : "A fita é selecionada automaticamente em tempo real cruzando acessos, curtidas e estatísticas de popularidade."}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Botão de Desfixar se houver fixado */}
+                    {pinnedMostDesiredId && (
+                      <button
+                        type="button"
+                        onClick={() => onTogglePinMostDesired?.(null)}
+                        className="text-xs font-mono font-bold bg-zinc-900 hover:bg-zinc-800 text-rose-400 border border-rose-500/30 px-3 py-1.5 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 self-start sm:self-auto"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                        <span>Voltar ao Modo Automático</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Fita Atualmente Fixada */}
+                  {currentlyPinnedMovie && (
+                    <div className="bg-rose-950/30 border border-rose-500/40 rounded-lg p-3 flex items-center justify-between gap-3 my-2">
+                      <div className="flex items-center gap-3">
+                        <img 
+                          src={currentlyPinnedMovie.posterUrl} 
+                          alt={currentlyPinnedMovie.title} 
+                          className="w-10 h-14 object-cover rounded border border-rose-500/50 shrink-0" 
+                        />
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-white uppercase font-sans">{currentlyPinnedMovie.title}</span>
+                            <span className="text-[10px] font-mono text-zinc-400">({currentlyPinnedMovie.year})</span>
+                            <span className="text-[9px] font-mono text-rose-400 bg-rose-500/20 px-1.5 py-0.5 rounded uppercase font-bold">
+                              {currentlyPinnedMovie.category}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-zinc-400 line-clamp-1 mt-0.5">{currentlyPinnedMovie.description}</p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => onTogglePinMostDesired?.(null)}
+                        className="text-xs font-mono font-bold text-rose-400 hover:text-white bg-zinc-900 hover:bg-rose-600 border border-rose-500/30 px-3 py-1.5 rounded-lg transition-all shrink-0 cursor-pointer flex items-center gap-1"
+                        title="Desfixar Fita"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                        <span>Desfixar</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Seletor com Ampola/Lupa de Pesquisa para Fixar Fita Específica */}
+                  <div className="pt-2 border-t border-zinc-850 relative">
+                    <label className="block text-xs font-mono text-zinc-300 font-bold mb-1.5 flex items-center gap-1.5">
+                      <Search className="w-3.5 h-3.5 text-rose-400" />
+                      <span>Pesquisar Filme ou Série para Fixar em Destaque:</span>
+                    </label>
+
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-zinc-400">
+                        <Search className="w-4 h-4 text-rose-500" />
+                      </div>
+                      <input
+                        type="text"
+                        value={pinSearchQuery}
+                        onChange={(e) => {
+                          setPinSearchQuery(e.target.value);
+                          setIsPinPickerOpen(true);
+                        }}
+                        onFocus={() => setIsPinPickerOpen(true)}
+                        placeholder="Digite o nome do filme ou série para pesquisar..."
+                        className="w-full pl-9 pr-8 py-2 bg-zinc-900 border border-zinc-750 focus:border-rose-500 rounded-lg text-xs font-mono text-white placeholder-zinc-500 focus:outline-none transition-all shadow-inner"
+                        id="input-pin-search"
+                      />
+                      {pinSearchQuery && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPinSearchQuery('');
+                            setIsPinPickerOpen(false);
+                          }}
+                          className="absolute inset-y-0 right-0 pr-3 flex items-center text-zinc-500 hover:text-white cursor-pointer"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Dropdown de Resultados da Pesquisa por Lupa */}
+                    {isPinPickerOpen && (
+                      <div className="absolute left-0 right-0 top-full mt-1 bg-zinc-900 border border-zinc-750 rounded-xl shadow-2xl z-30 max-h-60 overflow-y-auto divide-y divide-zinc-800 animate-fade-in">
+                        <div className="p-2 bg-zinc-950/90 text-[10px] font-mono text-zinc-400 uppercase tracking-wider flex justify-between items-center sticky top-0 z-10 backdrop-blur-md">
+                          <span>Resultados ({filteredPinMovies.length})</span>
+                          <button
+                            type="button"
+                            onClick={() => setIsPinPickerOpen(false)}
+                            className="text-zinc-400 hover:text-white text-[10px] font-bold underline"
+                          >
+                            Fechar
+                          </button>
+                        </div>
+
+                        {filteredPinMovies.length === 0 ? (
+                          <div className="p-4 text-center text-xs text-zinc-500 font-mono">
+                            Nenhum filme ou série encontrado com "{pinSearchQuery}".
+                          </div>
+                        ) : (
+                          filteredPinMovies.map(m => {
+                            const isPinned = pinnedMostDesiredId === m.id;
+                            return (
+                              <div
+                                key={m.id}
+                                onClick={() => {
+                                  onTogglePinMostDesired?.(isPinned ? null : m.id);
+                                  setIsPinPickerOpen(false);
+                                  setPinSearchQuery('');
+                                }}
+                                className={`p-2.5 flex items-center justify-between gap-3 hover:bg-rose-950/30 cursor-pointer transition-colors ${
+                                  isPinned ? 'bg-rose-900/20' : ''
+                                }`}
+                              >
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <img 
+                                    src={m.posterUrl} 
+                                    alt={m.title} 
+                                    className="w-7 h-10 object-cover rounded border border-zinc-800 shrink-0" 
+                                  />
+                                  <div className="min-w-0">
+                                    <div className="text-xs font-bold text-white truncate font-sans">{m.title}</div>
+                                    <div className="text-[10px] font-mono text-zinc-400 flex items-center gap-1.5">
+                                      <span>{m.year}</span>
+                                      <span>•</span>
+                                      <span className="text-rose-400">{m.category}</span>
+                                      <span>•</span>
+                                      <span className="text-yellow-400 flex items-center gap-0.5">
+                                        <Star className="w-3 h-3 fill-current" /> {m.rating}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  className={`px-3 py-1 rounded text-[10px] font-mono font-bold uppercase tracking-wider shrink-0 cursor-pointer transition-all flex items-center gap-1 ${
+                                    isPinned 
+                                      ? 'bg-rose-600 text-white shadow' 
+                                      : 'bg-zinc-800 hover:bg-rose-600 text-zinc-300 hover:text-white border border-zinc-700'
+                                  }`}
+                                >
+                                  <Pin className="w-3 h-3 fill-current" />
+                                  <span>{isPinned ? 'Fixada' : 'Fixar'}</span>
+                                </button>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
                 {/* Barra de Seleção, Pesquisa e Ações em Lote */}
                 <div className="flex flex-col md:flex-row justify-between items-center bg-zinc-900/50 border border-zinc-850 px-5 py-3 rounded-lg gap-3">
                   <div className="flex flex-col sm:flex-row items-center gap-3.5 w-full md:w-auto">
@@ -1191,6 +1398,21 @@ export default function AdminPanel({
                               <Star className="w-3 h-3 fill-yellow-400" /> {movie.rating}
                             </span>
                             <div className="flex items-center gap-2">
+                              {/* Botão de Fixar / Desfixar como Fita Mais Desejada */}
+                              <button
+                                type="button"
+                                onClick={() => onTogglePinMostDesired?.(pinnedMostDesiredId === movie.id ? null : movie.id)}
+                                className={`px-2 py-1 rounded transition-colors text-[10px] font-mono flex items-center gap-1 cursor-pointer border ${
+                                  pinnedMostDesiredId === movie.id
+                                    ? 'text-rose-400 bg-rose-500/20 border-rose-500/50 font-bold'
+                                    : 'text-zinc-500 hover:text-rose-400 border-zinc-800 hover:border-zinc-700 bg-zinc-900/50'
+                                }`}
+                                title={pinnedMostDesiredId === movie.id ? "Desfixar Fita Mais Desejada" : "Fixar como Fita VHS Mais Desejada"}
+                              >
+                                <Flame className={`w-3 h-3 ${pinnedMostDesiredId === movie.id ? 'fill-current text-rose-500 animate-pulse' : ''}`} />
+                                <span>{pinnedMostDesiredId === movie.id ? 'Fixada' : 'Fixar'}</span>
+                              </button>
+
                               <button
                                 onClick={() => handleOpenEditForm(movie)}
                                 className="text-zinc-400 hover:text-white p-1 rounded hover:bg-zinc-900 transition-colors"

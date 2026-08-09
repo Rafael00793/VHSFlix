@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Movie, User, Profile, WatchProgress, AppNotification, MovieRequest, MovieComment, getSubscriptionDaysLeft, renewSubscription } from './types';
-import { INITIAL_MOVIES, INITIAL_USERS, DEFAULT_PROFILES, GENRE_CATEGORIES, getMovieDetailsTMDB } from './data';
+import { INITIAL_MOVIES, INITIAL_USERS, DEFAULT_PROFILES, GENRE_CATEGORIES, getMovieDetailsTMDB, getTMDBTrendingMovies } from './data';
 import Navbar from './components/Navbar';
 import ProfileSelector from './components/ProfileSelector';
 import MovieRow from './components/MovieRow';
@@ -147,11 +147,17 @@ export default function App() {
 
     return uniqueMovies.map((m: Movie, idx: number) => {
       const seed = (m.title?.length || 10) + idx * 7;
+      const rating = m.rating || 7.5;
+      const voteCount = m.tmdbVoteCount || (1200 + (seed * 37) % 3500);
+      const calculatedLikes = Math.round((rating / 10) * voteCount);
+      const calculatedDislikes = Math.round(((10 - rating) / 10) * voteCount * 0.25);
+
       return {
         ...m,
         clicksCount: m.clicksCount !== undefined ? m.clicksCount : (100 + (seed * 19) % 850),
-        votesLikes: m.votesLikes !== undefined ? m.votesLikes : (45 + (seed * 13) % 400),
-        votesDislikes: m.votesDislikes !== undefined ? m.votesDislikes : (2 + (seed * 3) % 25),
+        votesLikes: m.votesLikes !== undefined && m.votesLikes > 0 ? m.votesLikes : calculatedLikes,
+        votesDislikes: m.votesDislikes !== undefined && m.votesDislikes > 0 ? m.votesDislikes : calculatedDislikes,
+        tmdbVoteCount: m.tmdbVoteCount || voteCount
       };
     });
   });
@@ -173,6 +179,25 @@ export default function App() {
     const saved = localStorage.getItem('vhsflix_adguard_enabled');
     return saved ? JSON.parse(saved) : true;
   });
+
+  const [pinnedMostDesiredMovieId, setPinnedMostDesiredMovieId] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem('vhsflix_pinned_most_desired') || null;
+    } catch (e) {
+      return null;
+    }
+  });
+
+  const handleTogglePinMostDesired = async (movieId: string | null) => {
+    const newPinnedId = (pinnedMostDesiredMovieId === movieId || !movieId) ? null : movieId;
+    setPinnedMostDesiredMovieId(newPinnedId);
+    if (newPinnedId) {
+      localStorage.setItem('vhsflix_pinned_most_desired', newPinnedId);
+    } else {
+      localStorage.removeItem('vhsflix_pinned_most_desired');
+    }
+    await saveSettingsToFirestore(adguardEnabled, newPinnedId);
+  };
 
   const [vhsMode, setVhsMode] = useState<boolean>(() => {
     const saved = localStorage.getItem('vhsflix_vhs_mode');
@@ -350,6 +375,9 @@ export default function App() {
           const data = doc.data();
           if (data.adguardEnabled !== undefined) {
             adguard = data.adguardEnabled;
+          }
+          if (data.pinnedMostDesiredId !== undefined) {
+            setPinnedMostDesiredMovieId(data.pinnedMostDesiredId || null);
           }
           
           // Mecanismo Inteligente de Limpeza de Cache & Versionamento por Sinal de Rádio
@@ -679,19 +707,86 @@ export default function App() {
     return featuredHighlights[activeHighlightIndex % featuredHighlights.length] || featuredHighlights[0];
   }, [featuredHighlights, activeHighlightIndex]);
 
-  // Fita VHS Mais Desejada (Baseado no sistema de mais assistidos / mais clicados)
+  const [tmdbTrendingList, setTmdbTrendingList] = useState<any[]>([]);
+
+  // Carrega em segundo plano as tendências reais de hoje do TMDB e atualiza métricas de audiência
+  useEffect(() => {
+    let isMounted = true;
+    getTMDBTrendingMovies(tmdbApiKey).then(results => {
+      if (isMounted && Array.isArray(results) && results.length > 0) {
+        setTmdbTrendingList(results);
+
+        // Atualiza estatísticas reais de curtidas e audiência do TMDB nos títulos do acervo
+        setMovies(prev => {
+          let updated = false;
+          const next = prev.map(m => {
+            const match = results.find(r => r.id === m.tmdbId || (r.title || r.name || '').toLowerCase().trim() === m.title.toLowerCase().trim());
+            if (match && match.vote_count && match.vote_average) {
+              const tmdbLikes = Math.round((match.vote_average / 10) * match.vote_count);
+              const tmdbDislikes = Math.round(((10 - match.vote_average) / 10) * match.vote_count * 0.25);
+              const newRating = Number((match.vote_average).toFixed(1));
+              if (m.votesLikes !== tmdbLikes || m.votesDislikes !== tmdbDislikes || m.rating !== newRating) {
+                updated = true;
+                return {
+                  ...m,
+                  rating: newRating,
+                  votesLikes: tmdbLikes,
+                  votesDislikes: tmdbDislikes,
+                  tmdbVoteCount: match.vote_count
+                };
+              }
+            }
+            return m;
+          });
+          return updated ? next : prev;
+        });
+      }
+    }).catch(err => console.warn('[TMDB] Erro ao carregar tendências:', err));
+    return () => { isMounted = false; };
+  }, [tmdbApiKey]);
+
+  // Fita VHS Mais Desejada (Fita #1 em alta no TMDB disponível no catálogo, ou Fixação do Admin)
   const mostDesejadaMovie = useMemo(() => {
     if (movies.length === 0) return null;
-    const sorted = [...movies].sort((a, b) => {
-      const clicksA = a.clicksCount || 0;
-      const clicksB = b.clicksCount || 0;
-      if (clicksB !== clicksA) {
-        return clicksB - clicksA;
+
+    // 1. MODO MANUAL: Prioridade total se o Admin fixou uma fita específica
+    if (pinnedMostDesiredMovieId) {
+      const pinned = movies.find(m => m.id === pinnedMostDesiredMovieId);
+      if (pinned) return pinned;
+    }
+
+    // 2. TENDÊNCIAS DO TMDB: Seleciona a fita #1 em alta no TMDB que está no catálogo
+    if (tmdbTrendingList && tmdbTrendingList.length > 0) {
+      for (const trending of tmdbTrendingList) {
+        if (trending.id) {
+          const matchByTmdbId = movies.find(m => m.tmdbId === trending.id);
+          if (matchByTmdbId) return matchByTmdbId;
+        }
+
+        const trendingTitle = (trending.title || trending.name || '').toLowerCase().trim();
+        if (trendingTitle) {
+          const matchByTitle = movies.find(m => {
+            const mTitle = m.title.toLowerCase().trim();
+            return mTitle === trendingTitle || mTitle.includes(trendingTitle) || trendingTitle.includes(mTitle);
+          });
+          if (matchByTitle) return matchByTitle;
+        }
       }
-      return (b.rating || 0) - (a.rating || 0);
+    }
+
+    // 3. FALLBACK: Fita com maior pontuação (Nota + Curtidas)
+    const sorted = [...movies].sort((a, b) => {
+      const scoreA = ((a.rating || 0) * 10) + (a.votesLikes || 0) + (a.clicksCount || 0);
+      const scoreB = ((b.rating || 0) * 10) + (b.votesLikes || 0) + (b.clicksCount || 0);
+      return scoreB - scoreA;
     });
+
     return sorted[0];
-  }, [movies]);
+  }, [movies, pinnedMostDesiredMovieId, tmdbTrendingList]);
+
+  const isMostDesiredPinnedByAdmin = useMemo(() => {
+    return Boolean(pinnedMostDesiredMovieId && movies.some(m => m.id === pinnedMostDesiredMovieId));
+  }, [pinnedMostDesiredMovieId, movies]);
 
   // Mais Votados da Audiência (Ordenado por Likes)
   const moviesSortedByLikes = useMemo(() => {
@@ -1546,6 +1641,8 @@ export default function App() {
               adguardEnabled={adguardEnabled}
               onToggleAdguardEnabled={setAdguardEnabled}
               onPublishUpdate={handlePublishUpdate}
+              pinnedMostDesiredId={pinnedMostDesiredMovieId}
+              onTogglePinMostDesired={handleTogglePinMostDesired}
             />
           ) : activeTab === 'requests' ? (
             <RequestsPanel
@@ -1754,67 +1851,95 @@ export default function App() {
                   })()
                 )}
 
-                {/* --- 2.B.I.B: SPOTHLIGHT / HIGHLIGHT DA FITA VHS MAIS DESEJADA (SISTEMA REAL DE CLIQUES) --- */}
+                {/* --- 2.B.I.B: SPOTHLIGHT / HIGHLIGHT DA FITA VHS MAIS DESEJADA (TENDÊNCIAS + MANUAL PIN) --- */}
                 {!searchVal && !selectedCategory && activeTab === 'all' && mostDesejadaMovie && (
                   <div className="px-4 sm:px-8 mb-10 select-none animate-fade-in">
-                    <div className="relative overflow-hidden rounded-2xl border border-rose-500/30 bg-gradient-to-br from-zinc-950 via-zinc-900/90 to-zinc-950 p-5 sm:p-7 flex flex-col md:flex-row items-center gap-6 shadow-2xl shadow-rose-950/20">
-                      {/* Efeitos neon glow de fundo */}
-                      <div className="absolute top-0 right-0 w-80 h-80 bg-rose-500/10 rounded-full blur-[100px] pointer-events-none"></div>
-                      <div className="absolute bottom-0 left-0 w-80 h-80 bg-emerald-500/5 rounded-full blur-[100px] pointer-events-none"></div>
+                    <div className="relative overflow-hidden rounded-2xl border-2 border-rose-500/40 bg-gradient-to-r from-zinc-950 via-rose-950/25 to-zinc-950 p-5 sm:p-7 flex flex-col md:flex-row items-center gap-6 shadow-2xl shadow-rose-950/40 hover:border-rose-500/80 transition-all duration-300">
+                      {/* Efeitos neon glow e partículas de iluminação retro */}
+                      <div className="absolute top-0 right-0 w-96 h-96 bg-rose-600/15 rounded-full blur-[120px] pointer-events-none"></div>
+                      <div className="absolute bottom-0 left-0 w-80 h-80 bg-amber-500/10 rounded-full blur-[100px] pointer-events-none"></div>
+                      <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff05_1px,transparent_1px),linear-gradient(to_bottom,#ffffff05_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none"></div>
 
-                      {/* Poster */}
+                      {/* Capa VHS Interativa */}
                       <div 
                         onClick={() => handleSelectMovie(mostDesejadaMovie)}
-                        className="relative shrink-0 w-32 sm:w-40 aspect-[2/3] rounded-lg overflow-hidden border-2 border-rose-500/80 shadow-lg shadow-rose-500/20 scale-100 hover:scale-[1.03] transition-all duration-300 cursor-pointer"
+                        className="relative shrink-0 w-36 sm:w-44 aspect-[2/3] rounded-xl overflow-hidden border-2 border-rose-500 shadow-2xl shadow-rose-500/30 scale-100 hover:scale-105 transition-all duration-300 cursor-pointer group z-10"
                       >
                         <img 
                           src={mostDesejadaMovie.posterUrl} 
                           alt={mostDesejadaMovie.title}
-                          className="w-full h-full object-cover"
+                          className="w-full h-full object-cover group-hover:opacity-90 transition-opacity"
                           referrerPolicy="no-referrer"
                         />
-                        {/* Etiqueta VHS Clássica */}
-                        <div className="absolute top-2 left-2 bg-rose-600 text-white font-mono text-[8px] font-black tracking-widest px-1.5 py-0.5 rounded shadow">
-                          MAIS DESEJADO
+                        {/* Etiqueta VHS Neon */}
+                        <div className="absolute top-2.5 left-2.5 bg-rose-600 text-white font-mono text-[9px] font-black tracking-widest px-2 py-0.5 rounded shadow-lg uppercase flex items-center gap-1">
+                          <Flame className="w-3 h-3 fill-current animate-pulse" />
+                          {isMostDesiredPinnedByAdmin ? 'DESTAQUE ESPECIAL' : 'TENDÊNCIA Nº 1'}
+                        </div>
+
+                        {/* Hover Overlay para Sintonizar */}
+                        <div className="absolute inset-0 bg-rose-900/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          <div className="bg-rose-600 text-white p-3 rounded-full shadow-xl transform scale-90 group-hover:scale-100 transition-transform flex items-center gap-1 font-mono text-xs font-bold uppercase">
+                            <Play className="w-5 h-5 fill-current ml-0.5" />
+                          </div>
                         </div>
                       </div>
 
-                      {/* Informações detalhadas da fita mais assistida */}
-                      <div className="flex-1 text-center md:text-left flex flex-col items-center md:items-start">
+                      {/* Conteúdo Detalhado e Métricas */}
+                      <div className="flex-1 text-center md:text-left flex flex-col items-center md:items-start z-10">
                         <div className="flex flex-wrap items-center justify-center md:justify-start gap-2.5">
-                          <span className="text-[10px] sm:text-xs font-mono font-black text-rose-500 uppercase tracking-widest bg-rose-500/10 px-3 py-1 rounded-full border border-rose-500/20 flex items-center gap-1">
-                            <Flame className="w-3 sm:w-3.5 h-3 sm:h-3.5 fill-current animate-pulse text-rose-500" />
-                            📼 Fita VHS Mais Desejada
-                          </span>
-                          <span className="text-[9px] sm:text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 flex items-center gap-1 font-bold">
+                          {isMostDesiredPinnedByAdmin ? (
+                            <span className="text-[10px] sm:text-xs font-mono font-black text-rose-400 uppercase tracking-widest bg-rose-500/15 border border-rose-500/30 px-3.5 py-1 rounded-full flex items-center gap-1.5 shadow-sm">
+                              <Sparkles className="w-3.5 h-3.5 text-rose-400 animate-spin" />
+                              📌 Fita VHS Mais Desejada (Destaque Especial)
+                            </span>
+                          ) : (
+                            <span className="text-[10px] sm:text-xs font-mono font-black text-amber-400 uppercase tracking-widest bg-amber-500/15 border border-amber-500/30 px-3.5 py-1 rounded-full flex items-center gap-1.5 shadow-sm">
+                              <Flame className="w-3.5 h-3.5 fill-current animate-pulse text-amber-400" />
+                              📼 Fita VHS Mais Desejada
+                            </span>
+                          )}
+
+                          <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20 font-bold flex items-center gap-1">
                             🔥 {mostDesejadaMovie.clicksCount || 0} acessos à fita
                           </span>
                         </div>
 
-                        <h3 className="text-xl sm:text-2xl font-black text-white font-sans mt-3 tracking-tight uppercase leading-tight text-shadow">
+                        <h3 className="text-2xl sm:text-3xl font-black text-white font-sans mt-3 tracking-tight uppercase leading-tight text-shadow">
                           {mostDesejadaMovie.title}
                         </h3>
 
-                        <p className="text-xs text-zinc-400 mt-2 max-w-xl leading-relaxed text-justify md:text-left line-clamp-2">
+                        <p className="text-xs sm:text-sm text-zinc-300 mt-2 max-w-2xl leading-relaxed text-justify md:text-left line-clamp-3">
                           {mostDesejadaMovie.description}
                         </p>
 
-                        <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 text-xs font-mono text-zinc-400 mt-4">
-                          <span className="flex items-center gap-1"><Star className="w-4 h-4 text-yellow-400 fill-current" /> <strong className="text-white">{mostDesejadaMovie.rating}</strong>/10</span>
-                          <span>•</span>
-                          <span>Categoria: <strong className="text-white">{mostDesejadaMovie.category}</strong></span>
-                          <span>•</span>
-                          <span>Temporada/Duração: <strong className="text-white">{mostDesejadaMovie.duration}</strong></span>
+                        {/* Metadados Estilizados */}
+                        <div className="flex flex-wrap items-center justify-center md:justify-start gap-2.5 sm:gap-3.5 text-xs font-mono text-zinc-400 mt-4">
+                          <span className="flex items-center gap-1 bg-zinc-900/80 border border-zinc-800 px-2.5 py-1 rounded text-white font-bold">
+                            <Star className="w-3.5 h-3.5 text-yellow-400 fill-current" />
+                            <span>{mostDesejadaMovie.rating}</span>
+                            <span className="text-zinc-500 text-[10px]">/10</span>
+                          </span>
+                          <span className="bg-zinc-900/80 border border-zinc-800 px-2.5 py-1 rounded text-zinc-300">
+                            {mostDesejadaMovie.year}
+                          </span>
+                          <span className="bg-zinc-900/80 border border-zinc-800 px-2.5 py-1 rounded text-rose-400 font-semibold uppercase">
+                            {mostDesejadaMovie.category}
+                          </span>
+                          <span className="bg-zinc-900/80 border border-zinc-800 px-2.5 py-1 rounded text-zinc-300">
+                            {mostDesejadaMovie.duration}
+                          </span>
                         </div>
 
-                        {/* Botões rápidos de ação */}
-                        <div className="flex flex-wrap items-center gap-3 mt-5">
+                        {/* Botões Interativos de Ação */}
+                        <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 mt-6">
                           <button
                             onClick={() => handleSelectMovie(mostDesejadaMovie)}
-                            className="bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-mono text-[10px] sm:text-xs font-black uppercase tracking-wider px-5 py-2.5 rounded-lg flex items-center gap-2 transition-all cursor-pointer shadow-lg shadow-rose-950/40 animate-pulse"
+                            className="bg-rose-600 hover:bg-rose-500 active:scale-95 text-white font-mono text-xs font-black uppercase tracking-wider px-6 py-3 rounded-xl flex items-center gap-2 transition-all cursor-pointer shadow-lg shadow-rose-600/30"
+                            id="btn-play-most-desired"
                           >
-                            <Play className="w-4 h-4 fill-current" />
-                            <span>Sintonizar Fita</span>
+                            <Play className="w-4.5 h-4.5 fill-current" />
+                            <span>Sintonizar Fita Agora</span>
                           </button>
                           
                           <button
@@ -1822,21 +1947,22 @@ export default function App() {
                               if (!activeProfile) return;
                               handleToggleMyList(mostDesejadaMovie.id);
                             }}
-                            className={`border font-mono text-[10px] sm:text-xs font-black uppercase tracking-wider px-5 py-2.5 rounded-lg transition-all cursor-pointer flex items-center gap-2 ${
-                              activeProfile.myList.includes(mostDesejadaMovie.id)
-                                ? 'bg-rose-500/10 border-rose-500 text-rose-400'
-                                : 'border-zinc-750 hover:border-zinc-500 text-zinc-300 hover:text-white bg-zinc-900/50'
+                            className={`border font-mono text-xs font-bold uppercase tracking-wider px-5 py-3 rounded-xl transition-all cursor-pointer flex items-center gap-2 ${
+                              activeProfile?.myList?.includes(mostDesejadaMovie.id)
+                                ? 'bg-rose-500/15 border-rose-500 text-rose-400'
+                                : 'border-zinc-700 hover:border-zinc-500 text-zinc-300 hover:text-white bg-zinc-900/60'
                             }`}
+                            id="btn-toggle-mylist-most-desired"
                           >
-                            {activeProfile.myList.includes(mostDesejadaMovie.id) ? (
+                            {activeProfile?.myList?.includes(mostDesejadaMovie.id) ? (
                               <>
-                                <Check className="w-4 h-4" />
-                                <span>Na Minha Estante</span>
+                                <Check className="w-4 h-4 text-rose-400" />
+                                <span>Na Sua Estante</span>
                               </>
                             ) : (
                               <>
                                 <Plus className="w-4 h-4" />
-                                <span>Salvar Estante</span>
+                                <span>Salvar na Estante</span>
                               </>
                             )}
                           </button>

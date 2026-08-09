@@ -178,9 +178,13 @@ export async function deleteMovieFromFirestore(movieId: string) {
   }
 }
 
-export async function saveSettingsToFirestore(adguardEnabled: boolean) {
+export async function saveSettingsToFirestore(adguardEnabled: boolean, pinnedMostDesiredId?: string | null) {
   try {
-    await setDoc(doc(db, 'settings', 'global'), { id: 'global', adguardEnabled }, { merge: true });
+    const payload: any = { id: 'global', adguardEnabled };
+    if (pinnedMostDesiredId !== undefined) {
+      payload.pinnedMostDesiredId = pinnedMostDesiredId;
+    }
+    await setDoc(doc(db, 'settings', 'global'), payload, { merge: true });
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, 'settings/global');
   }

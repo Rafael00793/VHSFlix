@@ -576,63 +576,50 @@ export default function MovieDetailModal({
     };
   }, [movie?.id, movie?.tmdbId, movie?.title, movie?.type, tmdbApiKey]);
 
-  // Efeito para busca e sincronização inteligente de trailers
+  // Efeito para busca e sincronização de trailers EXCLUSIVAMENTE via TMDB API
   useEffect(() => {
     if (!movie) return;
 
     if (movie.trailerUrl && movie.trailerUrl.includes('youtube.com/embed/')) {
       setSmartTrailerUrl(movie.trailerUrl);
-    } else {
-      let isMounted = true;
-
-      fetchApi('/api/trailer', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: movie.title,
-          tmdbId: movie.tmdbId,
-          type: movie.type,
-          movieId: movie.id
-        })
-      })
-        .then(async res => {
-          if (res.ok && res.data && res.data.success && res.data.trailerUrl) {
-            if (isMounted) {
-              setSmartTrailerUrl(res.data.trailerUrl);
-              movie.trailerUrl = res.data.trailerUrl;
-              movie.youtubeVideoId = res.data.videoId;
-            }
-            return;
-          }
-          throw new Error('Fallback to TMDB client direct fetch');
-        })
-        .catch(async () => {
-          // Client-side fallback via TMDB API (Direct browser query for Netlify deployments)
-          if (movie.tmdbId) {
-            try {
-              const tmdbKey = tmdbApiKey || localStorage.getItem('vhsflix_tmdb_key') || (import.meta as any).env?.VITE_TMDB_API_KEY || '15d20e45d5707b2205d30b4f8f369b74';
-              const tmdbType = movie.type === 'series' ? 'tv' : 'movie';
-              const tmdbRes = await fetchApi(`https://api.themoviedb.org/3/${tmdbType}/${movie.tmdbId}/videos?api_key=${tmdbKey}&language=pt-BR`);
-              
-              if (tmdbRes.ok && tmdbRes.data && Array.isArray(tmdbRes.data.results)) {
-                const videos = tmdbRes.data.results;
-                const trailer = videos.find((v: any) => v.site === 'YouTube' && (v.type === 'Trailer' || v.type === 'Teaser')) || videos[0];
-                if (trailer?.key && isMounted) {
-                  const embedUrl = `https://www.youtube.com/embed/${trailer.key}`;
-                  setSmartTrailerUrl(embedUrl);
-                  movie.trailerUrl = embedUrl;
-                  movie.youtubeVideoId = trailer.key;
-                }
-              }
-            } catch (err) {
-              console.warn('[FRONTEND TRAILER FALLBACK] Erro na busca direta TMDb:', err);
-            }
-          }
-        });
-
-      return () => { isMounted = false; };
+      return;
     }
-  }, [movie?.id, movie?.title, movie?.trailerUrl, tmdbApiKey]);
+
+    let isMounted = true;
+    const tmdbKey = tmdbApiKey || localStorage.getItem('vhsflix_tmdb_key') || '9ba478ffe785bbc34fa2b10c46296580';
+    const tmdbType = movie.type === 'series' ? 'tv' : 'movie';
+
+    if (movie.tmdbId) {
+      // Busca direta do trailer em português na API do TMDB
+      fetchApi(`https://api.themoviedb.org/3/${tmdbType}/${movie.tmdbId}/videos?api_key=${encodeURIComponent(tmdbKey)}&language=pt-BR`)
+        .then(async res => {
+          let videos = (res.ok && res.data && Array.isArray(res.data.results)) ? res.data.results : [];
+          
+          // Se não encontrou em pt-BR, busca em inglês no TMDB
+          if (videos.length === 0) {
+            const resEn = await fetchApi(`https://api.themoviedb.org/3/${tmdbType}/${movie.tmdbId}/videos?api_key=${encodeURIComponent(tmdbKey)}&language=en-US`);
+            if (resEn.ok && resEn.data && Array.isArray(resEn.data.results)) {
+              videos = resEn.data.results;
+            }
+          }
+
+          if (videos.length > 0 && isMounted) {
+            const trailer = videos.find((v: any) => v.site === 'YouTube' && (v.type === 'Trailer' || v.type === 'Teaser')) || videos[0];
+            if (trailer?.key) {
+              const embedUrl = `https://www.youtube.com/embed/${trailer.key}`;
+              setSmartTrailerUrl(embedUrl);
+              movie.trailerUrl = embedUrl;
+              movie.youtubeVideoId = trailer.key;
+            }
+          }
+        })
+        .catch(err => {
+          console.warn('[TMDB TRAILER] Erro ao buscar trailer no TMDB:', err);
+        });
+    }
+
+    return () => { isMounted = false; };
+  }, [movie?.id, movie?.tmdbId, movie?.title, movie?.type, movie?.trailerUrl, tmdbApiKey]);
   
   // Qualidade preferencial de reprodução (persiste em localStorage para máxima fluidez)
   const [preferredQuality, setPreferredQuality] = useState<string>(() => {
@@ -1850,7 +1837,7 @@ export default function MovieDetailModal({
                       </span>
                       {movie.rating && (
                         <span className="bg-zinc-900/90 border border-zinc-700/80 text-amber-400 font-bold text-[11px] sm:text-xs px-2.5 py-1 rounded-md flex items-center gap-1 shadow-md">
-                          ★ {movie.rating} TMDB
+                          ★ {movie.rating} / 10
                         </span>
                       )}
                       <span className="bg-zinc-900/80 border border-zinc-800 text-zinc-300 font-medium text-[11px] sm:text-xs px-2.5 py-1 rounded-md">
@@ -1980,8 +1967,8 @@ export default function MovieDetailModal({
 
                 {/* Rating Badge */}
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-mono px-3 py-1 bg-zinc-900 border border-zinc-800 rounded-md text-amber-400 font-bold">
-                    TMDB ★ {movie.rating}
+                  <span className="text-xs font-mono px-3 py-1 bg-zinc-900 border border-zinc-800 rounded-md text-amber-400 font-bold flex items-center gap-1">
+                    <Star className="w-3.5 h-3.5 fill-current text-yellow-400" /> Nota {movie.rating}
                   </span>
                 </div>
               </div>
