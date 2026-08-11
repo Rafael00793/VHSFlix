@@ -502,7 +502,6 @@ export default function MovieDetailModal({
   const [isConfiguringPlayer, setIsConfiguringPlayer] = useState(false);
   const [season, setSeason] = useState<number>(1);
   const [episode, setEpisode] = useState<number>(1);
-  const [activeServer, setActiveServer] = useState<'abyss' | 'vidsrc' | 'autoembed'>('abyss');
   const [activeTab, setActiveTab] = useState<'episodes' | 'details' | 'cast'>('details');
   const [isSeasonDropdownOpen, setIsSeasonDropdownOpen] = useState(false);
   const [abyssEpisodeId, setAbyssEpisodeId] = useState<string>('');
@@ -648,24 +647,6 @@ export default function MovieDetailModal({
   const getActiveVideoUrl = () => {
     if (!movie) return '';
 
-    // Servidores Alternativos Rápidos via TMDB Embed
-    if (activeServer === 'vidsrc' && movie.tmdbId) {
-      if (movie.type === 'series') {
-        return `https://vidsrc.cc/v2/embed/tv/${movie.tmdbId}/${season}/${episode}`;
-      } else {
-        return `https://vidsrc.cc/v2/embed/movie/${movie.tmdbId}`;
-      }
-    }
-
-    if (activeServer === 'autoembed' && movie.tmdbId) {
-      if (movie.type === 'series') {
-        return `https://player.autoembed.cc/embed/tv/${movie.tmdbId}/${season}/${episode}`;
-      } else {
-        return `https://player.autoembed.cc/embed/movie/${movie.tmdbId}`;
-      }
-    }
-
-    // Servidor 1: Painel Abyss Player do Usuário
     if (movie.type === 'series') {
       const key = `${season}_${episode}`;
       if (movie.episodeEmbeds && movie.episodeEmbeds[key]) {
@@ -674,7 +655,6 @@ export default function MovieDetailModal({
       } else if (abyssEpisodeId) {
         return abyssEpisodeId.startsWith('http://') || abyssEpisodeId.startsWith('https://') ? abyssEpisodeId : `https://play.abyssplayer.com/${abyssEpisodeId}`;
       } else {
-        // Retorna string vazia se ainda não localizado no Abyss (NUNCA insira URLs inexistentes que travam o navegador)
         return '';
       }
     } else {
@@ -1375,40 +1355,8 @@ export default function MovieDetailModal({
                     </h2>
                   </div>
 
-                  {/* Direita: Controles Adicionais / Opções e Servidores */}
+                  {/* Direita: Controles Adicionais / Opções */}
                   <div className="flex items-center gap-1.5">
-                    {movie.tmdbId && (
-                      <div className="flex items-center bg-zinc-900 border border-zinc-800 rounded-lg p-0.5 gap-0.5">
-                        <button
-                          onClick={() => setActiveServer('abyss')}
-                          className={`px-2 py-1 text-[10px] font-bold rounded transition-all cursor-pointer ${
-                            activeServer === 'abyss' ? 'bg-rose-600 text-white' : 'text-zinc-400 hover:text-white'
-                          }`}
-                          title="Servidor Abyss (Sua conta / Painel)"
-                        >
-                          Servidor 1
-                        </button>
-                        <button
-                          onClick={() => setActiveServer('vidsrc')}
-                          className={`px-2 py-1 text-[10px] font-bold rounded transition-all cursor-pointer ${
-                            activeServer === 'vidsrc' ? 'bg-rose-600 text-white' : 'text-zinc-400 hover:text-white'
-                          }`}
-                          title="Servidor Vidsrc (TMDB)"
-                        >
-                          Servidor 2
-                        </button>
-                        <button
-                          onClick={() => setActiveServer('autoembed')}
-                          className={`px-2 py-1 text-[10px] font-bold rounded transition-all cursor-pointer ${
-                            activeServer === 'autoembed' ? 'bg-rose-600 text-white' : 'text-zinc-400 hover:text-white'
-                          }`}
-                          title="Servidor AutoEmbed (TMDB)"
-                        >
-                          Servidor 3
-                        </button>
-                      </div>
-                    )}
-
                     <button
                       onClick={() => {
                         setIsPlaying(false);
@@ -1633,31 +1581,6 @@ export default function MovieDetailModal({
                       <p className="text-zinc-400 text-xs leading-relaxed mb-4">
                         {syncFailedMessage || `A Temporada ${season}, Episódio ${episode} de "${movie.title}" ainda não está sintonizada no seu painel Abyss.`}
                       </p>
-
-                      {/* Botões de Servidores Alternativos em 1 Clique */}
-                      {movie.tmdbId && (
-                        <div className="w-full bg-zinc-950/80 border border-zinc-800 rounded-xl p-3 mb-4 text-left">
-                          <span className="block text-[10px] font-mono font-bold uppercase tracking-wider text-rose-400 mb-2">
-                            ⚡ Servidores Alternativos Rápidos (TMDB)
-                          </span>
-                          <div className="grid grid-cols-2 gap-2">
-                            <button
-                              onClick={() => setActiveServer('vidsrc')}
-                              className="px-3 py-2 bg-rose-600/20 hover:bg-rose-600 border border-rose-500/30 hover:border-rose-500 text-white font-bold rounded-lg text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
-                            >
-                              <Play className="w-3.5 h-3.5 fill-current" />
-                              Servidor 2 (Vidsrc)
-                            </button>
-                            <button
-                              onClick={() => setActiveServer('autoembed')}
-                              className="px-3 py-2 bg-indigo-600/20 hover:bg-indigo-600 border border-indigo-500/30 hover:border-indigo-500 text-white font-bold rounded-lg text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
-                            >
-                              <Play className="w-3.5 h-3.5 fill-current" />
-                              Servidor 3 (AutoEmbed)
-                            </button>
-                          </div>
-                        </div>
-                      )}
 
                       <button
                         onClick={handleReSyncCurrentEpisode}
