@@ -35,7 +35,7 @@ export interface AbyssSearchResult {
   playerUrl?: string; // Formato: https://play.abyssplayer.com/{id}
   fileName?: string;
   message?: string;
-  error?: 'AUTH_ERROR' | 'TIMEOUT_ERROR' | 'NETWORK_ERROR' | 'EMPTY_RESPONSE' | 'NOT_FOUND' | 'API_ERROR' | 'SERIES_FOLDER_NOT_FOUND' | 'SEASON_FOLDER_NOT_FOUND' | 'EPISODE_NOT_FOUND_IN_SEASON';
+  error?: 'AUTH_ERROR' | 'TIMEOUT_ERROR' | 'NETWORK_ERROR' | 'EMPTY_RESPONSE' | 'NOT_FOUND' | 'API_ERROR' | 'SERIES_FOLDER_NOT_FOUND' | 'SEASON_FOLDER_NOT_FOUND' | 'EPISODE_NOT_FOUND_IN_SEASON' | 'NO_API_KEY';
   totalFilesCount?: number;
 }
 
@@ -106,18 +106,22 @@ export function flattenAbyssFiles(input: any): AbyssResourceFile[] {
   if (!input) return [];
   const results: AbyssResourceFile[] = [];
   const visitedIds = new Set<string>();
+  const visitedObjects = new Set<any>();
 
-  function processNode(node: any) {
-    if (!node) return;
+  function processNode(node: any, depth = 0) {
+    if (!node || depth > 6) return;
 
     if (Array.isArray(node)) {
       for (const item of node) {
-        processNode(item);
+        processNode(item, depth + 1);
       }
       return;
     }
 
     if (typeof node === 'object') {
+      if (visitedObjects.has(node)) return;
+      visitedObjects.add(node);
+
       const id = extractAbyssId(node);
       const name = extractAbyssName(node);
 
@@ -128,12 +132,15 @@ export function flattenAbyssFiles(input: any): AbyssResourceFile[] {
         }
       }
 
-      // Varrer todas as chaves do objeto para encontrar sub-listas/objetos
+      // Varrer chaves de sub-listas/objetos com proteção de profundidade
+      const keysToScan = ['files', 'items', 'children', 'contents', 'data', 'results', 'episodes', 'seasons', 'list'];
       for (const key of Object.keys(node)) {
-        if (key === 'rawResponse') continue;
-        const child = node[key];
-        if (child && typeof child === 'object') {
-          processNode(child);
+        if (key === 'rawResponse' || key === 'parent' || key === 'window') continue;
+        if (keysToScan.includes(key) || Array.isArray(node[key])) {
+          const child = node[key];
+          if (child && typeof child === 'object') {
+            processNode(child, depth + 1);
+          }
         }
       }
     }
@@ -377,11 +384,11 @@ export class AbyssService {
         const clientHeaders: Record<string, string> = { 'Accept': 'application/json' };
         if (apiKey) clientHeaders['Authorization'] = `Bearer ${apiKey}`;
 
-        // Chama a Netlify Function
+        // Chama a Netlify Function com timeout de 2.5s para evitar travamentos
         let res = await fetchApi(`/.netlify/functions/abyss?${queryParams.toString()}`, {
           method: 'GET',
           headers: clientHeaders,
-          signal: AbortSignal.timeout(12000)
+          signal: AbortSignal.timeout(2500)
         });
 
         // Fallback para rota /api/abyss/resources se necessário
@@ -389,7 +396,7 @@ export class AbyssService {
           res = await fetchApi(`/api/abyss/resources?${queryParams.toString()}`, {
             method: 'GET',
             headers: clientHeaders,
-            signal: AbortSignal.timeout(12000)
+            signal: AbortSignal.timeout(2500)
           });
         }
 
@@ -622,6 +629,14 @@ export class AbyssService {
     console.log(`==================================================`);
 
     const apiKey = this.getApiKey(customApiKey);
+    if (!apiKey) {
+      console.log(`[AbyssService] ℹ️ Nenhuma chave de API do Abyss configurada. Pulando busca.`);
+      return {
+        success: false,
+        error: 'NO_API_KEY',
+        message: 'Chave do Abyss não configurada.'
+      };
+    }
 
     // -------------------------------------------------------------
     // ETAPA 1: LOCALIZAR PASTA DA SÉRIE

@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Movie, WatchProgress, MovieComment } from '../types';
-import { X, Play, Pause, Plus, Check, Star, RefreshCw, Tv, Clock, HelpCircle, Film, Sparkles, AlertCircle, ExternalLink, Maximize, Shield, Sliders, ThumbsUp, ThumbsDown, ChevronDown, ArrowLeft, Settings, Volume2, VolumeX, User, Users, Send, MessageSquare, Trash2 } from 'lucide-react';
+import { X, Play, Pause, Plus, Check, Star, RefreshCw, Tv, Clock, HelpCircle, Film, Sparkles, AlertCircle, ExternalLink, Maximize, Shield, Sliders, ThumbsUp, ThumbsDown, ChevronDown, ArrowLeft, Settings, Volume2, VolumeX, User, Users, Send, MessageSquare, Trash2, Zap } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { INITIAL_MOVIES } from '../data';
 import { AbyssService } from '../services/abyssService';
@@ -430,7 +430,15 @@ export function getSeriesSeasonsData(movie: Movie) {
   const seasons: { seasonNumber: number; episodesCount: number }[] = [];
   
   // Séries conhecidas
-  if (movie.tmdbId === 66732) { // Stranger Things
+  if (movie.tmdbId === 1402 || movie.title?.toLowerCase().includes('walking dead')) { // The Walking Dead
+    const twdEps = [6, 13, 16, 16, 16, 16, 16, 16, 16, 22, 24];
+    for (let i = 1; i <= Math.max(numSeasons, 11); i++) {
+      seasons.push({
+        seasonNumber: i,
+        episodesCount: twdEps[i - 1] || 16
+      });
+    }
+  } else if (movie.tmdbId === 66732) { // Stranger Things
     const eps = [8, 9, 8, 9, 8];
     for (let i = 1; i <= numSeasons; i++) {
       seasons.push({
@@ -494,6 +502,7 @@ export default function MovieDetailModal({
   const [isConfiguringPlayer, setIsConfiguringPlayer] = useState(false);
   const [season, setSeason] = useState<number>(1);
   const [episode, setEpisode] = useState<number>(1);
+  const [activeServer, setActiveServer] = useState<'abyss' | 'vidsrc' | 'autoembed'>('abyss');
   const [activeTab, setActiveTab] = useState<'episodes' | 'details' | 'cast'>('details');
   const [isSeasonDropdownOpen, setIsSeasonDropdownOpen] = useState(false);
   const [abyssEpisodeId, setAbyssEpisodeId] = useState<string>('');
@@ -638,21 +647,41 @@ export default function MovieDetailModal({
 
   const getActiveVideoUrl = () => {
     if (!movie) return '';
+
+    // Servidores Alternativos Rápidos via TMDB Embed
+    if (activeServer === 'vidsrc' && movie.tmdbId) {
+      if (movie.type === 'series') {
+        return `https://vidsrc.cc/v2/embed/tv/${movie.tmdbId}/${season}/${episode}`;
+      } else {
+        return `https://vidsrc.cc/v2/embed/movie/${movie.tmdbId}`;
+      }
+    }
+
+    if (activeServer === 'autoembed' && movie.tmdbId) {
+      if (movie.type === 'series') {
+        return `https://player.autoembed.cc/embed/tv/${movie.tmdbId}/${season}/${episode}`;
+      } else {
+        return `https://player.autoembed.cc/embed/movie/${movie.tmdbId}`;
+      }
+    }
+
+    // Servidor 1: Painel Abyss Player do Usuário
     if (movie.type === 'series') {
       const key = `${season}_${episode}`;
       if (movie.episodeEmbeds && movie.episodeEmbeds[key]) {
         const url = movie.episodeEmbeds[key];
-        return url.startsWith('http://') || url.startsWith('https://') ? url : `https://abyssplayer.com/${url}`;
+        return url.startsWith('http://') || url.startsWith('https://') ? url : `https://play.abyssplayer.com/${url}`;
       } else if (abyssEpisodeId) {
-        return abyssEpisodeId.startsWith('http://') || abyssEpisodeId.startsWith('https://') ? abyssEpisodeId : `https://abyssplayer.com/${abyssEpisodeId}`;
+        return abyssEpisodeId.startsWith('http://') || abyssEpisodeId.startsWith('https://') ? abyssEpisodeId : `https://play.abyssplayer.com/${abyssEpisodeId}`;
       } else {
-        return ''; // Retorna vazio se ainda não foi localizado no Abyss para evitar player quebrado
+        // Retorna string vazia se ainda não localizado no Abyss (NUNCA insira URLs inexistentes que travam o navegador)
+        return '';
       }
     } else {
       if (movie.embedUrl) {
-        return movie.embedUrl.startsWith('http://') || movie.embedUrl.startsWith('https://') ? movie.embedUrl : `https://abyssplayer.com/${movie.embedUrl}`;
+        return movie.embedUrl.startsWith('http://') || movie.embedUrl.startsWith('https://') ? movie.embedUrl : `https://play.abyssplayer.com/${movie.embedUrl}`;
       } else {
-        return movie.abyssId ? `https://abyssplayer.com/${movie.abyssId}` : '';
+        return movie.abyssId ? `https://play.abyssplayer.com/${movie.abyssId}` : '';
       }
     }
   };
@@ -925,9 +954,17 @@ export default function MovieDetailModal({
               ? `https://image.tmdb.org/t/p/w500${ep.still_path}`
               : fallbackPic;
 
-            const releaseDateFormatted = ep.air_date
-              ? new Date(ep.air_date).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: 'numeric' })
-              : `15 de jul. de ${movie.year || 2026}`;
+            let releaseDateFormatted = `15 de jul. de ${movie.year || 2026}`;
+            if (ep.air_date) {
+              try {
+                const parsedDate = new Date(ep.air_date);
+                if (!isNaN(parsedDate.getTime())) {
+                  releaseDateFormatted = parsedDate.toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: 'numeric' });
+                }
+              } catch (e) {
+                // ignore
+              }
+            }
 
             return {
               number: ep.episode_number || ep.order || 1,
@@ -958,7 +995,7 @@ export default function MovieDetailModal({
     return () => {
       isCancelled = true;
     };
-  }, [movie, season, tmdbApiKey, tmdbEpisodes]);
+  }, [movie?.id, season, tmdbApiKey]);
 
   // Monitorar se mudou o estado de Fullscreen para sincronizar os ícones
   useEffect(() => {
@@ -1088,20 +1125,22 @@ export default function MovieDetailModal({
     const handleWindowClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       if (target && (target.tagName === 'A' || target.closest('a'))) {
-        const anchor = target.tagName === 'A' ? (target as HTMLAnchorElement) : target.closest('a');
-        if (anchor && anchor.href) {
+        const anchor = (target.tagName === 'A' ? target : target.closest('a')) as HTMLAnchorElement;
+        if (anchor && anchor.href && anchor.target !== '_blank') {
           try {
             const destUrl = new URL(anchor.href);
-            // Bloqueia se não for do próprio domínio vhsflix
-            if (destUrl.hostname !== window.location.hostname && !destUrl.hostname.includes("youtube.com")) {
+            const isAllowed = destUrl.hostname === window.location.hostname ||
+                              destUrl.hostname.includes("youtube.com") ||
+                              destUrl.hostname.includes("abyssplayer.com") ||
+                              destUrl.hostname.includes("vidsrc.cc") ||
+                              destUrl.hostname.includes("autoembed.cc");
+            if (!isAllowed) {
               e.preventDefault();
               e.stopPropagation();
               console.warn(`[VHSFLIX-SECURITY] Link externo suspeito bloqueado durante a reprodução: ${anchor.href}`);
             }
           } catch (err) {
-            e.preventDefault();
-            e.stopPropagation();
-            console.warn("[VHSFLIX-SECURITY] URL inválida bloqueada.");
+            // ignore
           }
         }
       }
@@ -1223,20 +1262,39 @@ export default function MovieDetailModal({
   const handleStartPlayback = () => {
     setIsConfiguringPlayer(false);
     setIsTapeLoading(true);
+
+    const modalElem = document.getElementById('movie-detail-modal');
+    if (modalElem) {
+      modalElem.scrollTo({ top: 0, behavior: 'instant' });
+    }
+
     setTimeout(() => {
       setIsTapeLoading(false);
       setIsPlaying(true);
-    }, 1800); // Simulador de encaixar fita VCR
+      if (modalElem) {
+        modalElem.scrollTo({ top: 0, behavior: 'instant' });
+      }
+    }, 800);
   };
 
   const handleEpisodeClick = (epNumber: number) => {
     setEpisode(epNumber);
     setIsConfiguringPlayer(false);
     setIsTapeLoading(true);
+
+    // Scroll o container do modal imediatamente para o topo
+    const modalElem = document.getElementById('movie-detail-modal');
+    if (modalElem) {
+      modalElem.scrollTo({ top: 0, behavior: 'instant' });
+    }
+
     setTimeout(() => {
       setIsTapeLoading(false);
       setIsPlaying(true);
-    }, 1800); // Simulador de encaixar fita VCR
+      if (modalElem) {
+        modalElem.scrollTo({ top: 0, behavior: 'instant' });
+      }
+    }, 400);
   };
 
   const handleScrubChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1287,7 +1345,7 @@ export default function MovieDetailModal({
           >
             {/* REPRODUÇÃO DO PLAYER DE VÍDEO COMPLETO E REAL (OCUPA TODO O MODAL EM REPRODUÇÃO) */}
             {isPlaying && !isTapeLoading && (
-              <div ref={playerContainerRef} className="absolute inset-0 bg-black flex flex-col text-white font-mono z-45 animate-fade-in h-full w-full overflow-hidden">
+              <div ref={playerContainerRef} className="fixed inset-0 bg-black flex flex-col text-white font-mono z-[85] animate-fade-in h-[100dvh] w-screen overflow-hidden">
                 {/* 1. Barra de Navegação Superior Moderna estilo Streaming (Completamente fora do iframe) */}
                 <div className="min-h-[4.5rem] bg-zinc-950 border-b border-zinc-900/80 flex items-center justify-between px-3 sm:px-6 p-3 select-none shrink-0 z-50 gap-2.5 pt-[calc(env(safe-area-inset-top)+0.5rem)]">
                   {/* Esquerda: Botão Voltar gigante, super visível e fácil de clicar no mobile */}
@@ -1317,23 +1375,51 @@ export default function MovieDetailModal({
                     </h2>
                   </div>
 
-                  {/* Direita: Controles Adicionais / Opções */}
-                  <div className="flex items-center gap-2">
+                  {/* Direita: Controles Adicionais / Opções e Servidores */}
+                  <div className="flex items-center gap-1.5">
+                    {movie.tmdbId && (
+                      <div className="flex items-center bg-zinc-900 border border-zinc-800 rounded-lg p-0.5 gap-0.5">
+                        <button
+                          onClick={() => setActiveServer('abyss')}
+                          className={`px-2 py-1 text-[10px] font-bold rounded transition-all cursor-pointer ${
+                            activeServer === 'abyss' ? 'bg-rose-600 text-white' : 'text-zinc-400 hover:text-white'
+                          }`}
+                          title="Servidor Abyss (Sua conta / Painel)"
+                        >
+                          Servidor 1
+                        </button>
+                        <button
+                          onClick={() => setActiveServer('vidsrc')}
+                          className={`px-2 py-1 text-[10px] font-bold rounded transition-all cursor-pointer ${
+                            activeServer === 'vidsrc' ? 'bg-rose-600 text-white' : 'text-zinc-400 hover:text-white'
+                          }`}
+                          title="Servidor Vidsrc (TMDB)"
+                        >
+                          Servidor 2
+                        </button>
+                        <button
+                          onClick={() => setActiveServer('autoembed')}
+                          className={`px-2 py-1 text-[10px] font-bold rounded transition-all cursor-pointer ${
+                            activeServer === 'autoembed' ? 'bg-rose-600 text-white' : 'text-zinc-400 hover:text-white'
+                          }`}
+                          title="Servidor AutoEmbed (TMDB)"
+                        >
+                          Servidor 3
+                        </button>
+                      </div>
+                    )}
+
                     <button
                       onClick={() => {
                         setIsPlaying(false);
                         setIsConfiguringPlayer(true);
                       }}
-                      className="bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 font-sans font-bold text-[10px] sm:text-xs h-10 px-2.5 sm:px-3 rounded-lg transition-all flex items-center gap-1 cursor-pointer focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none"
+                      className="bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 font-sans font-bold text-[10px] sm:text-xs h-9 px-2.5 rounded-lg transition-all flex items-center gap-1 cursor-pointer focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none"
                       title={movie.type === 'series' ? "Sintonizar canal (Episódio / Temporada)" : "Sintonizar qualidade de reprodução"}
                     >
                       <Settings className="w-3.5 h-3.5 text-rose-500" />
                       <span className="hidden xs:inline">{movie.type === 'series' ? 'MUDAR CAPÍTULO' : 'AJUSTAR SINAL'}</span>
                     </button>
-                    <span className="hidden md:inline-flex items-center gap-1.5 uppercase font-mono text-[9px] text-zinc-400 bg-zinc-900 border border-zinc-850 px-2.5 py-1.5 rounded-lg select-none">
-                      <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-ping"></span>
-                      VHS_HD
-                    </span>
                   </div>
                 </div>
 
@@ -1539,21 +1625,47 @@ export default function MovieDetailModal({
                       referrerPolicy="origin"
                     />
                   ) : (
-                    <div className="w-full max-w-md p-6 bg-zinc-900/90 border border-amber-500/30 rounded-2xl flex flex-col items-center justify-center text-center shadow-xl backdrop-blur-md">
+                    <div className="w-full max-w-md p-6 bg-zinc-900/95 border border-amber-500/30 rounded-2xl flex flex-col items-center justify-center text-center shadow-2xl backdrop-blur-md z-50 my-auto">
                       <div className="w-14 h-14 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mb-3 text-amber-400">
                         <Tv className="w-7 h-7" />
                       </div>
-                      <h3 className="text-lg font-bold text-white mb-2">Aguardando Envio no Abyss</h3>
-                      <p className="text-zinc-400 text-xs leading-relaxed mb-5">
-                        {syncFailedMessage || `A Temporada ${season}, Episódio ${episode} de "${movie.title}" ainda não está disponível no seu painel Abyss.`}
+                      <h3 className="text-lg font-bold text-white mb-1">Aguardando Envio no Abyss</h3>
+                      <p className="text-zinc-400 text-xs leading-relaxed mb-4">
+                        {syncFailedMessage || `A Temporada ${season}, Episódio ${episode} de "${movie.title}" ainda não está sintonizada no seu painel Abyss.`}
                       </p>
+
+                      {/* Botões de Servidores Alternativos em 1 Clique */}
+                      {movie.tmdbId && (
+                        <div className="w-full bg-zinc-950/80 border border-zinc-800 rounded-xl p-3 mb-4 text-left">
+                          <span className="block text-[10px] font-mono font-bold uppercase tracking-wider text-rose-400 mb-2">
+                            ⚡ Servidores Alternativos Rápidos (TMDB)
+                          </span>
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              onClick={() => setActiveServer('vidsrc')}
+                              className="px-3 py-2 bg-rose-600/20 hover:bg-rose-600 border border-rose-500/30 hover:border-rose-500 text-white font-bold rounded-lg text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+                            >
+                              <Play className="w-3.5 h-3.5 fill-current" />
+                              Servidor 2 (Vidsrc)
+                            </button>
+                            <button
+                              onClick={() => setActiveServer('autoembed')}
+                              className="px-3 py-2 bg-indigo-600/20 hover:bg-indigo-600 border border-indigo-500/30 hover:border-indigo-500 text-white font-bold rounded-lg text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+                            >
+                              <Play className="w-3.5 h-3.5 fill-current" />
+                              Servidor 3 (AutoEmbed)
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
                       <button
                         onClick={handleReSyncCurrentEpisode}
                         disabled={isCheckingSync}
-                        className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs flex items-center gap-2 transition-all shadow-lg shadow-amber-500/20 active:scale-95 disabled:opacity-50 cursor-pointer"
+                        className="w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition-all shadow-lg shadow-amber-500/20 active:scale-95 disabled:opacity-50 cursor-pointer"
                       >
                         <RefreshCw className={`w-3.5 h-3.5 ${isCheckingSync ? 'animate-spin' : ''}`} />
-                        {isCheckingSync ? 'Sintonizando no Abyss...' : 'Verificar Se Já Foi Adicionado'}
+                        {isCheckingSync ? 'Sintonizando no Abyss...' : 'Tentar Verificar Novamente no Abyss'}
                       </button>
 
                       {/* Manual Link Input */}
@@ -1780,18 +1892,21 @@ export default function MovieDetailModal({
               </div>
             )}
 
-            {/* Botão de Fechar Modal (Visível em posição fixa no topo direito da tela) */}
-            {(!isPlaying || isTapeLoading) && !isConfiguringPlayer && (
-              <button
-                onClick={onClose}
-                className="fixed top-4 right-4 sm:top-6 sm:right-8 bg-zinc-900/90 hover:bg-rose-600 hover:text-white text-zinc-100 p-3.5 rounded-full z-[70] border border-zinc-700/80 shadow-2xl transition-all duration-200 active:scale-90 hover:scale-110 cursor-pointer focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none flex items-center justify-center"
-                id="btn-close-modal"
-                aria-label="Fechar Modal (Exclusivo)"
-                title="Fechar Detalhes"
-              >
-                <X className="w-6 h-6 stroke-[2.5]" />
-              </button>
-            )}
+            {/* Botão de Fechar Modal (Sempre visível com z-index de alta prioridade z-100) */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsPlaying(false);
+                setIsTapeLoading(false);
+                if (onClose) onClose();
+              }}
+              className="fixed top-3 right-3 sm:top-5 sm:right-6 bg-zinc-950/90 hover:bg-rose-600 text-zinc-100 hover:text-white p-3.5 rounded-full z-[100] border border-zinc-700/80 shadow-2xl transition-all duration-200 active:scale-90 hover:scale-110 cursor-pointer focus-visible:ring-2 focus-visible:ring-rose-500 flex items-center justify-center pointer-events-auto"
+              id="btn-close-modal"
+              aria-label="Fechar Modal"
+              title="Fechar (Sair para o catálogo)"
+            >
+              <X className="w-6 h-6 stroke-[2.5]" />
+            </button>
 
             {/* --- ÁREA SUPERIOR: BANNER OU CARREGAMENTO DA FITA --- */}
             <div className="relative h-[42vh] min-h-[320px] xs:min-h-[360px] sm:h-[55vh] sm:min-h-[440px] md:h-[64vh] md:min-h-[500px] lg:h-[72vh] lg:min-h-[560px] w-full bg-zinc-950 overflow-hidden flex flex-col justify-end">
@@ -1976,18 +2091,18 @@ export default function MovieDetailModal({
               {/* CONTEÚDO DAS ABAS */}
               {activeTab === 'episodes' && movie.type === 'series' && (
                 <div className="space-y-6">
-                  {/* Seletor de Temporadas Style Prime Video com Dropdown List */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  {/* Seletor de Temporadas e Painel de Controle */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-zinc-900/60 border border-zinc-800/80 p-4 rounded-2xl">
                     <div className="relative">
                       <button
                         onClick={() => setIsSeasonDropdownOpen(!isSeasonDropdownOpen)}
-                        className="flex items-center justify-between gap-3 px-4.5 py-2.5 bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-lg text-white font-bold text-sm transition-all focus:ring-2 focus:ring-rose-500 cursor-pointer"
+                        className="flex items-center justify-between gap-3 px-5 py-2.5 bg-rose-600 hover:bg-rose-500 border border-rose-500/50 rounded-xl text-white font-extrabold text-sm transition-all shadow-lg shadow-rose-950/40 cursor-pointer active:scale-95"
                       >
                         <span className="font-sans">Temporada {season}</span>
-                        <ChevronDown className={`w-4 h-4 text-zinc-500 transition-transform duration-300 ${isSeasonDropdownOpen ? 'rotate-180' : ''}`} />
+                        <ChevronDown className={`w-4 h-4 text-white transition-transform duration-300 ${isSeasonDropdownOpen ? 'rotate-180' : ''}`} />
                       </button>
 
-                      {/* Dropdown Box (Segunda Foto do User - Prime Video Dropdown List) */}
+                      {/* Dropdown Box de Temporadas */}
                       <AnimatePresence>
                         {isSeasonDropdownOpen && (
                           <>
@@ -1999,24 +2114,26 @@ export default function MovieDetailModal({
                               animate={{ opacity: 1, y: 0 }}
                               exit={{ opacity: 0, y: -5 }}
                               transition={{ duration: 0.15 }}
-                              className="absolute left-0 mt-2 w-52 bg-[#1a242f] border border-zinc-800 rounded-xl shadow-2xl overflow-hidden py-1.5 z-50 font-sans"
+                              className="absolute left-0 mt-2 w-56 bg-[#1a242f] border border-rose-500/30 rounded-xl shadow-2xl overflow-hidden py-1.5 z-50 font-sans"
                             >
                               {getSeriesSeasonsData(movie).map((s) => (
                                 <button
                                   key={s.seasonNumber}
                                   onClick={() => {
                                     setSeason(s.seasonNumber);
-                                    setEpisode(1); // Reset ep to 1 on season switch
+                                    setEpisode(1); // Reset ep to 1 na troca de temporada
                                     setIsSeasonDropdownOpen(false);
                                   }}
                                   className={`w-full text-left px-4 py-2.5 text-xs sm:text-sm transition-all flex items-center justify-between cursor-pointer ${
                                     season === s.seasonNumber
-                                      ? 'text-white font-black bg-rose-600/20 hover:bg-rose-600/30'
-                                      : 'text-zinc-300 hover:text-white hover:bg-zinc-855'
+                                      ? 'text-white font-black bg-rose-600/30 hover:bg-rose-600/40 border-l-4 border-rose-500'
+                                      : 'text-zinc-300 hover:text-white hover:bg-zinc-800'
                                   }`}
                                 >
                                   <span>Temporada {s.seasonNumber}</span>
-                                  <span className="text-[10px] text-zinc-500 font-mono">({s.episodesCount} eps)</span>
+                                  <span className="text-[10px] text-zinc-400 font-mono font-bold bg-zinc-900 px-2 py-0.5 rounded">
+                                    {s.episodesCount} eps
+                                  </span>
                                 </button>
                               ))}
                             </motion.div>
@@ -2025,74 +2142,181 @@ export default function MovieDetailModal({
                       </AnimatePresence>
                     </div>
 
-                    <div className="text-zinc-500 text-xs font-mono lowercase tracking-wider">
-                      {getSeriesSeasonsData(movie).find(s => s.seasonNumber === season)?.episodesCount || 8} episódios • Canal Sintonizado
+                    <div className="flex items-center gap-2 text-zinc-400 text-xs font-mono uppercase tracking-wider">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                      <span>
+                        {getSeriesSeasonsData(movie).find(s => s.seasonNumber === season)?.episodesCount || 8} episódios na Temporada {season}
+                      </span>
                     </div>
                   </div>
 
-                  {/* Grid de Episódios (Prime Video Quadrículas Format) */}
+                  {/* BARRA DE ATALHO RÁPIDO DE EPISÓDIOS (Pills com rolamento horizontal) */}
+                  {(() => {
+                    const currentEps = tmdbEpisodes[`${movie.id}_s${season}`] || getEpisodesForSeries(movie, season);
+                    return (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-xs font-mono text-zinc-400">
+                          <span className="uppercase font-bold text-rose-400 flex items-center gap-1.5">
+                            <Zap className="w-3.5 h-3.5 text-rose-500 animate-bounce" /> Seleção Rápida de Episódio:
+                          </span>
+                          <span className="text-[10px] text-zinc-500">Toque em qualquer número para ir direto</span>
+                        </div>
+                        <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-zinc-800 scrollbar-track-transparent">
+                          {currentEps.map((ep) => {
+                            const isSelected = ep.number === episode;
+                            return (
+                              <button
+                                key={`pill-${ep.number}`}
+                                onClick={() => handleEpisodeClick(ep.number)}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold shrink-0 transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 ${
+                                  isSelected
+                                    ? 'bg-rose-600 text-white border border-rose-400 shadow-md shadow-rose-600/40 ring-2 ring-rose-500/30'
+                                    : 'bg-zinc-900/90 border border-zinc-800 text-zinc-300 hover:border-zinc-700 hover:text-white hover:bg-zinc-800'
+                                }`}
+                              >
+                                {isSelected && <Play className="w-3 h-3 fill-current text-white" />}
+                                <span>EP {ep.number.toString().padStart(2, '0')}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* BANNER DE DESTAQUE DO EPISÓDIO SELECIONADO */}
+                  {(() => {
+                    const currentEps = tmdbEpisodes[`${movie.id}_s${season}`] || getEpisodesForSeries(movie, season);
+                    const selectedEpData = currentEps.find(ep => ep.number === episode) || currentEps[0];
+                    if (!selectedEpData) return null;
+
+                    return (
+                      <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-rose-950/70 via-zinc-900 to-zinc-900 border border-rose-500/40 shadow-xl flex flex-col md:flex-row items-center justify-between gap-4">
+                        <div className="flex items-center gap-4 text-left w-full md:w-auto">
+                          <div className="relative w-20 h-14 rounded-lg overflow-hidden shrink-0 border border-rose-500/30">
+                            <img
+                              src={selectedEpData.thumbnailUrl}
+                              alt={selectedEpData.title}
+                              className="w-full h-full object-cover"
+                              referrerPolicy="no-referrer"
+                            />
+                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                              <Play className="w-5 h-5 fill-rose-500 text-rose-500" />
+                            </div>
+                          </div>
+                          <div className="space-y-1">
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-rose-600 text-white rounded-full text-[10px] font-black uppercase font-mono tracking-wider shadow-sm animate-pulse">
+                              <Play className="w-2.5 h-2.5 fill-white" />
+                              PRONTO PARA ASSISTIR
+                            </span>
+                            <h3 className="text-sm sm:text-base font-extrabold text-white line-clamp-1">
+                              T{season} E{selectedEpData.number}: {selectedEpData.title}
+                            </h3>
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={() => handleEpisodeClick(selectedEpData.number)}
+                          className="w-full md:w-auto px-6 py-3 bg-rose-600 hover:bg-rose-500 active:scale-95 text-white font-black text-xs uppercase tracking-widest rounded-xl shadow-lg shadow-rose-600/40 flex items-center justify-center gap-2 transition-all cursor-pointer shrink-0"
+                        >
+                          <Play className="w-4 h-4 fill-current" />
+                          <span>Assistir Episódio {selectedEpData.number} Agora</span>
+                        </button>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Grid de Episódios (Format com Destaque Vibrante para o Selecionado) */}
                   {isLoadingEpisodes ? (
                     <div className="flex flex-col items-center justify-center py-20 text-center w-full space-y-3">
                       <RefreshCw className="w-8 h-8 text-rose-500 animate-spin" />
                       <p className="text-sm text-zinc-400 font-mono uppercase tracking-widest">Sintonizando episódios da fita...</p>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6 sm:gap-8 mt-6">
-                      {(tmdbEpisodes[`${movie.id}_s${season}`] || getEpisodesForSeries(movie, season)).map((ep) => (
-                        <div
-                          key={ep.number}
-                          onClick={() => handleEpisodeClick(ep.number)}
-                          className="group flex flex-col bg-[#1a242f]/40 border border-zinc-800/80 hover:border-rose-500/50 rounded-2xl overflow-hidden cursor-pointer hover:shadow-2xl hover:shadow-black/80 hover:scale-[1.03] transition-all duration-300 relative"
-                        >
-                          {/* Imagem do Capítulo (Thumbnail) */}
-                          <div className="relative aspect-[16/9] w-full bg-zinc-950 overflow-hidden">
-                            <img
-                              src={ep.thumbnailUrl}
-                              alt={`Episódio ${ep.number}`}
-                              referrerPolicy="no-referrer"
-                              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                            />
-                            {/* Play HUD Overlay */}
-                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all duration-300">
-                              <div className="w-12 h-12 rounded-full bg-rose-600 flex items-center justify-center text-white shadow-2xl transform scale-75 group-hover:scale-100 transition-transform duration-300">
-                                <Play className="w-6 h-6 fill-current ml-0.5" />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5 sm:gap-6 mt-4">
+                      {(tmdbEpisodes[`${movie.id}_s${season}`] || getEpisodesForSeries(movie, season)).map((ep) => {
+                        const isSelected = ep.number === episode;
+
+                        return (
+                          <div
+                            key={ep.number}
+                            onClick={() => handleEpisodeClick(ep.number)}
+                            className={`group flex flex-col rounded-2xl overflow-hidden cursor-pointer transition-all duration-300 relative ${
+                              isSelected
+                                ? 'bg-gradient-to-b from-rose-950/80 via-zinc-900 to-zinc-900 border-2 border-rose-500 shadow-2xl shadow-rose-950/80 ring-4 ring-rose-500/20 scale-[1.02]'
+                                : 'bg-[#1a242f]/40 border border-zinc-800/80 hover:border-rose-500/50 hover:bg-[#1a242f] hover:shadow-xl hover:scale-[1.02]'
+                            }`}
+                          >
+                            {/* Imagem do Capítulo (Thumbnail) */}
+                            <div className="relative aspect-[16/9] w-full bg-zinc-950 overflow-hidden">
+                              <img
+                                src={ep.thumbnailUrl}
+                                alt={`Episódio ${ep.number}`}
+                                referrerPolicy="no-referrer"
+                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                              />
+                              
+                              {/* Overlay de Play */}
+                              <div className={`absolute inset-0 flex items-center justify-center transition-all duration-300 ${
+                                isSelected ? 'bg-black/40 opacity-100' : 'bg-black/50 opacity-0 group-hover:opacity-100'
+                              }`}>
+                                <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white shadow-2xl transition-transform duration-300 ${
+                                  isSelected ? 'bg-rose-600 scale-100' : 'bg-rose-600/90 scale-75 group-hover:scale-100'
+                                }`}>
+                                  <Play className="w-6 h-6 fill-current ml-0.5" />
+                                </div>
                               </div>
+
+                              {/* Duração Badge */}
+                              <div className="absolute bottom-2.5 right-2.5 px-2 py-0.5 bg-black/85 backdrop-blur-md rounded-md text-[10px] font-bold font-mono text-zinc-200 border border-zinc-800">
+                                {ep.duration}
+                              </div>
+
+                              {/* Badge de Selecionado ou Número do Episódio */}
+                              {isSelected ? (
+                                <div className="absolute top-2.5 left-2.5 px-2.5 py-1 bg-rose-600 text-white rounded-md font-mono text-[10px] font-black uppercase tracking-wider flex items-center gap-1 shadow-lg shadow-rose-600/50 animate-pulse">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span>
+                                  EP {ep.number} • SELECIONADO
+                                </div>
+                              ) : (
+                                <div className="absolute top-2.5 left-2.5 px-2.5 py-1 bg-black/80 backdrop-blur-md rounded-md font-sans text-[11px] font-extrabold uppercase tracking-wider text-rose-400 border border-rose-500/20">
+                                  EP {ep.number}
+                                </div>
+                              )}
                             </div>
 
-                            {/* Duração Badge */}
-                            <div className="absolute bottom-2.5 right-2.5 px-2 py-0.5 bg-black/80 backdrop-blur-md rounded-md text-[10px] font-bold font-mono text-zinc-200">
-                              {ep.duration}
-                            </div>
+                            {/* Detalhes do Episódio */}
+                            <div className="p-4 flex-1 flex flex-col justify-between text-left space-y-3">
+                              <div className="space-y-1.5">
+                                <h4 className={`font-bold text-sm sm:text-base leading-snug line-clamp-1 transition-colors ${
+                                  isSelected ? 'text-rose-400 font-extrabold' : 'text-zinc-100 group-hover:text-rose-400'
+                                }`}>
+                                  {ep.number}. {ep.title}
+                                </h4>
+                                <p className="text-zinc-400 text-xs leading-relaxed font-sans font-normal line-clamp-2">
+                                  {ep.description}
+                                </p>
+                              </div>
 
-                            {/* Número do Episódio Header Badge */}
-                            <div className="absolute top-2.5 left-2.5 px-2.5 py-1 bg-black/80 backdrop-blur-md rounded-md font-sans text-[11px] font-extrabold uppercase tracking-wider text-rose-400 border border-rose-500/20">
-                              EP {ep.number}
+                              {/* Botão de Ação Direta no Card */}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEpisodeClick(ep.number);
+                                }}
+                                className={`w-full py-2.5 px-3 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer ${
+                                  isSelected
+                                    ? 'bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-600/40'
+                                    : 'bg-zinc-800/80 hover:bg-rose-600 text-zinc-300 hover:text-white border border-zinc-700/60 hover:border-rose-500'
+                                }`}
+                              >
+                                <Play className="w-3.5 h-3.5 fill-current" />
+                                <span>{isSelected ? `Assistir EP ${ep.number}` : 'Reproduzir'}</span>
+                              </button>
                             </div>
                           </div>
-
-                          {/* Detalhes do Episódio */}
-                          <div className="p-5 flex-1 flex flex-col justify-between">
-                            <div className="space-y-2">
-                              <h4 className="font-bold text-base text-zinc-100 group-hover:text-rose-400 transition-colors leading-snug line-clamp-1">
-                                {ep.number}. {ep.title}
-                              </h4>
-                              <p className="text-zinc-400 text-xs sm:text-sm leading-relaxed font-sans font-normal line-clamp-3">
-                                {ep.description}
-                              </p>
-                            </div>
-
-                            {/* Labels e stamps do episódio no rodapé do card */}
-                            <div className="flex items-center gap-2.5 mt-5 pt-4 border-t border-zinc-800/60 text-[11px] text-zinc-400 font-mono font-medium">
-                              <span className="px-1.5 py-0.5 bg-zinc-900 border border-zinc-800 text-zinc-300 rounded text-[10px] font-bold">
-                                {ep.ratingCode}
-                              </span>
-                              <span>CC</span>
-                              <span>•</span>
-                              <span className="truncate">{ep.releaseDate}</span>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
