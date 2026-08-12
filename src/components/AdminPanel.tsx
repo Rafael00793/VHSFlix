@@ -425,8 +425,8 @@ export default function AdminPanel({
 
           consecutiveEpFailures++;
 
-          // Se 2 episódios consecutivos de uma temporada existente não forem encontrados, pausar a busca desta temporada
-          if (consecutiveEpFailures >= 2) {
+          // Se 5 episódios consecutivos de uma temporada existente não forem encontrados, pausar a busca desta temporada
+          if (consecutiveEpFailures >= 5) {
             console.warn(`🛑 [Import Engine] ${consecutiveEpFailures} episódios consecutivos não localizados na Temporada ${sNum}. Pausando busca desta temporada.`);
             break;
           }

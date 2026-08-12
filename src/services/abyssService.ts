@@ -57,6 +57,65 @@ export function normalizeMediaText(text: string): string {
 }
 
 /**
+ * Gera variações inteligentes de títulos de mídia para aumentar drasticamente as chances de busca no Abyss
+ */
+export function generateTitleVariants(title: string): string[] {
+  if (!title) return [];
+  const variants: string[] = [];
+  const raw = title.trim();
+  if (raw) variants.push(raw);
+
+  // Remoteno de ano entre parênteses ou isolado (ex: "The Walking Dead (2010)" -> "The Walking Dead")
+  const noYear = raw.replace(/\(\s*(?:19|20)\d{2}\s*\)/g, '').replace(/\b(?:19|20)\d{2}\b/g, '').trim();
+  if (noYear && !variants.includes(noYear)) variants.push(noYear);
+
+  // Remoteno de colchetes e parênteses genéricos
+  const noBrackets = raw.replace(/\[.*?\]/g, '').replace(/\(.*?\)/g, '').trim();
+  if (noBrackets && !variants.includes(noBrackets)) variants.push(noBrackets);
+
+  // Extração de título principal antes de separadores (: - — | /)
+  const mainPart = raw.split(/[:\-\—\|]/)[0].trim();
+  if (mainPart && mainPart.length >= 3 && !variants.includes(mainPart)) {
+    variants.push(mainPart);
+  }
+
+  // Versão limpa de pontuação
+  const cleanPunctuation = noYear.replace(/[^\w\s\u00C0-\u00FF]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (cleanPunctuation && !variants.includes(cleanPunctuation)) {
+    variants.push(cleanPunctuation);
+  }
+
+  // Subtitular se existir (ex: "Sem Volta para Casa" de "Homem-Aranha: Sem Volta para Casa")
+  const parts = raw.split(/[:\-\—\|]/);
+  if (parts.length > 1) {
+    const subPart = parts[1].trim();
+    if (subPart && subPart.length >= 3 && !variants.includes(subPart)) {
+      variants.push(subPart);
+    }
+  }
+
+  // Versão com pontos no lugar de espaços (padrão de arquivos torrent/release: "The.Walking.Dead")
+  if (cleanPunctuation) {
+    const dotted = cleanPunctuation.replace(/\s+/g, '.');
+    if (dotted && !variants.includes(dotted)) {
+      variants.push(dotted);
+    }
+  }
+
+  // Palavras-chave principais
+  const stopWords = new Set(['o', 'a', 'os', 'as', 'um', 'uma', 'uns', 'umas', 'de', 'da', 'do', 'dos', 'das', 'em', 'no', 'na', 'nos', 'nas', 'por', 'para', 'com', 'sem', 'sob', 'sobre', 'e', 'or', 'and', 'the', 'of', 'in', 'on', 'at', 'to', 'for', 'with', 'by']);
+  const words = cleanPunctuation.split(' ').filter(w => w.length > 2 && !stopWords.has(w.toLowerCase()));
+  if (words.length >= 2) {
+    const keyPhrase = words.join(' ');
+    if (keyPhrase && !variants.includes(keyPhrase)) {
+      variants.push(keyPhrase);
+    }
+  }
+
+  return variants;
+}
+
+/**
  * Extrai o ID único de um item retornado pela API do Abyss
  */
 export function extractAbyssId(item: AbyssResourceFile): string | null {
@@ -152,7 +211,7 @@ export function flattenAbyssFiles(input: any): AbyssResourceFile[] {
 
 /**
  * Avalia a compatibilidade de um arquivo para um episódio de série utilizando Regex flexíveis.
- * Reconhece equivalências como: S03E09, s03e09, 03x09, 3x09, 03X09, S3E9, s3e9, 3e9, etc.
+ * Reconhece equivalências como: S03E09, s03e09, 03x09, 3x09, 03X09, S3E9, s3e9, 3e9, T03E09, etc.
  */
 export function scoreEpisodeMatch(
   itemName: string,
@@ -171,7 +230,7 @@ export function scoreEpisodeMatch(
   const sPadded = String(sNum).padStart(2, '0');
   const ePadded = String(epNum).padStart(2, '0');
 
-  // Regex 1: S06E02, s06e02, S6E2, s6e2, T06E02, T6E2, S06_E02, S06.E02, S06-E02
+  // Regex 1: S06E02, s06e02, S6E2, s6e2, T06E02, T6E2, S06_E02, S06.E02, S06-E02, S06 E02
   const regSxxExx = new RegExp(`(?:^|[^a-z0-9])[sStT]0*${sNum}[\\s\\._\\-]*[eE]0*${epNum}(?:[^a-z0-9]|$)`, 'i');
 
   // Regex 2: 06x02, 6x02, 06X02, 6X2, 06 x 02, 6 x 2
@@ -180,13 +239,13 @@ export function scoreEpisodeMatch(
   // Regex 3: Season 6 Ep 02 / Temporada 6 Episodio 02 / Temp 6 Ep 2 / Cap 2
   const regTempEp = new RegExp(`(?:temp(?:orada)?|season|t|s)?\\s*0*${sNum}.*?(?:ep(?:isode|isod[ií]o)?|e|cap(?:itulo|ítulo)?)\\.?\\s*0*${epNum}(?:[^a-z0-9]|$)`, 'i');
 
-  // Regex 4: Separado por ponto/traço (ex: 06.02 ou 6-02 ou 06_02)
+  // Regex 4: Separado por ponto/traço/espaço (ex: 06.02 ou 6-02 ou 06_02)
   const regDotDash = new RegExp(`(?:^|[^a-z0-9])0*${sNum}[\\s\\._\\-]+0*${epNum}(?:[^a-z0-9]|$)`, 'i');
 
-  // Regex 5: Código de 3 ou 4 dígitos (ex: 602, 0602)
+  // Regex 5: Código de 3 ou 4 dígitos (ex: 602, 0602, 1015)
   const regCode = new RegExp(`(?:^|[^0-9])0*${sNum}${ePadded}(?:[^0-9]|$)`, 'i');
 
-  // Regex 6: Apenas episódio (ex: Ep 02, Episode 02, Episódio 2, E02, Cap 02, #02, #2)
+  // Regex 6: Apenas episódio (ex: Ep 02, Episode 02, Episódio 2, E02, EP02, Cap 02, #02, #2)
   const regEpOnly = new RegExp(`(?:^|[^a-z0-9])(?:ep(?:isode|isod[ií]o)?|e|cap(?:itulo|ítulo)?|faixa|item|#)\\.?\\s*0*${epNum}(?:[^0-9a-z]|$)`, 'i');
 
   // Regex 7: Número do episódio isolado por limites ou extensão (ex: 02.mp4, 2.mkv, 02 - Title)
@@ -207,6 +266,18 @@ export function scoreEpisodeMatch(
     isMatch = true;
   }
 
+  // Se não estiver dentro da pasta da temporada, aceita se contiver o título da série e a tag de episódio (ex: E15, #15)
+  if (!isMatch && (hasEpOnly || hasIsolatedNum)) {
+    const titleVars = generateTitleVariants(seriesTitle);
+    for (const tv of titleVars) {
+      const normTv = normalizeMediaText(tv);
+      if (normTv && normTv.length >= 3 && normItem.includes(normTv)) {
+        isMatch = true;
+        break;
+      }
+    }
+  }
+
   if (!isMatch) {
     return {
       matched: false,
@@ -224,27 +295,34 @@ export function scoreEpisodeMatch(
   if (hasEpOnly) score += 60;
   if (hasIsolatedNum) score += 40;
 
-  // Comparação parcial do Título da Série
-  const normTitle = normalizeMediaText(seriesTitle);
-  if (normTitle) {
-    if (normItem.includes(normTitle)) {
+  // Comparação do Título da Série com suporte a variações
+  const titleVars = generateTitleVariants(seriesTitle);
+  let titleMatched = false;
+  for (const tv of titleVars) {
+    const normTv = normalizeMediaText(tv);
+    if (normTv && normTv.length >= 3 && normItem.includes(normTv)) {
       score += 150;
-    } else {
-      const titleWords = normTitle.split(' ').filter(w => w.length > 2);
-      let matchedWords = 0;
-      for (const word of titleWords) {
-        if (normItem.includes(word)) matchedWords++;
-      }
-      if (titleWords.length > 0 && matchedWords > 0) {
-        score += Math.round((matchedWords / titleWords.length) * 80);
-      }
+      titleMatched = true;
+      break;
+    }
+  }
+
+  if (!titleMatched) {
+    const normTitle = normalizeMediaText(seriesTitle);
+    const titleWords = normTitle.split(' ').filter(w => w.length > 2);
+    let matchedWords = 0;
+    for (const word of titleWords) {
+      if (normItem.includes(word)) matchedWords++;
+    }
+    if (titleWords.length > 0 && matchedWords > 0) {
+      score += Math.round((matchedWords / titleWords.length) * 80);
     }
   }
 
   return {
     matched: true,
     score,
-    reason: `Regex aceitou o formato para S${sPadded}E${ePadded} (Score: ${score})`
+    reason: `Correspondência para S${sPadded}E${ePadded} (Score: ${score})`
   };
 }
 
@@ -267,21 +345,32 @@ export function scoreMovieMatch(
   }
 
   if (normItem.includes(normTitle)) {
-    return { matched: true, score: 150, reason: `Contém o título "${movieTitle}"` };
+    return { matched: true, score: 170, reason: `Contém o título "${movieTitle}"` };
   }
 
-  const titleWords = normTitle.split(' ').filter(w => w.length > 2);
+  // Testa variações do título (ex: sem ano, sem subtítulo, com pontos)
+  const variants = generateTitleVariants(movieTitle);
+  for (const variant of variants) {
+    const normVar = normalizeMediaText(variant);
+    if (normVar && normVar.length >= 3 && normItem.includes(normVar)) {
+      return { matched: true, score: 140, reason: `Contém variação do título "${variant}"` };
+    }
+  }
+
+  // Comparação de palavras-chave
+  const stopWords = new Set(['o', 'a', 'os', 'as', 'de', 'da', 'do', 'dos', 'das', 'em', 'para', 'com', 'and', 'the', 'of']);
+  const titleWords = normTitle.split(' ').filter(w => w.length > 2 && !stopWords.has(w));
   let matchedCount = 0;
   for (const word of titleWords) {
     if (normItem.includes(word)) matchedCount++;
   }
 
   if (titleWords.length > 0 && matchedCount === titleWords.length) {
-    return { matched: true, score: 120, reason: `Contém todas as palavras do título (${matchedCount}/${titleWords.length})` };
+    return { matched: true, score: 120, reason: `Contém todas as palavras-chave (${matchedCount}/${titleWords.length})` };
   }
 
-  if (titleWords.length > 1 && matchedCount > 0) {
-    return { matched: true, score: 60, reason: `Contém parte das palavras do título (${matchedCount}/${titleWords.length})` };
+  if (titleWords.length > 1 && matchedCount >= Math.ceil(titleWords.length * 0.6)) {
+    return { matched: true, score: 80, reason: `Contém maioria das palavras-chave (${matchedCount}/${titleWords.length})` };
   }
 
   return { matched: false, score: 0, reason: `Não contém o título do filme "${movieTitle}"` };
@@ -372,7 +461,6 @@ export class AbyssService {
 
       let pageResponse: { files: AbyssResourceFile[]; rawResponse: any; status: number } | null = null;
 
-      // Consulta exclusivamente via Netlify Function (serverless backend)
       try {
         const queryParams = new URLSearchParams();
         if (cleanQuery) queryParams.set('q', cleanQuery);
@@ -384,11 +472,11 @@ export class AbyssService {
         const clientHeaders: Record<string, string> = { 'Accept': 'application/json' };
         if (apiKey) clientHeaders['Authorization'] = `Bearer ${apiKey}`;
 
-        // Chama a Netlify Function com timeout de 2.5s para evitar travamentos
+        // Timeout ajustado para 8s para garantir tempo de resposta adequado da API do Abyss
         let res = await fetchApi(`/.netlify/functions/abyss?${queryParams.toString()}`, {
           method: 'GET',
           headers: clientHeaders,
-          signal: AbortSignal.timeout(2500)
+          signal: AbortSignal.timeout(8000)
         });
 
         // Fallback para rota /api/abyss/resources se necessário
@@ -396,7 +484,7 @@ export class AbyssService {
           res = await fetchApi(`/api/abyss/resources?${queryParams.toString()}`, {
             method: 'GET',
             headers: clientHeaders,
-            signal: AbortSignal.timeout(2500)
+            signal: AbortSignal.timeout(8000)
           });
         }
 
@@ -496,7 +584,7 @@ export class AbyssService {
   }
 
   /**
-   * Busca automaticamente a URL do player para um filme
+   * Busca automaticamente a URL do player para um filme utilizando MÚLTIPLOS métodos e variações de títulos
    */
   static async findMoviePlayerUrl(movieTitle: string, customApiKey?: string): Promise<AbyssSearchResult> {
     const cleanTitle = movieTitle.trim();
@@ -509,98 +597,116 @@ export class AbyssService {
     }
 
     console.log(`==================================================`);
-    console.log(`[AbyssService] 🎬 INICIANDO BUSCA DE FILME NO ABYSS`);
+    console.log(`[AbyssService] 🎬 INICIANDO BUSCA DE FILME MULTI-MÉTODOS NO ABYSS`);
     console.log(`Filme: "${cleanTitle}"`);
     console.log(`==================================================`);
 
-    try {
-      const searchRes = await this.fetchAllPagesSearch(cleanTitle, 'files', undefined, customApiKey);
-      const files = searchRes.files;
-
-      if (!files || files.length === 0) {
-        console.error(`❌ [AbyssService] AUDITORIA - FILME NÃO ENCONTRADO para "${cleanTitle}"`);
-        return {
-          success: false,
-          error: 'NOT_FOUND',
-          message: `O vídeo "${cleanTitle}" ainda não existe no Abyss.`
-        };
-      }
-
-      // Varrer TODOS os itens e pontuar
-      let bestItem: AbyssResourceFile | null = null;
-      let highestScore = -1;
-      let bestReason = '';
-
-      for (const file of files) {
-        const name = extractAbyssName(file);
-        const matchRes = scoreMovieMatch(name, cleanTitle);
-        if (matchRes.matched && matchRes.score > highestScore) {
-          highestScore = matchRes.score;
-          bestItem = file;
-          bestReason = matchRes.reason;
-        }
-      }
-
-      if (!bestItem) {
-        bestItem = files[0];
-        bestReason = 'Fallback: Primeiro item retornado pela API.';
-      }
-
-      const rawId = extractAbyssId(bestItem);
-
-      if (!rawId) {
-        return {
-          success: false,
-          error: 'API_ERROR',
-          message: 'O arquivo no Abyss não possui um ID válido.'
-        };
-      }
-
-      const playerUrl = `https://play.abyssplayer.com/${rawId}`;
-      const fileName = extractAbyssName(bestItem) || cleanTitle;
-      const pageFound = (bestItem as any)._pageFound || 1;
-
-      console.log(`\n🎉 [AbyssService] SUCESSO! Filme localizado no Abyss:
-   - Nome do Arquivo: "${fileName}"
-   - ID do Arquivo: "${rawId}"
-   - Página Localizada: Página ${pageFound}
-   - Player URL Gerada: "${playerUrl}"
-   - Motivo da Escolha: ${bestReason}`);
-
-      return {
-        success: true,
-        fileId: rawId,
-        playerUrl,
-        fileName
-      };
-
-    } catch (err: any) {
-      const errType = (err?.message as any) || 'NETWORK_ERROR';
-      let msg = `O vídeo "${cleanTitle}" ainda não existe no Abyss.`;
-      if (errType === 'AUTH_ERROR') {
-        msg = 'Falha de autenticação na API do Abyss. Verifique sua chave de API.';
-      }
-
+    const apiKey = this.getApiKey(customApiKey);
+    if (!apiKey) {
       return {
         success: false,
-        error: errType,
-        message: msg
+        error: 'NO_API_KEY',
+        message: 'Chave de API do Abyss não configurada.'
       };
     }
+
+    const titleVariants = generateTitleVariants(cleanTitle);
+    let bestCandidate: { file: AbyssResourceFile; score: number; reason: string } | null = null;
+
+    // MÉTODOS 1 & 2: BUSCA DIRETA DE ARQUIVOS COM MÚLTIPLAS VARIAÇÕES DE TERMOS DE BUSCA
+    for (const queryVariant of titleVariants) {
+      try {
+        const searchRes = await this.fetchAllPagesSearch(queryVariant, 'files', undefined, apiKey);
+        for (const file of searchRes.files) {
+          const name = extractAbyssName(file);
+          const matchRes = scoreMovieMatch(name, cleanTitle);
+          if (matchRes.matched && matchRes.score > (bestCandidate?.score || 0)) {
+            bestCandidate = { file, score: matchRes.score, reason: matchRes.reason };
+            if (matchRes.score >= 150) break; // Excelente correspondência!
+          }
+        }
+        if (bestCandidate && bestCandidate.score >= 150) break;
+      } catch (err) {
+        console.warn(`[AbyssService] Erro na busca de arquivos para variação "${queryVariant}":`, err);
+      }
+    }
+
+    // MÉTODO 3: BUSCA EM PASTAS DE FILMES (Ex: "Filmes", "Homem Aranha")
+    if (!bestCandidate || bestCandidate.score < 100) {
+      for (const folderQuery of titleVariants) {
+        try {
+          const folderSearch = await this.fetchAllPagesSearch(folderQuery, 'folders', undefined, apiKey);
+          for (const folder of folderSearch.files) {
+            const folderId = extractAbyssId(folder);
+            if (folderId) {
+              const folderFiles = await this.fetchAllPagesSearch('', 'files', folderId, apiKey);
+              for (const file of folderFiles.files) {
+                const name = extractAbyssName(file);
+                const matchRes = scoreMovieMatch(name, cleanTitle);
+                if (matchRes.matched && matchRes.score > (bestCandidate?.score || 0)) {
+                  bestCandidate = { file, score: matchRes.score, reason: `Pasta "${extractAbyssName(folder)}": ${matchRes.reason}` };
+                }
+              }
+            }
+          }
+        } catch (err) {
+          console.warn(`[AbyssService] Erro na busca de pastas de filme para "${folderQuery}":`, err);
+        }
+      }
+    }
+
+    // MÉTODO 4: LISTAGEM DA RAIZ (ÚLTIMO RECURSO)
+    if (!bestCandidate) {
+      try {
+        const rootFiles = await this.fetchAllPagesSearch('', 'files', undefined, apiKey);
+        for (const file of rootFiles.files) {
+          const name = extractAbyssName(file);
+          const matchRes = scoreMovieMatch(name, cleanTitle);
+          if (matchRes.matched && matchRes.score > (bestCandidate?.score || 0)) {
+            bestCandidate = { file, score: matchRes.score, reason: `Listagem raiz: ${matchRes.reason}` };
+          }
+        }
+      } catch (err) {
+        console.warn(`[AbyssService] Erro na busca na raiz para filme:`, err);
+      }
+    }
+
+    if (!bestCandidate) {
+      return {
+        success: false,
+        error: 'NOT_FOUND',
+        message: `O vídeo "${cleanTitle}" ainda não existe ou não foi localizado no seu painel Abyss.`
+      };
+    }
+
+    const rawId = extractAbyssId(bestCandidate.file);
+    if (!rawId) {
+      return {
+        success: false,
+        error: 'API_ERROR',
+        message: 'O arquivo localizado no Abyss não possui um ID válido.'
+      };
+    }
+
+    const playerUrl = `https://play.abyssplayer.com/${rawId}`;
+    const fileName = extractAbyssName(bestCandidate.file) || cleanTitle;
+
+    console.log(`🎉 [AbyssService] SUCESSO! Filme localizado no Abyss: "${fileName}" (ID: ${rawId}) | ${bestCandidate.reason}`);
+
+    return {
+      success: true,
+      fileId: rawId,
+      playerUrl,
+      fileName
+    };
   }
 
   /**
-   * Busca automaticamente a URL do player para um episódio de série.
-   * REGRA OBRIGATÓRIA: Utiliza EXCLUSIVAMENTE a API de Folders da conta do Abyss.
-   * 
-   * Fluxo obrigatório:
-   * 1. Localizar a pasta da série (ex: "The Walking Dead").
-   * 2. Localizar a pasta da temporada (ex: "Temporada 3", "Season 3", "S03", "3").
-   * 3. Obter o folderId da temporada.
-   * 4. Listar todos os arquivos existentes naquela pasta (com paginação automática de todas as páginas).
-   * 5. Localizar o episódio correto utilizando Regex.
-   * 6. Obter o ID do arquivo.
-   * 7. Gerar automaticamente a URL do player: https://play.abyssplayer.com/{id}
+   * Busca automaticamente a URL do player para um episódio de série utilizando MÚLTIPLOS MÉTODOS INTEGRAIS:
+   * 1. Estrutura de Pastas (Série -> Temporada -> Episódio) com tratamento de variações de títulos e números.
+   * 2. Arquivos diretos dentro da pasta da série.
+   * 3. Busca direta por nome de arquivo de episódio (sem depender de pastas).
+   * 4. Varredura por tags de episódios isoladas e listagem geral.
    */
   static async findEpisodePlayerUrl(
     seriesTitle: string,
@@ -624,334 +730,196 @@ export class AbyssService {
     const seasonEpisodeTag = `S${sStr}E${eStr}`;
 
     console.log(`\n==================================================`);
-    console.log(`[AbyssService] 📺 INICIANDO BUSCA DE EPISÓDIO VIA ESTRUTURA DE PASTAS NO ABYSS`);
+    console.log(`[AbyssService] 📺 BUSCA MULTI-ESTRATÉGIA DE EPISÓDIO NO ABYSS`);
     console.log(`Série: "${cleanTitle}" | Temporada: ${sNum} | Episódio: ${epNum} (${seasonEpisodeTag})`);
     console.log(`==================================================`);
 
     const apiKey = this.getApiKey(customApiKey);
     if (!apiKey) {
-      console.log(`[AbyssService] ℹ️ Nenhuma chave de API do Abyss configurada. Pulando busca.`);
       return {
         success: false,
         error: 'NO_API_KEY',
-        message: 'Chave do Abyss não configurada.'
+        message: 'Chave de API do Abyss não configurada.'
       };
     }
 
-    // -------------------------------------------------------------
-    // ETAPA 1: LOCALIZAR PASTA DA SÉRIE
-    // -------------------------------------------------------------
-    console.log(`[AbyssService] 📁 1/4 Localizando pasta da série "${cleanTitle}"...`);
+    const titleVariants = generateTitleVariants(cleanTitle);
+    let bestCandidate: { file: AbyssResourceFile; score: number; reason: string } | null = null;
 
-    let rootFolders: AbyssResourceFile[] = [];
-    const visitedFolderIds = new Set<string>();
+    // ESTRATÉGIA A: BUSCA POR ESTRUTURA DE PASTAS (Série -> Temporada -> Arquivo ou Série -> Arquivo)
+    let seriesFolders: AbyssResourceFile[] = [];
+    const visitedSeriesFolderIds = new Set<string>();
 
-    try {
-      // Busca pastas com filtro do título da série
-      const seriesFolderSearch = await this.fetchAllPagesSearch(cleanTitle, 'folders', undefined, apiKey);
-      for (const f of seriesFolderSearch.files) {
-        const id = extractAbyssId(f);
-        if (id && !visitedFolderIds.has(id)) {
-          visitedFolderIds.add(id);
-          rootFolders.push(f);
-        }
-      }
-
-      // Se não encontrou nenhuma pasta filtrando, lista todas as pastas da raiz
-      if (rootFolders.length === 0) {
-        console.log(`[AbyssService] 📁 Listando pastas raiz sem filtro de busca...`);
-        const rootList = await this.fetchAllPagesSearch('', 'folders', undefined, apiKey);
-        for (const f of rootList.files) {
+    for (const variant of titleVariants) {
+      try {
+        const folderSearch = await this.fetchAllPagesSearch(variant, 'folders', undefined, apiKey);
+        for (const f of folderSearch.files) {
           const id = extractAbyssId(f);
-          if (id && !visitedFolderIds.has(id)) {
-            visitedFolderIds.add(id);
-            rootFolders.push(f);
+          if (id && !visitedSeriesFolderIds.has(id)) {
+            visitedSeriesFolderIds.add(id);
+            seriesFolders.push(f);
           }
         }
+      } catch (err) {
+        console.warn(`[AbyssService] Erro ao buscar pasta da série para "${variant}":`, err);
       }
-    } catch (err: any) {
-      console.error(`[AbyssService] ❌ Erro ao buscar pastas da série:`, err);
     }
 
-    const normSeries = normalizeMediaText(cleanTitle);
+    // Se não achou por termo, tenta listar pastas da raiz
+    if (seriesFolders.length === 0) {
+      try {
+        const rootFolders = await this.fetchAllPagesSearch('', 'folders', undefined, apiKey);
+        for (const f of rootFolders.files) {
+          const id = extractAbyssId(f);
+          if (id && !visitedSeriesFolderIds.has(id)) {
+            visitedSeriesFolderIds.add(id);
+            seriesFolders.push(f);
+          }
+        }
+      } catch (err) {
+        console.warn(`[AbyssService] Erro ao listar pastas da raiz:`, err);
+      }
+    }
 
-    // Selecionar a melhor pasta da série
-    const seriesFolder = rootFolders.find(f => {
+    // Filtrar melhor pasta de série
+    const matchingSeriesFolders = seriesFolders.filter(f => {
       const name = extractAbyssName(f);
       if (!name) return false;
-      const normName = normalizeMediaText(name);
-
-      if (normName === normSeries) return true;
-      if (normName.includes(normSeries) || normSeries.includes(normName)) return true;
-
-      // Comparação de palavras-chave
-      const titleWords = normSeries.split(' ').filter(w => w.length > 2);
-      if (titleWords.length > 0) {
-        const matchCount = titleWords.filter(w => normName.includes(w)).length;
-        if (matchCount === titleWords.length) return true;
+      const normFolder = normalizeMediaText(name);
+      for (const v of titleVariants) {
+        const normV = normalizeMediaText(v);
+        if (normFolder === normV || normFolder.includes(normV) || normV.includes(normFolder)) {
+          return true;
+        }
       }
       return false;
     });
 
-    if (!seriesFolder) {
-      console.log(`[AbyssService] 💡 Pasta da série "${cleanTitle}" não encontrada no Abyss. Executando busca direta por arquivos para "${cleanTitle} ${seasonEpisodeTag}"...`);
-      
-      const searchQueries = [
-        `${cleanTitle} S${sStr}E${eStr}`,
-        `${cleanTitle} ${sNum}x${eStr}`,
-        `${cleanTitle} S${sNum}E${epNum}`,
-        cleanTitle
-      ];
+    for (const sFolder of matchingSeriesFolders) {
+      const sFolderId = extractAbyssId(sFolder);
+      const sFolderName = extractAbyssName(sFolder);
+      if (!sFolderId) continue;
 
-      for (const q of searchQueries) {
-        try {
-          const directSearch = await this.fetchAllPagesSearch(q, 'files', undefined, apiKey);
-          if (directSearch.files && directSearch.files.length > 0) {
-            let bestDirect: AbyssResourceFile | null = null;
-            let bestDirectScore = -1;
+      // A1: Buscar subpasta de Temporada dentro da pasta da série
+      let seasonFolders: AbyssResourceFile[] = [];
+      try {
+        const subFoldersRes = await this.fetchAllPagesSearch('', 'folders', sFolderId, apiKey);
+        seasonFolders = subFoldersRes.files;
+      } catch (err) {
+        console.warn(`[AbyssService] Erro ao listar subpastas da série "${sFolderName}":`, err);
+      }
 
-            for (const f of directSearch.files) {
-              const name = extractAbyssName(f);
-              const mRes = scoreEpisodeMatch(name, cleanTitle, sNum, epNum, false);
-              if (mRes.matched && mRes.score > bestDirectScore) {
-                bestDirectScore = mRes.score;
-                bestDirect = f;
+      // Regex flexível para encontrar a pasta da temporada
+      const seasonFolderMatch = seasonFolders.find(f => {
+        const name = extractAbyssName(f);
+        if (!name) return false;
+        const lower = name.toLowerCase().trim();
+        const norm = normalizeMediaText(name);
+
+        if (norm === String(sNum) || norm === sStr) return true;
+        if (new RegExp(`\\b(?:temp(?:orada)?|season|t|s)?\\s*0*${sNum}\\b`, 'i').test(lower)) return true;
+        if (lower.includes(`${sNum}a`) || lower.includes(`${sNum}ª`)) return true;
+        return false;
+      });
+
+      if (seasonFolderMatch) {
+        const seasonFolderId = extractAbyssId(seasonFolderMatch);
+        if (seasonFolderId) {
+          try {
+            const seasonFilesRes = await this.fetchAllPagesSearch('', 'files', seasonFolderId, apiKey);
+            for (const file of seasonFilesRes.files) {
+              const name = extractAbyssName(file);
+              const mRes = scoreEpisodeMatch(name, cleanTitle, sNum, epNum, true);
+              if (mRes.matched && mRes.score > (bestCandidate?.score || 0)) {
+                bestCandidate = { file, score: mRes.score, reason: `Pasta "${sFolderName}/${extractAbyssName(seasonFolderMatch)}": ${mRes.reason}` };
               }
             }
+          } catch (err) {
+            console.warn(`[AbyssService] Erro ao listar arquivos da temporada:`, err);
+          }
+        }
+      }
 
-            if (bestDirect) {
-              const rawId = extractAbyssId(bestDirect);
-              const chosenName = extractAbyssName(bestDirect);
-              if (rawId) {
-                const playerUrl = `https://play.abyssplayer.com/${rawId}`;
-                console.log(`🎉 [AbyssService] SUCESSO! Episódio localizado via busca direta de arquivo: "${chosenName}" (ID: ${rawId})`);
-                return {
-                  success: true,
-                  fileId: rawId,
-                  playerUrl,
-                  fileName: chosenName
-                };
-              }
+      // A2: Arquivos diretamente na pasta da série (sem subpasta de temporada)
+      if (!bestCandidate || bestCandidate.score < 100) {
+        try {
+          const directSeriesFiles = await this.fetchAllPagesSearch('', 'files', sFolderId, apiKey);
+          for (const file of directSeriesFiles.files) {
+            const name = extractAbyssName(file);
+            const mRes = scoreEpisodeMatch(name, cleanTitle, sNum, epNum, false);
+            if (mRes.matched && mRes.score > (bestCandidate?.score || 0)) {
+              bestCandidate = { file, score: mRes.score, reason: `Pasta "${sFolderName}": ${mRes.reason}` };
             }
           }
         } catch (err) {
-          console.warn(`[AbyssService] Erro na busca direta para "${q}":`, err);
+          console.warn(`[AbyssService] Erro ao listar arquivos diretos da série:`, err);
         }
       }
 
-      return {
-        success: false,
-        error: 'SERIES_FOLDER_NOT_FOUND',
-        message: `O vídeo do episódio (${seasonEpisodeTag}) ainda não existe ou não foi localizado no seu painel Abyss.`
-      };
+      if (bestCandidate && bestCandidate.score >= 150) break;
     }
 
-    const seriesFolderId = extractAbyssId(seriesFolder);
-    const seriesFolderName = extractAbyssName(seriesFolder);
-    console.log(`[AbyssService] ✅ Pasta da Série localizada: "${seriesFolderName}" (ID: ${seriesFolderId})`);
-
-    if (!seriesFolderId) {
-      return {
-        success: false,
-        error: 'API_ERROR',
-        message: `A pasta da série "${seriesFolderName}" não possui um ID válido.`
-      };
-    }
-
-    // -------------------------------------------------------------
-    // ETAPA 2: LOCALIZAR PASTA DA TEMPORADA DENTRO DA PASTA DA SÉRIE
-    // -------------------------------------------------------------
-    console.log(`[AbyssService] 📁 2/4 Localizando pasta da Temporada ${sNum} dentro de "${seriesFolderName}"...`);
-
-    let seasonFolders: AbyssResourceFile[] = [];
-    const visitedSeasonFolderIds = new Set<string>();
-
-    try {
-      const seasonSearch = await this.fetchAllPagesSearch('', 'folders', seriesFolderId, apiKey);
-      for (const f of seasonSearch.files) {
-        const id = extractAbyssId(f);
-        if (id && !visitedSeasonFolderIds.has(id)) {
-          visitedSeasonFolderIds.add(id);
-          seasonFolders.push(f);
-        }
+    // ESTRATÉGIA B: BUSCA DIRETA DE ARQUIVOS (Sem depender de estrutura de pastas)
+    if (!bestCandidate || bestCandidate.score < 100) {
+      const epQueries: string[] = [];
+      for (const vTitle of titleVariants) {
+        epQueries.push(`${vTitle} S${sStr}E${eStr}`);
+        epQueries.push(`${vTitle} ${sNum}x${eStr}`);
+        epQueries.push(`${vTitle} S${sNum}E${epNum}`);
+        epQueries.push(`${vTitle} T${sStr}E${eStr}`);
+        epQueries.push(`${vTitle} E${eStr}`);
+        epQueries.push(`${vTitle} ${eStr}`);
+        epQueries.push(vTitle);
       }
 
-      // Se a listagem vazia não trouxe pastas, tenta buscar com termos específicos
-      if (seasonFolders.length === 0) {
-        const terms = [String(sNum), `Temporada ${sNum}`, `Season ${sNum}`, `S${sStr}`];
-        for (const term of terms) {
-          const search = await this.fetchAllPagesSearch(term, 'folders', seriesFolderId, apiKey);
-          for (const f of search.files) {
-            const id = extractAbyssId(f);
-            if (id && !visitedSeasonFolderIds.has(id)) {
-              visitedSeasonFolderIds.add(id);
-              seasonFolders.push(f);
-            }
-          }
-        }
-      }
-    } catch (err: any) {
-      console.error(`[AbyssService] ❌ Erro ao listar subpastas da série:`, err);
-    }
+      // Adiciona busca por tags de episódio isoladas
+      epQueries.push(`S${sStr}E${eStr}`);
+      epQueries.push(`${sNum}x${eStr}`);
 
-    // RegEx e regras flexíveis para encontrar a pasta da temporada
-    const regSeasonNum = new RegExp(`\\b(?:temp(?:orada)?|season|t|s)?\\s*0*${sNum}\\b`, 'i');
-
-    const seasonFolder = seasonFolders.find(f => {
-      const name = extractAbyssName(f);
-      if (!name) return false;
-      const lowerName = name.toLowerCase().trim();
-      const normName = normalizeMediaText(name);
-
-      if (normName === String(sNum) || normName === sStr) return true;
-      if (regSeasonNum.test(lowerName) || regSeasonNum.test(normName)) return true;
-      if (lowerName.includes(`season ${sNum}`) || lowerName.includes(`season ${sStr}`)) return true;
-      if (lowerName.includes(`temporada ${sNum}`) || lowerName.includes(`temporada ${sStr}`)) return true;
-      if (lowerName.includes(`temp ${sNum}`) || lowerName.includes(`temp ${sStr}`)) return true;
-      if (lowerName.includes(`t${sStr}`) || lowerName.includes(`s${sStr}`)) return true;
-
-      return false;
-    });
-
-    if (!seasonFolder || !seriesFolder) {
-      console.log(`[AbyssService] 💡 Pasta de série/temporada não localizada. Executando busca direta por arquivos no Abyss para "${cleanTitle} ${seasonEpisodeTag}"...`);
-      
-      const searchQueries = [
-        `${cleanTitle} S${sStr}E${eStr}`,
-        `${cleanTitle} ${sNum}x${eStr}`,
-        `${cleanTitle} S${sNum}E${epNum}`,
-        cleanTitle
-      ];
-
-      for (const q of searchQueries) {
+      for (const epQuery of epQueries) {
         try {
-          const directSearch = await this.fetchAllPagesSearch(q, 'files', undefined, apiKey);
-          if (directSearch.files && directSearch.files.length > 0) {
-            let bestDirect: AbyssResourceFile | null = null;
-            let bestDirectScore = -1;
-
-            for (const f of directSearch.files) {
-              const name = extractAbyssName(f);
-              const mRes = scoreEpisodeMatch(name, cleanTitle, sNum, epNum, false);
-              if (mRes.matched && mRes.score > bestDirectScore) {
-                bestDirectScore = mRes.score;
-                bestDirect = f;
-              }
-            }
-
-            if (bestDirect) {
-              const rawId = extractAbyssId(bestDirect);
-              const chosenName = extractAbyssName(bestDirect);
-              if (rawId) {
-                const playerUrl = `https://play.abyssplayer.com/${rawId}`;
-                console.log(`🎉 [AbyssService] SUCESSO! Episódio localizado via busca direta de arquivo: "${chosenName}" (ID: ${rawId})`);
-                return {
-                  success: true,
-                  fileId: rawId,
-                  playerUrl,
-                  fileName: chosenName
-                };
-              }
+          const directFiles = await this.fetchAllPagesSearch(epQuery, 'files', undefined, apiKey);
+          for (const file of directFiles.files) {
+            const name = extractAbyssName(file);
+            const mRes = scoreEpisodeMatch(name, cleanTitle, sNum, epNum, false);
+            if (mRes.matched && mRes.score > (bestCandidate?.score || 0)) {
+              bestCandidate = { file, score: mRes.score, reason: `Busca direta ("${epQuery}"): ${mRes.reason}` };
+              if (mRes.score >= 150) break;
             }
           }
+          if (bestCandidate && bestCandidate.score >= 150) break;
         } catch (err) {
-          console.warn(`[AbyssService] Erro na busca direta para "${q}":`, err);
+          console.warn(`[AbyssService] Erro na busca direta para "${epQuery}":`, err);
         }
       }
-
-      return {
-        success: false,
-        error: !seriesFolder ? 'SERIES_FOLDER_NOT_FOUND' : 'SEASON_FOLDER_NOT_FOUND',
-        message: `O vídeo do episódio (${seasonEpisodeTag}) ainda não existe ou não foi localizado no seu painel Abyss.`
-      };
     }
 
-    const seasonFolderId = extractAbyssId(seasonFolder);
-    const seasonFolderName = extractAbyssName(seasonFolder);
-    console.log(`[AbyssService] ✅ Pasta da Temporada ${sNum} localizada: "${seasonFolderName}" (ID: ${seasonFolderId})`);
-
-    if (!seasonFolderId) {
-      return {
-        success: false,
-        error: 'API_ERROR',
-        message: `A pasta da temporada "${seasonFolderName}" não possui um ID válido.`
-      };
+    // ESTRATÉGIA C: LISTAGEM DA RAIZ COMO ÚLTIMO RECURSO
+    if (!bestCandidate) {
+      try {
+        const rootFiles = await this.fetchAllPagesSearch('', 'files', undefined, apiKey);
+        for (const file of rootFiles.files) {
+          const name = extractAbyssName(file);
+          const mRes = scoreEpisodeMatch(name, cleanTitle, sNum, epNum, false);
+          if (mRes.matched && mRes.score > (bestCandidate?.score || 0)) {
+            bestCandidate = { file, score: mRes.score, reason: `Raiz: ${mRes.reason}` };
+          }
+        }
+      } catch (err) {
+        console.warn(`[AbyssService] Erro na varredura da raiz:`, err);
+      }
     }
 
-    // -------------------------------------------------------------
-    // ETAPA 3 & 4: LISTAR ARQUIVOS DA PASTA E RECONHECER EPISÓDIO VIA REGEX
-    // -------------------------------------------------------------
-    console.log(`[AbyssService] 📁 3/4 Listando todos os arquivos dentro da pasta "${seasonFolderName}" (ID: ${seasonFolderId})...`);
-
-    const filesResult = await this.fetchAllPagesSearch('', 'files', seasonFolderId, apiKey);
-    const seasonFiles = filesResult.files;
-    const pagesRead = filesResult.pagesRead;
-
-    console.log(`[AbyssService] 📁 Paginador leu ${pagesRead} página(s) e encontrou ${seasonFiles.length} arquivo(s) na pasta da Temporada ${sNum}.`);
-
-    if (!seasonFiles || seasonFiles.length === 0) {
-      console.error(`\n==================================================`);
-      console.error(`❌ [ABYSS AUDIT FAILURE] PASTA DA TEMPORADA ESTÁ VAZIA`);
-      console.error(`• Série: "${cleanTitle}" | Temporada: ${sNum}`);
-      console.error(`• Pasta: "${seasonFolderName}" (ID: ${seasonFolderId})`);
-      console.error(`• Motivo: Nenhum arquivo de mídia foi retornado dentro desta pasta.`);
-      console.error(`==================================================\n`);
-
+    if (!bestCandidate) {
       return {
         success: false,
         error: 'NOT_FOUND',
-        message: `A pasta da Temporada ${sNum} ("${seasonFolderName}") está vazia no Abyss.`
+        message: `O vídeo do episódio (${seasonEpisodeTag}) ainda não existe ou não foi localizado no seu painel Abyss.`
       };
     }
 
-    console.log(`[AbyssService] 🔍 4/4 Testando Regex para localizar o episódio ${seasonEpisodeTag} (Ep. ${epNum})...`);
-
-    let bestItem: AbyssResourceFile | null = null;
-    let highestScore = -1;
-    let bestReason = '';
-
-    for (const file of seasonFiles) {
-      const name = extractAbyssName(file);
-      const matchRes = scoreEpisodeMatch(name, cleanTitle, sNum, epNum, true);
-      if (matchRes.matched && matchRes.score > highestScore) {
-        highestScore = matchRes.score;
-        bestItem = file;
-        bestReason = matchRes.reason;
-      }
-    }
-
-    // Fallback por posição natural dentro da pasta da temporada
-    if (!bestItem && seasonFiles.length > 0) {
-      const sortedFiles = [...seasonFiles].sort((a, b) => {
-        const nameA = extractAbyssName(a);
-        const nameB = extractAbyssName(b);
-        return nameA.localeCompare(nameB, undefined, { numeric: true, sensitivity: 'base' });
-      });
-
-      if (epNum >= 1 && epNum <= sortedFiles.length) {
-        bestItem = sortedFiles[epNum - 1];
-        highestScore = 50;
-        bestReason = `Fallback ativado: Selecionado o ${epNum}º arquivo da pasta por ordem natural.`;
-        console.log(`[AbyssService] 💡 Fallback ativado: Selecionado o ${epNum}º arquivo da pasta ("${extractAbyssName(bestItem)}").`);
-      }
-    }
-
-    const allFileNames = seasonFiles.map(f => extractAbyssName(f));
-
-    if (!bestItem) {
-      console.log(`[AbyssService] ℹ️ Episódio S${sStr}E${eStr} não localizado na pasta da Temporada ${sNum} ("${seasonFolderName}"). Total de arquivos na pasta: ${seasonFiles.length}.`);
-
-      return {
-        success: false,
-        error: 'EPISODE_NOT_FOUND_IN_SEASON',
-        message: `O episódio ${seasonEpisodeTag} não foi localizado na pasta da Temporada ${sNum} ("${seasonFolderName}").`,
-        totalFilesCount: seasonFiles.length
-      };
-    }
-
-    const rawId = extractAbyssId(bestItem);
-    const chosenFileName = extractAbyssName(bestItem);
-    const pageFound = (bestItem as any)._pageFound || 1;
+    const rawId = extractAbyssId(bestCandidate.file);
+    const chosenFileName = extractAbyssName(bestCandidate.file);
 
     if (!rawId) {
       return {
@@ -963,18 +931,7 @@ export class AbyssService {
 
     const playerUrl = `https://play.abyssplayer.com/${rawId}`;
 
-    console.log(`\n==================================================`);
-    console.log(`🎉 [ABYSS AUDIT SUCCESS] EPISÓDIO ENCONTRADO EXCLUSIVAMENTE VIA API DE PASTAS`);
-    console.log(`• Quantidade de páginas lidas: ${pagesRead}`);
-    console.log(`• Quantidade total de arquivos na pasta: ${seasonFiles.length}`);
-    console.log(`• Nome de todos os arquivos encontrados:`, allFileNames);
-    console.log(`• Página onde o episódio foi localizado: Página ${pageFound}`);
-    console.log(`• Nome do arquivo escolhido: "${chosenFileName}"`);
-    console.error ? null : null; // Clean formatting
-    console.log(`• ID do arquivo escolhido: "${rawId}"`);
-    console.log(`• Player URL gerada: "${playerUrl}"`);
-    console.log(`• Motivo da Escolha: ${bestReason}`);
-    console.log(`==================================================\n`);
+    console.log(`🎉 [ABYSS] SUCESSO! Episódio localizado: "${chosenFileName}" (ID: ${rawId}) | ${bestCandidate.reason}`);
 
     return {
       success: true,

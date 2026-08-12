@@ -472,25 +472,40 @@ export default function App() {
   const [hasLoadedRequests, setHasLoadedRequests] = useState(true);
   const [hasLoadedSettings, setHasLoadedSettings] = useState(true);
 
-  // Synchronize state changes to LocalStorage instantly (Professional Offline System)
+  // Synchronize state changes to LocalStorage with debouncing for high performance
   useEffect(() => {
-    localStorage.setItem('vhsflix_users', JSON.stringify(users));
+    const timer = setTimeout(() => {
+      localStorage.setItem('vhsflix_users', JSON.stringify(users));
+    }, 500);
+    return () => clearTimeout(timer);
   }, [users]);
 
   useEffect(() => {
-    localStorage.setItem('vhsflix_profiles', JSON.stringify(allProfiles));
+    const timer = setTimeout(() => {
+      localStorage.setItem('vhsflix_profiles', JSON.stringify(allProfiles));
+    }, 500);
+    return () => clearTimeout(timer);
   }, [allProfiles]);
 
   useEffect(() => {
-    localStorage.setItem('vhsflix_movies', JSON.stringify(movies));
+    const timer = setTimeout(() => {
+      localStorage.setItem('vhsflix_movies', JSON.stringify(movies));
+    }, 1000);
+    return () => clearTimeout(timer);
   }, [movies]);
 
   useEffect(() => {
-    localStorage.setItem('vhsflix_movie_requests', JSON.stringify(requests));
+    const timer = setTimeout(() => {
+      localStorage.setItem('vhsflix_movie_requests', JSON.stringify(requests));
+    }, 500);
+    return () => clearTimeout(timer);
   }, [requests]);
 
   useEffect(() => {
-    localStorage.setItem('vhsflix_movie_comments', JSON.stringify(comments));
+    const timer = setTimeout(() => {
+      localStorage.setItem('vhsflix_movie_comments', JSON.stringify(comments));
+    }, 500);
+    return () => clearTimeout(timer);
   }, [comments]);
 
   useEffect(() => {

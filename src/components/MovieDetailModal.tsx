@@ -1259,22 +1259,23 @@ export default function MovieDetailModal({
 
   const handleEpisodeClick = (epNumber: number) => {
     setEpisode(epNumber);
+    setActiveTab('episodes');
     setIsConfiguringPlayer(false);
     setIsTapeLoading(true);
 
-    // Scroll o container do modal imediatamente para o topo
+    // Scroll o container do modal suavemente para o topo onde o player está posicionado
     const modalElem = document.getElementById('movie-detail-modal');
     if (modalElem) {
-      modalElem.scrollTo({ top: 0, behavior: 'instant' });
+      modalElem.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
     setTimeout(() => {
       setIsTapeLoading(false);
       setIsPlaying(true);
       if (modalElem) {
-        modalElem.scrollTo({ top: 0, behavior: 'instant' });
+        modalElem.scrollTo({ top: 0, behavior: 'smooth' });
       }
-    }, 400);
+    }, 350);
   };
 
   const handleScrubChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1316,36 +1317,35 @@ export default function MovieDetailModal({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.92, y: 10 }}
             transition={{ duration: 0.25, ease: "easeInOut" }}
-            className={`relative z-20 bg-[#0f171e] transition-all duration-300 ${
-              isPlaying && !isTapeLoading
-                ? "w-screen h-[100dvh] max-w-none max-h-[100dvh] rounded-none border-0 m-0 p-0 overflow-hidden"
-                : "w-full h-[100dvh] max-h-[100dvh] overflow-y-auto border-0 rounded-none m-0 p-0 shadow-2xl"
-            }`}
+            className="w-full h-[100dvh] max-h-[100dvh] overflow-y-auto border-0 rounded-none m-0 p-0 shadow-2xl bg-[#0f171e] scroll-smooth relative z-20"
             id="movie-detail-modal"
           >
-            {/* REPRODUÇÃO DO PLAYER DE VÍDEO COMPLETO E REAL (OCUPA TODO O MODAL EM REPRODUÇÃO) */}
+            {/* REPRODUÇÃO DO PLAYER DE VÍDEO COMPLETO E REAL (OCUPA TODO O DISPOSITIVO EM TELA CHEIA ESTILO PRIME VIDEO) */}
             {isPlaying && !isTapeLoading && (
               <div ref={playerContainerRef} className="fixed inset-0 bg-black flex flex-col text-white font-mono z-[85] animate-fade-in h-[100dvh] w-screen overflow-hidden">
-                {/* 1. Barra de Navegação Superior Moderna estilo Streaming (Completamente fora do iframe) */}
-                <div className="min-h-[4.5rem] bg-zinc-950 border-b border-zinc-900/80 flex items-center justify-between px-3 sm:px-6 p-3 select-none shrink-0 z-50 gap-2.5 pt-[calc(env(safe-area-inset-top)+0.5rem)]">
-                  {/* Esquerda: Botão Voltar gigante, super visível e fácil de clicar no mobile */}
+                {/* 1. Barra de Navegação Superior do Player */}
+                <div className="min-h-[4.5rem] bg-zinc-950/95 border-b border-zinc-900/80 flex items-center justify-between px-3 sm:px-6 p-3 select-none shrink-0 z-50 gap-2.5 pt-[calc(env(safe-area-inset-top)+0.5rem)]">
+                  {/* Esquerda: Botão Voltar para fechar o player e voltar aos detalhes */}
                   <div className="flex items-center">
                     <button
                       onClick={() => setIsPlaying(false)}
-                      className="bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-sans font-black text-sm h-12 px-5 rounded-lg transition-all flex items-center gap-2 shadow-lg shadow-rose-950/50 cursor-pointer focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none shrink-0 border border-rose-500/10"
+                      className="bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-sans font-black text-xs sm:text-sm h-11 px-4 sm:px-5 rounded-lg transition-all flex items-center gap-2 shadow-lg shadow-rose-950/50 cursor-pointer focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none shrink-0 border border-rose-500/20"
                       aria-label="Voltar para Detalhes"
-                      title="Voltar ao Catálogo"
+                      title="Fechar player e voltar aos detalhes"
                       id="btn-close-vhs-player"
                     >
-                      <ArrowLeft className="w-5 h-5 stroke-[2.8]" />
-                      <span className="font-black tracking-wider text-xs">VOLTAR</span>
+                      <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5 stroke-[2.8]" />
+                      <span className="font-black tracking-wider text-xs">VOLTAR AO CATÁLOGO</span>
                     </button>
                   </div>
 
-                  {/* Centro: Título do Conteúdo */}
+                  {/* Centro: Título do Conteúdo e Episódio Atual */}
                   <div className="flex-1 text-center px-2 flex flex-col justify-center items-center overflow-hidden">
-                    <span className="text-rose-500 font-mono text-[9px] font-black uppercase tracking-widest leading-none">ASSISTINDO AGORA</span>
-                    <h2 className="text-zinc-100 text-xs sm:text-sm font-black font-sans mt-0.5 truncate uppercase tracking-wider max-w-[150px] xs:max-w-[190px] sm:max-w-md">
+                    <span className="text-rose-500 font-mono text-[9px] font-black uppercase tracking-widest leading-none flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping"></span>
+                      REPRODUZINDO AGORA
+                    </span>
+                    <h2 className="text-zinc-100 text-xs sm:text-sm font-black font-sans mt-0.5 truncate uppercase tracking-wider max-w-[150px] xs:max-w-[220px] sm:max-w-md">
                       {movie.title}
                       {movie.type === 'series' && (
                         <span className="text-rose-400 ml-1.5 font-mono text-[10px] font-bold bg-rose-950/80 border border-rose-500/20 px-1.5 py-0.5 rounded">
@@ -1363,16 +1363,16 @@ export default function MovieDetailModal({
                         setIsConfiguringPlayer(true);
                       }}
                       className="bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 font-sans font-bold text-[10px] sm:text-xs h-9 px-2.5 rounded-lg transition-all flex items-center gap-1 cursor-pointer focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none"
-                      title={movie.type === 'series' ? "Sintonizar canal (Episódio / Temporada)" : "Sintonizar qualidade de reprodução"}
+                      title={movie.type === 'series' ? "Sintonizar capítulo (Episódio / Temporada)" : "Ajustar qualidade de reprodução"}
                     >
                       <Settings className="w-3.5 h-3.5 text-rose-500" />
-                      <span className="hidden xs:inline">{movie.type === 'series' ? 'MUDAR CAPÍTULO' : 'AJUSTAR SINAL'}</span>
+                      <span className="hidden xs:inline">{movie.type === 'series' ? 'MUDAR EPISÓDIO' : 'AJUSTAR SINAL'}</span>
                     </button>
                   </div>
                 </div>
 
-                {/* 2. Área do Reprodutor Inteligente (Detecção de Link Direto ou Iframe Tradicional) */}
-                <div className="flex-1 w-full bg-black relative flex items-center justify-center overflow-hidden group">
+                {/* 2. Área do Reprodutor Inteligente (Ocupa 100% da área útil do player) */}
+                <div className="flex-1 w-full h-full bg-black relative flex items-center justify-center overflow-hidden group">
                   {parsedVideo.type === 'direct' ? (
                     <div className="w-full h-full relative bg-black flex items-center justify-center overflow-hidden">
                       {/* Reprodutor HTML5 Nativo */}
@@ -1670,7 +1670,7 @@ export default function MovieDetailModal({
                       Sintonizar Reprodutor de Vídeo
                     </h3>
                     <p className="text-[10px] text-zinc-500 mt-1 max-w-sm mx-auto p-0">
-                      Selecione o servidor, sintonizar canais de episódios e decole na fita retrô.
+                      Sintonize o episódio desejado e ajuste a qualidade de vídeo para decolar na fita retrô.
                     </p>
                   </div>
 
