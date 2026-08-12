@@ -113,6 +113,7 @@ export default function Navbar({
           {/* Logo VHSFLIX */}
           <button 
             onClick={() => {
+              onSelectCategory(null);
               onToggleAdminView(false);
               onTabChange('all');
             }}
@@ -148,7 +149,10 @@ export default function Navbar({
 
               <li>
                 <button
-                  onClick={() => onTabChange('all')}
+                  onClick={() => {
+                    onSelectCategory(null);
+                    onTabChange('all');
+                  }}
                   className={`transition-colors py-1 focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none rounded px-1.5 ${activeTab === 'all' && !selectedCategory ? 'text-white font-bold border-b-2 border-rose-600' : 'hover:text-zinc-400'}`}
                 >
                   Início
@@ -156,7 +160,10 @@ export default function Navbar({
               </li>
               <li>
                 <button
-                  onClick={() => onTabChange('movies')}
+                  onClick={() => {
+                    onSelectCategory(null);
+                    onTabChange('movies');
+                  }}
                   className={`transition-colors py-1 flex items-center gap-1 focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none rounded px-1.5 ${activeTab === 'movies' ? 'text-white font-bold border-b-2 border-rose-600' : 'hover:text-zinc-400'}`}
                 >
                   <Film className="w-3.5 h-3.5" /> Filmes
@@ -164,7 +171,10 @@ export default function Navbar({
               </li>
               <li>
                 <button
-                  onClick={() => onTabChange('series')}
+                  onClick={() => {
+                    onSelectCategory(null);
+                    onTabChange('series');
+                  }}
                   className={`transition-colors py-1 flex items-center gap-1 focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none rounded px-1.5 ${activeTab === 'series' ? 'text-white font-bold border-b-2 border-rose-600' : 'hover:text-zinc-400'}`}
                 >
                   <Tv className="w-3.5 h-3.5" /> Séries
@@ -172,7 +182,10 @@ export default function Navbar({
               </li>
               <li>
                 <button
-                  onClick={() => onTabChange('mylist')}
+                  onClick={() => {
+                    onSelectCategory(null);
+                    onTabChange('mylist');
+                  }}
                   className={`transition-colors py-1 flex items-center gap-1 focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none rounded px-1.5 ${activeTab === 'mylist' ? 'text-white font-bold border-b-2 border-rose-600' : 'hover:text-zinc-400'}`}
                 >
                   <List className="w-3.5 h-3.5" /> Minha Lista

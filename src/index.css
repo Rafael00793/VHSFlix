@@ -97,10 +97,10 @@ html {
 
 /* Versão Mobile */
 @media (max-width: 640px) {
-  iframe:not(.video-player-iframe) {
+  iframe {
     width: 100% !important;
     height: auto !important;
-    aspect-ratio: 16/9 !important;
+    aspect-ratio: 16/9;
   }
 }
 

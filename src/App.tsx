@@ -770,7 +770,7 @@ export default function App() {
       if (pinned) return pinned;
     }
 
-    // 2. TENDÊNCIAS DO TMDB: Seleciona a fita #1 em alta no TMDB que está no catálogo
+    // 2. TENDÊNCIAS DO TMDB: Seleciona a fita #1 em alta no TMDB
     if (tmdbTrendingList && tmdbTrendingList.length > 0) {
       for (const trending of tmdbTrendingList) {
         if (trending.id) {
@@ -786,6 +786,40 @@ export default function App() {
           });
           if (matchByTitle) return matchByTitle;
         }
+      }
+
+      // Se o item #1 do TMDB não está no acervo local ainda, cria dinamicamente o objeto Movie
+      // do item #1 do TMDB para garantir que a Tendência #1 seja EXATAMENTE o que está em alta no TMDB
+      const topTrending = tmdbTrendingList[0];
+      if (topTrending) {
+        const isTv = topTrending.media_type === 'tv' || Boolean(topTrending.name);
+        const title = topTrending.title || topTrending.name || 'Tendência TMDB';
+        const releaseDate = topTrending.release_date || topTrending.first_air_date || '2026';
+        const year = parseInt(releaseDate.substring(0, 4)) || new Date().getFullYear();
+        
+        const dynamicMovie: Movie = {
+          id: `tmdb_trend_${topTrending.id}`,
+          tmdbId: topTrending.id,
+          title: title,
+          type: isTv ? 'series' : 'movie',
+          category: isTv ? 'Séries' : 'Ação',
+          year: year,
+          rating: Number((topTrending.vote_average || 8.5).toFixed(1)),
+          duration: isTv ? '1 Temporada' : '2h 10m',
+          posterUrl: topTrending.poster_path 
+            ? `https://image.tmdb.org/t/p/w500${topTrending.poster_path}`
+            : 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&w=600&q=80',
+          backdropUrl: topTrending.backdrop_path 
+            ? `https://image.tmdb.org/t/p/w1280${topTrending.backdrop_path}`
+            : undefined,
+          description: topTrending.overview || 'Título em alta no TMDB hoje.',
+          trailerUrl: 'https://www.youtube.com/embed/CRRlbK5w8AE',
+          isFeatured: true,
+          clicksCount: topTrending.vote_count || 1250,
+          votesLikes: Math.round((topTrending.vote_average || 8.5) * 100),
+          votesDislikes: 12
+        };
+        return dynamicMovie;
       }
     }
 
@@ -867,6 +901,20 @@ export default function App() {
         return list.sort((a, b) => (b.rating || 0) - (a.rating || 0));
       } else if (selectedCategory === 'Séries') {
         list = list.filter(m => m.type === 'series');
+      } else if (selectedCategory === 'Animes' || selectedCategory === 'Anime') {
+        list = list.filter(m => 
+          m.category === 'Animes' || 
+          m.category === 'Anime' || 
+          m.category?.toLowerCase().includes('anime') || 
+          (m.genres && m.genres.some(g => g.toLowerCase().includes('anime'))) ||
+          m.title.toLowerCase().includes('anime') ||
+          m.title.toLowerCase().includes('dragon ball') ||
+          m.title.toLowerCase().includes('naruto') ||
+          m.title.toLowerCase().includes('one piece') ||
+          m.title.toLowerCase().includes('solo leveling') ||
+          m.title.toLowerCase().includes('attack on titan') ||
+          m.title.toLowerCase().includes('demon slayer')
+        );
       } else if (selectedCategory !== 'Todos') {
         list = list.filter(m => m.category === selectedCategory);
       }
@@ -1875,10 +1923,11 @@ export default function App() {
                       <div className="absolute bottom-0 left-0 w-80 h-80 bg-amber-500/10 rounded-full blur-[100px] pointer-events-none"></div>
                       <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff05_1px,transparent_1px),linear-gradient(to_bottom,#ffffff05_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none"></div>
 
-                      {/* Capa VHS Interativa */}
+                      {/* Capa VHS Interativa (Foto Livre sem escrita por cima) */}
                       <div 
                         onClick={() => handleSelectMovie(mostDesejadaMovie)}
                         className="relative shrink-0 w-36 sm:w-44 aspect-[2/3] rounded-xl overflow-hidden border-2 border-rose-500 shadow-2xl shadow-rose-500/30 scale-100 hover:scale-105 transition-all duration-300 cursor-pointer group z-10"
+                        title={mostDesejadaMovie.title}
                       >
                         <img 
                           src={mostDesejadaMovie.posterUrl} 
@@ -1886,11 +1935,6 @@ export default function App() {
                           className="w-full h-full object-cover group-hover:opacity-90 transition-opacity"
                           referrerPolicy="no-referrer"
                         />
-                        {/* Etiqueta VHS Neon */}
-                        <div className="absolute top-2.5 left-2.5 bg-rose-600 text-white font-mono text-[9px] font-black tracking-widest px-2 py-0.5 rounded shadow-lg uppercase flex items-center gap-1">
-                          <Flame className="w-3 h-3 fill-current animate-pulse" />
-                          {isMostDesiredPinnedByAdmin ? 'DESTAQUE ESPECIAL' : 'TENDÊNCIA Nº 1'}
-                        </div>
 
                         {/* Hover Overlay para Sintonizar */}
                         <div className="absolute inset-0 bg-rose-900/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
@@ -1902,21 +1946,22 @@ export default function App() {
 
                       {/* Conteúdo Detalhado e Métricas */}
                       <div className="flex-1 text-center md:text-left flex flex-col items-center md:items-start z-10">
+                        {/* Tag/Selo Fora do Quadrado da Imagem */}
                         <div className="flex flex-wrap items-center justify-center md:justify-start gap-2.5">
                           {isMostDesiredPinnedByAdmin ? (
-                            <span className="text-[10px] sm:text-xs font-mono font-black text-rose-400 uppercase tracking-widest bg-rose-500/15 border border-rose-500/30 px-3.5 py-1 rounded-full flex items-center gap-1.5 shadow-sm">
-                              <Sparkles className="w-3.5 h-3.5 text-rose-400 animate-spin" />
-                              📌 Fita VHS Mais Desejada (Destaque Especial)
+                            <span className="text-[11px] sm:text-xs font-mono font-black text-rose-300 uppercase tracking-widest bg-rose-600/25 border-2 border-rose-500/50 px-3.5 py-1.5 rounded-full flex items-center gap-1.5 shadow-lg shadow-rose-950/40">
+                              <Sparkles className="w-4 h-4 text-rose-400 animate-spin" />
+                              📌 DESTAQUE ESPECIAL • FITA VHS MAIS DESEJADA
                             </span>
                           ) : (
-                            <span className="text-[10px] sm:text-xs font-mono font-black text-amber-400 uppercase tracking-widest bg-amber-500/15 border border-amber-500/30 px-3.5 py-1 rounded-full flex items-center gap-1.5 shadow-sm">
-                              <Flame className="w-3.5 h-3.5 fill-current animate-pulse text-amber-400" />
-                              📼 Fita VHS Mais Desejada
+                            <span className="text-[11px] sm:text-xs font-mono font-black text-amber-300 uppercase tracking-widest bg-amber-500/25 border-2 border-amber-500/50 px-3.5 py-1.5 rounded-full flex items-center gap-1.5 shadow-lg shadow-amber-950/40">
+                              <Flame className="w-4 h-4 fill-amber-400 text-amber-400 animate-pulse" />
+                              🔥 TENDÊNCIA Nº 1 DO TMDB
                             </span>
                           )}
 
-                          <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20 font-bold flex items-center gap-1">
-                            🔥 {mostDesejadaMovie.clicksCount || 0} acessos à fita
+                          <span className="text-[10px] sm:text-xs font-mono text-emerald-400 bg-emerald-500/15 px-3 py-1 rounded-full border border-emerald-500/30 font-bold flex items-center gap-1">
+                            🔥 {mostDesejadaMovie.clicksCount || 0} acessos
                           </span>
                         </div>
 

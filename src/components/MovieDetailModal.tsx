@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Movie, WatchProgress, MovieComment } from '../types';
-import { X, Play, Pause, Plus, Check, Star, RefreshCw, Tv, Clock, HelpCircle, Film, Sparkles, AlertCircle, ExternalLink, Maximize, Shield, Sliders, ThumbsUp, ThumbsDown, ChevronDown, ArrowLeft, Settings, Volume2, VolumeX, User, Users, Send, MessageSquare, Trash2, Zap } from 'lucide-react';
+import { X, Play, Pause, Plus, Check, Star, RefreshCw, Tv, Clock, HelpCircle, Film, Sparkles, AlertCircle, ExternalLink, Maximize, Shield, Sliders, ThumbsUp, ThumbsDown, ChevronDown, ArrowLeft, Settings, Volume2, VolumeX, User, Users, Send, MessageSquare, Trash2, Zap, Server } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { INITIAL_MOVIES } from '../data';
 import { AbyssService } from '../services/abyssService';
@@ -492,6 +492,8 @@ export default function MovieDetailModal({
   activeProfile
 }: MovieDetailModalProps) {
   const [isPlaying, setIsPlaying] = useState(false);
+  const [selectedServer, setSelectedServer] = useState<'abyss' | 'embedmovies'>('abyss');
+  const [isServerSelectorOpen, setIsServerSelectorOpen] = useState(false);
   const [manualEmbedInput, setManualEmbedInput] = useState('');
   const [isTapeLoading, setIsTapeLoading] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -646,6 +648,15 @@ export default function MovieDetailModal({
 
   const getActiveVideoUrl = () => {
     if (!movie) return '';
+
+    if (selectedServer === 'embedmovies') {
+      const targetId = movie.tmdbId || movie.id;
+      if (movie.type === 'series') {
+        return `https://myembed.biz/serie/${targetId}/${season}/${episode}`;
+      } else {
+        return `https://myembed.biz/filme/${targetId}`;
+      }
+    }
 
     if (movie.type === 'series') {
       const key = `${season}_${episode}`;
@@ -1235,8 +1246,14 @@ export default function MovieDetailModal({
     if (isPlaying) {
       setIsPlaying(false);
     } else {
-      handleStartPlayback();
+      setIsServerSelectorOpen(true);
     }
+  };
+
+  const handleSelectServerAndPlay = (server: 'abyss' | 'embedmovies') => {
+    setSelectedServer(server);
+    setIsServerSelectorOpen(false);
+    handleStartPlayback();
   };
 
   const handleStartPlayback = () => {
@@ -1260,22 +1277,7 @@ export default function MovieDetailModal({
   const handleEpisodeClick = (epNumber: number) => {
     setEpisode(epNumber);
     setActiveTab('episodes');
-    setIsConfiguringPlayer(false);
-    setIsTapeLoading(true);
-
-    // Scroll o container do modal suavemente para o topo onde o player está posicionado
-    const modalElem = document.getElementById('movie-detail-modal');
-    if (modalElem) {
-      modalElem.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-
-    setTimeout(() => {
-      setIsTapeLoading(false);
-      setIsPlaying(true);
-      if (modalElem) {
-        modalElem.scrollTo({ top: 0, behavior: 'smooth' });
-      }
-    }, 350);
+    setIsServerSelectorOpen(true);
   };
 
   const handleScrubChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1568,7 +1570,10 @@ export default function MovieDetailModal({
                       }
                       title={`Reproduzindo ${movie.title}`}
                       className="w-full h-full border-0 absolute inset-0 video-player-iframe"
+                      width="100%"
+                      height={movie.type === 'series' ? "600" : "600"}
                       allowFullScreen
+                      loading="lazy"
                       allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
                       referrerPolicy="origin"
                     />
@@ -1769,6 +1774,34 @@ export default function MovieDetailModal({
                     </div>
                   )}
 
+                  {/* SELEÇÃO DE SERVIDORES DE REPRODUÇÃO */}
+                  <div className="flex flex-col gap-2.5 text-left">
+                    <span className="text-[10px] text-zinc-400 uppercase tracking-wider font-extrabold flex items-center gap-1.5">
+                      <Server className="w-3.5 h-3.5 text-rose-500" />
+                      Servidor de Transmissão
+                    </span>
+                    <div className="grid grid-cols-2 gap-2.5 font-mono">
+                      {[
+                        { id: 'abyss', label: 'Servidor 1', desc: 'Opção Principal' },
+                        { id: 'embedmovies', label: 'Servidor 2', desc: 'Opção Alternativa' }
+                      ].map(s => (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => setSelectedServer(s.id as 'abyss' | 'embedmovies')}
+                          className={`p-3 rounded-lg border text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-1 select-none ${
+                            selectedServer === s.id
+                              ? 'bg-rose-500/10 border-rose-500 text-rose-400 shadow-md shadow-rose-600/15'
+                              : 'bg-zinc-900/40 border-zinc-800 hover:border-zinc-700 text-zinc-400 hover:text-zinc-200'
+                          }`}
+                        >
+                          <span className="text-[11px] font-bold uppercase tracking-widest">{s.label}</span>
+                          <span className="text-[8px] opacity-50 tracking-normal font-sans font-medium">{s.desc}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   {/* QUALIDADE DE SINAL & PRÉ-CARREGAMENTO (RETRO VHS STYLE) */}
                   <div className="flex flex-col gap-2.5 text-left">
                     <span className="text-[10px] text-zinc-400 uppercase tracking-wider font-extrabold flex items-center gap-1.5">
@@ -1814,6 +1847,70 @@ export default function MovieDetailModal({
                 </div>
               </div>
             )}
+
+            {/* MODAL / POPUP SELETOR DE SERVIDORES DE REPRODUÇÃO */}
+            <AnimatePresence>
+              {isServerSelectorOpen && (
+                <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.92, y: 15 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.92, y: 15 }}
+                    transition={{ duration: 0.2 }}
+                    className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 sm:p-7 max-w-sm w-full text-center shadow-2xl relative"
+                  >
+                    <button
+                      onClick={() => setIsServerSelectorOpen(false)}
+                      className="absolute top-3.5 right-3.5 text-zinc-400 hover:text-white p-1 rounded-lg transition-colors cursor-pointer"
+                      aria-label="Fechar"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+
+                    <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center mx-auto mb-3.5 text-rose-500">
+                      <Server className="w-6 h-6" />
+                    </div>
+
+                    <h3 className="text-base sm:text-lg font-bold font-sans text-white mb-1">
+                      Selecione o Servidor
+                    </h3>
+                    <p className="text-xs text-zinc-400 mb-5 font-sans">
+                      Escolha uma opção de transmissão para iniciar a exibição:
+                    </p>
+
+                    <div className="flex flex-col gap-3 font-sans">
+                      <button
+                        onClick={() => handleSelectServerAndPlay('abyss')}
+                        className="w-full bg-rose-600 hover:bg-rose-500 text-white font-bold py-3.5 px-4 rounded-xl transition-all flex items-center justify-between shadow-lg shadow-rose-950/30 cursor-pointer active:scale-95 group"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Server className="w-5 h-5 text-white/90 group-hover:scale-110 transition-transform" />
+                          <div className="text-left">
+                            <span className="block text-sm font-bold leading-tight">Servidor 1</span>
+                            <span className="block text-[10px] text-rose-200/80 font-normal">Opção Principal</span>
+                          </div>
+                        </div>
+                        <Play className="w-4 h-4 fill-white text-white" />
+                      </button>
+
+                      <button
+                        onClick={() => handleSelectServerAndPlay('embedmovies')}
+                        className="w-full bg-zinc-800 hover:bg-zinc-750 border border-zinc-700 hover:border-rose-500/50 text-white font-bold py-3.5 px-4 rounded-xl transition-all flex items-center justify-between shadow-lg cursor-pointer active:scale-95 group"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Server className="w-5 h-5 text-rose-400 group-hover:scale-110 transition-transform" />
+                          <div className="text-left">
+                            <span className="block text-sm font-bold leading-tight">Servidor 2</span>
+                            <span className="block text-[10px] text-zinc-400 font-normal">Opção Alternativa</span>
+                          </div>
+                        </div>
+                        <Play className="w-4 h-4 fill-rose-400 text-rose-400" />
+                      </button>
+                    </div>
+                  </motion.div>
+                </div>
+              )}
+            </AnimatePresence>
 
             {/* Botão de Fechar Modal (Sempre visível com z-index de alta prioridade z-100) */}
             <button

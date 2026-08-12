@@ -107,14 +107,10 @@ export default function MovieRow({
             const progress = hasProgressState ? watchHistory[movie.id] : null;
 
             return (
-              <motion.div
+              <div
                 key={movie.id}
-                initial={{ opacity: 0, scale: 0.95 }}
-                whileInView={{ opacity: 1, scale: 1 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.3 }}
                 tabIndex={0}
-                className="relative flex-none w-[145px] xs:w-[165px] sm:w-[195px] md:w-[220px] xl:w-[250px] group/card rounded-lg overflow-hidden bg-zinc-900 border border-zinc-800 hover:border-rose-500 hover:shadow-xl hover:shadow-rose-600/10 focus-visible:ring-4 focus-visible:ring-rose-500 focus-visible:scale-105 focus-visible:outline-none transition-all cursor-pointer"
+                className="relative flex-none w-[145px] xs:w-[165px] sm:w-[195px] md:w-[220px] xl:w-[250px] group/card rounded-lg overflow-hidden bg-zinc-900 border border-zinc-800 hover:border-rose-500 hover:shadow-xl hover:shadow-rose-600/10 focus-visible:ring-4 focus-visible:ring-rose-500 focus-visible:scale-105 focus-visible:outline-none transition-all duration-300 cursor-pointer animate-fade-in"
                 onClick={() => onMovieClick(movie)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
@@ -250,7 +246,7 @@ export default function MovieRow({
                     </div>
                   )}
                 </div>
-              </motion.div>
+              </div>
             );
           })}
         </div>

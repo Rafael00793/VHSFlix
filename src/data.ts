@@ -274,6 +274,21 @@ export const INITIAL_MOVIES: Movie[] = [
     trailerUrl: 'https://www.youtube.com/embed/CRRlbK5w8AE',
     vhsTapeColor: '#e11d48', // Red
     tmdbId: 215151
+  },
+  {
+    id: 'm14',
+    title: 'Solo Leveling (Arise)',
+    description: 'Em um mundo onde caçadores humanos enfrentam monstros mortais para proteger a humanidade, o caçador mais fraco Sung Jinwoo ganha uma habilidade única que lhe permite subir de nível sem limites.',
+    posterUrl: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=780&q=80',
+    backdropUrl: 'https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?auto=format&fit=crop&w=1200&q=80',
+    category: 'Animes',
+    year: 2026,
+    duration: '2 Temporadas',
+    type: 'series',
+    rating: 9.6,
+    trailerUrl: 'https://www.youtube.com/embed/S_I9_7E2K80',
+    vhsTapeColor: '#8b5cf6', // Purple
+    tmdbId: 214999
   }
 ];
 
@@ -344,6 +359,7 @@ export const GENRE_CATEGORIES = [
   'Todos',
   'Melhores Avaliações',
   'Ação',
+  'Animes',
   'Aventura',
   'Terror',
   'Suspense',
@@ -614,7 +630,25 @@ export async function getMovieDetailsTMDB(id: number, type: 'movie' | 'tv', apiK
       lowerDesc.includes('pixar') ||
       lowerDesc.includes('walt disney');
 
-    if (hasAnimationGenre || isAnimationKeyword) {
+    const isAnimeKeyword = 
+      lowerTitle.includes('anime') ||
+      lowerDesc.includes('anime') ||
+      lowerTitle.includes('dragon ball') ||
+      lowerTitle.includes('naruto') ||
+      lowerTitle.includes('one piece') ||
+      lowerTitle.includes('attack on titan') ||
+      lowerTitle.includes('shingeki') ||
+      lowerTitle.includes('demon slayer') ||
+      lowerTitle.includes('jujutsu') ||
+      lowerTitle.includes('bleach') ||
+      lowerTitle.includes('solo leveling') ||
+      lowerTitle.includes('my hero academia') ||
+      lowerDesc.includes('estúdio ghibli') ||
+      lowerDesc.includes('mangá');
+
+    if (isAnimeKeyword) {
+      resolvedCategory = 'Animes';
+    } else if (hasAnimationGenre || isAnimationKeyword) {
       resolvedCategory = 'Animação';
     } else if (data.genres && data.genres.length > 0) {
       const tmdbGenreId = data.genres[0].id;
