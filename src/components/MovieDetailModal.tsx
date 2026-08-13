@@ -1952,10 +1952,11 @@ export default function MovieDetailModal({
               ) : (
                 /* CASO 3: TELA DE DETALHE PADRÃO COM HERO BANNER CINEMATOGRÁFICO WIDESCREEN ESTILO PRIME VIDEO */
                 <>
+                  <div className="absolute inset-0 bg-gradient-to-br from-zinc-900 via-rose-950/20 to-zinc-950" />
                   <img
-                    src={movie.backdropUrl}
+                    src={movie.backdropUrl || movie.posterUrl || DEFAULT_BACKDROP_FALLBACK}
                     alt={movie.title}
-                    className="w-full h-full object-cover object-center select-none scale-100 transform duration-700 hover:scale-105"
+                    className="w-full h-full object-cover object-center select-none scale-100 transform duration-700 hover:scale-105 relative z-0"
                     referrerPolicy="no-referrer"
                     onError={handleBackdropError}
                   />
@@ -2218,10 +2219,11 @@ export default function MovieDetailModal({
                         <div className="flex items-center gap-4 text-left w-full md:w-auto">
                           <div className="relative w-20 h-14 rounded-lg overflow-hidden shrink-0 border border-rose-500/30">
                             <img
-                              src={selectedEpData.thumbnailUrl}
+                              src={selectedEpData.thumbnailUrl || movie.backdropUrl || DEFAULT_BACKDROP_FALLBACK}
                               alt={selectedEpData.title}
                               className="w-full h-full object-cover"
                               referrerPolicy="no-referrer"
+                              onError={handleBackdropError}
                             />
                             <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
                               <Play className="w-5 h-5 fill-rose-500 text-rose-500" />
@@ -2273,10 +2275,11 @@ export default function MovieDetailModal({
                             {/* Imagem do Capítulo (Thumbnail) */}
                             <div className="relative aspect-[16/9] w-full bg-zinc-950 overflow-hidden">
                               <img
-                                src={ep.thumbnailUrl}
+                                src={ep.thumbnailUrl || movie.backdropUrl || DEFAULT_BACKDROP_FALLBACK}
                                 alt={`Episódio ${ep.number}`}
                                 referrerPolicy="no-referrer"
                                 className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                onError={handleBackdropError}
                               />
                               
                               {/* Overlay de Play */}

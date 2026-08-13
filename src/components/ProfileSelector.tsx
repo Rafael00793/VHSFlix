@@ -25,7 +25,7 @@ const NETFLIX_MOCK_POSTERS = [
   // Linha 2
   { title: "Wandinha", url: "https://image.tmdb.org/t/p/w500/jeisSFrgYq6YoXWbZ8HmqgZ9S.jpg" },
   { title: "Batman", url: "https://image.tmdb.org/t/p/w500/7g72uV9QfVwUunb4F7oXvL8O0M7.jpg" },
-  { title: "Harry Potter", url: "https://image.tmdb.org/t/p/w500/8uO0gUMYrj5BNZ6Z9ZgWaS9Stj3.jpg" },
+  { title: "Harry Potter", url: "https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&w=500&q=80" },
   { title: "Mandalorian", url: "https://image.tmdb.org/t/p/w500/f34yNlyLldY7mSbi099f6GOfgM.jpg" },
   { title: "Demon Slayer", url: "https://image.tmdb.org/t/p/w500/h66GZ66WLaZAd8YAdt2Z8UQLb7N.jpg" },
   { title: "Top Gun Maverick", url: "https://image.tmdb.org/t/p/w500/628Dep6Z5gCoSgH1Gv2u3fG6N.jpg" },

@@ -512,8 +512,8 @@ export async function getMovieDetailsTMDB(id: number, type: 'movie' | 'tv', apiK
     return {
       title: 'Filme Retro Importado #' + id,
       description: 'Uma obra prima dos anos dourados simulada, cheia de ação, suspense, fitas em rolo e sintetizadores vibrantes que revivem o melhor das fitas de videocassete da nossa infância.',
-      posterUrl: 'https://image.tmdb.org/t/p/w780/8uO0gUMYrj5BNZ6Z9ZgWaS9Stj3.jpg',
-      backdropUrl: 'https://image.tmdb.org/t/p/original/vKof7jZ50vS2pYgO569ofCidG9y.jpg',
+      posterUrl: 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&w=780&q=80',
+      backdropUrl: 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=1200&q=80',
       year: 1989,
       duration: '1h 50m',
       type: 'movie',
@@ -532,8 +532,8 @@ export async function getMovieDetailsTMDB(id: number, type: 'movie' | 'tv', apiK
     
     const title = data.title || data.name || 'Título Sem Nome';
     const description = data.overview || 'Sem descrição cadastrada.';
-    const posterUrl = data.poster_path ? `https://image.tmdb.org/t/p/w780${data.poster_path}` : 'https://image.tmdb.org/t/p/w780/8uO0gUMYrj5BNZ6Z9ZgWaS9Stj3.jpg';
-    const backdropUrl = data.backdrop_path ? `https://image.tmdb.org/t/p/original${data.backdrop_path}` : 'https://image.tmdb.org/t/p/original/vKof7jZ50vS2pYgO569ofCidG9y.jpg';
+    const posterUrl = data.poster_path ? `https://image.tmdb.org/t/p/w780${data.poster_path}` : 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&w=780&q=80';
+    const backdropUrl = data.backdrop_path ? `https://image.tmdb.org/t/p/original${data.backdrop_path}` : (data.poster_path ? `https://image.tmdb.org/t/p/w780${data.poster_path}` : 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=1200&q=80');
     
     const dateStr = data.release_date || data.first_air_date || '1990-01-01';
     const year = parseInt(dateStr.split('-')[0]) || 1990;

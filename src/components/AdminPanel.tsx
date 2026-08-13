@@ -9,6 +9,7 @@ import { GENRE_CATEGORIES, searchMoviesTMDB, getMovieDetailsTMDB, PROFILE_AVATAR
 import { Trash, Edit, Plus, Users, Library, Settings, Search, Import, Download, Star, Shield, Film, Tv, Play, AlertTriangle, ShieldAlert, RefreshCw, Check, LayoutDashboard, Activity, Clock, TrendingUp, User as UserIcon, Lock as LockIcon, Eye, EyeOff, Flame, Sparkles, Pin, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { compressImage, saveMoviesToFirestore } from '../lib/firebase';
+import { DEFAULT_POSTER_FALLBACK, DEFAULT_BACKDROP_FALLBACK, handlePosterError, handleBackdropError } from '../lib/imageUtils';
 import { AbyssService } from '../services/abyssService';
 
 interface AdminPanelProps {
@@ -248,8 +249,8 @@ export default function AdminPanel({
     const movieData = {
       title: formTitle,
       description: formDescription,
-      posterUrl: formPosterUrl || 'https://image.tmdb.org/t/p/w780/8uO0gUMYrj5BNZ6Z9ZgWaS9Stj3.jpg',
-      backdropUrl: formBackdropUrl || 'https://image.tmdb.org/t/p/original/vKof7jZ50vS2pYgO569ofCidG9y.jpg',
+      posterUrl: formPosterUrl || DEFAULT_POSTER_FALLBACK,
+      backdropUrl: formBackdropUrl || formPosterUrl || DEFAULT_BACKDROP_FALLBACK,
       category: finalCategory,
       year: formYear,
       duration: formType === 'series' 

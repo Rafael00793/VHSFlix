@@ -3,7 +3,7 @@ import { MessageSquare, Film, Tv, Play, AlertTriangle, Check, Plus, Trash, Searc
 import { motion, AnimatePresence } from 'motion/react';
 import { Movie, MovieRequest, Profile } from '../types';
 import { searchMoviesTMDB, getMovieDetailsTMDB } from '../data';
-import { handlePosterError } from '../lib/imageUtils';
+import { handlePosterError, DEFAULT_POSTER_FALLBACK } from '../lib/imageUtils';
 
 interface RequestsPanelProps {
   movies: Movie[];
@@ -305,7 +305,7 @@ export default function RequestsPanel({
                       const isTv = item.media_type === 'tv';
                       const posterPic = item.poster_path 
                         ? `https://image.tmdb.org/t/p/w92${item.poster_path}` 
-                        : 'https://image.tmdb.org/t/p/w185/8uO0gUMYrj5BNZ6Z9ZgWaS9Stj3.jpg';
+                        : DEFAULT_POSTER_FALLBACK;
 
                       return (
                         <div
