@@ -7,7 +7,7 @@ import React, { useRef, useState } from 'react';
 import { Movie, WatchProgress } from '../types';
 import { ChevronLeft, ChevronRight, Play, Plus, Check, Star, Info } from 'lucide-react';
 import { motion } from 'motion/react';
-import { handlePosterError } from '../lib/imageUtils';
+import { handlePosterError, getCleanPosterUrl } from '../lib/imageUtils';
 
 interface MovieRowProps {
   key?: string;
@@ -161,7 +161,7 @@ export default function MovieRow({
                 {/* Imagem do Poster */}
                 <div className="relative aspect-[2/3] w-full overflow-hidden bg-zinc-950">
                   <img
-                    src={movie.posterUrl}
+                    src={getCleanPosterUrl(movie.posterUrl)}
                     alt={movie.title}
                     className="w-full h-full object-cover select-none group-hover/card:scale-108 transition-transform duration-500"
                     loading="lazy"

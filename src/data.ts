@@ -5,6 +5,7 @@
 
 import { Movie, Profile, User } from './types';
 import { fetchApi } from './lib/apiClient';
+import { getCleanPosterUrl, getCleanBackdropUrl } from './lib/imageUtils';
 
 export const PROFILE_AVATARS = [
   { id: 'av1', name: 'Retro Punk', url: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80', color: 'border-rose-500 text-rose-500' },
@@ -532,8 +533,8 @@ export async function getMovieDetailsTMDB(id: number, type: 'movie' | 'tv', apiK
     
     const title = data.title || data.name || 'Título Sem Nome';
     const description = data.overview || 'Sem descrição cadastrada.';
-    const posterUrl = data.poster_path ? `https://image.tmdb.org/t/p/w780${data.poster_path}` : 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&w=780&q=80';
-    const backdropUrl = data.backdrop_path ? `https://image.tmdb.org/t/p/original${data.backdrop_path}` : (data.poster_path ? `https://image.tmdb.org/t/p/w780${data.poster_path}` : 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=1200&q=80');
+    const posterUrl = getCleanPosterUrl(data.poster_path);
+    const backdropUrl = getCleanBackdropUrl(data.backdrop_path, data.poster_path);
     
     const dateStr = data.release_date || data.first_air_date || '1990-01-01';
     const year = parseInt(dateStr.split('-')[0]) || 1990;

@@ -3,7 +3,7 @@ import { MessageSquare, Film, Tv, Play, AlertTriangle, Check, Plus, Trash, Searc
 import { motion, AnimatePresence } from 'motion/react';
 import { Movie, MovieRequest, Profile } from '../types';
 import { searchMoviesTMDB, getMovieDetailsTMDB } from '../data';
-import { handlePosterError, DEFAULT_POSTER_FALLBACK } from '../lib/imageUtils';
+import { handlePosterError, DEFAULT_POSTER_FALLBACK, getCleanPosterUrl, getCleanBackdropUrl } from '../lib/imageUtils';
 
 interface RequestsPanelProps {
   movies: Movie[];
@@ -303,9 +303,7 @@ export default function RequestsPanel({
                       const itemTitle = item.title || item.name || 'Título sem Nome';
                       const itemYear = (item.release_date || item.first_air_date || '----').substring(0, 4);
                       const isTv = item.media_type === 'tv';
-                      const posterPic = item.poster_path 
-                        ? `https://image.tmdb.org/t/p/w92${item.poster_path}` 
-                        : DEFAULT_POSTER_FALLBACK;
+                      const posterPic = getCleanPosterUrl(item.poster_path);
 
                       return (
                         <div
@@ -382,7 +380,7 @@ export default function RequestsPanel({
 
                   <div className="relative flex gap-4 z-10">
                     <img
-                      src={selectedTmdb.posterUrl}
+                      src={getCleanPosterUrl(selectedTmdb.posterUrl)}
                       alt={selectedTmdb.title}
                       referrerPolicy="no-referrer"
                       className="w-16 sm:w-20 aspect-[2/3] object-cover rounded-lg border border-zinc-800 shadow-lg shrink-0 select-none"
@@ -527,7 +525,7 @@ export default function RequestsPanel({
                       <div className="w-16 sm:w-20 aspect-[2/3] bg-zinc-950 rounded-lg border border-zinc-800 overflow-hidden shrink-0 select-none relative shadow-lg shadow-black/60">
                         {req.posterUrl ? (
                           <img 
-                            src={req.posterUrl} 
+                            src={getCleanPosterUrl(req.posterUrl)} 
                             alt={req.title} 
                             referrerPolicy="no-referrer"
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 select-none"

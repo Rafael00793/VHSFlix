@@ -9,7 +9,7 @@ import { GENRE_CATEGORIES, searchMoviesTMDB, getMovieDetailsTMDB, PROFILE_AVATAR
 import { Trash, Edit, Plus, Users, Library, Settings, Search, Import, Download, Star, Shield, Film, Tv, Play, AlertTriangle, ShieldAlert, RefreshCw, Check, LayoutDashboard, Activity, Clock, TrendingUp, User as UserIcon, Lock as LockIcon, Eye, EyeOff, Flame, Sparkles, Pin, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { compressImage, saveMoviesToFirestore } from '../lib/firebase';
-import { DEFAULT_POSTER_FALLBACK, DEFAULT_BACKDROP_FALLBACK, handlePosterError, handleBackdropError } from '../lib/imageUtils';
+import { DEFAULT_POSTER_FALLBACK, DEFAULT_BACKDROP_FALLBACK, handlePosterError, handleBackdropError, getCleanPosterUrl, getCleanBackdropUrl } from '../lib/imageUtils';
 import { AbyssService } from '../services/abyssService';
 
 interface AdminPanelProps {
@@ -249,8 +249,8 @@ export default function AdminPanel({
     const movieData = {
       title: formTitle,
       description: formDescription,
-      posterUrl: formPosterUrl || DEFAULT_POSTER_FALLBACK,
-      backdropUrl: formBackdropUrl || formPosterUrl || DEFAULT_BACKDROP_FALLBACK,
+      posterUrl: getCleanPosterUrl(formPosterUrl),
+      backdropUrl: getCleanBackdropUrl(formBackdropUrl, formPosterUrl),
       category: finalCategory,
       year: formYear,
       duration: formType === 'series' 
@@ -1503,10 +1503,11 @@ export default function AdminPanel({
                           <div className="flex items-center gap-2.5 truncate">
                             {result.poster_path ? (
                               <img 
-                                src={`https://image.tmdb.org/t/p/w185${result.poster_path}`} 
+                                src={getCleanPosterUrl(result.poster_path)} 
                                 alt={name} 
                                 className="w-8 h-11 object-cover rounded"
                                 referrerPolicy="no-referrer"
+                                onError={handlePosterError}
                               />
                             ) : (
                               <div className="w-8 h-11 bg-zinc-900 rounded flex items-center justify-center text-[8px] font-mono">NO PIC</div>

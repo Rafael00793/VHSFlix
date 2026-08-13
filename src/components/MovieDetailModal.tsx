@@ -8,7 +8,7 @@ import { Movie, WatchProgress, MovieComment } from '../types';
 import { X, Play, Pause, Plus, Check, Star, RefreshCw, Tv, Clock, HelpCircle, Film, Sparkles, AlertCircle, ExternalLink, Maximize, Shield, Sliders, ThumbsUp, ThumbsDown, ChevronDown, ArrowLeft, Settings, Volume2, VolumeX, User, Users, Send, MessageSquare, Trash2, Zap, Server } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { INITIAL_MOVIES } from '../data';
-import { handlePosterError, handleBackdropError } from '../lib/imageUtils';
+import { handlePosterError, handleBackdropError, getCleanPosterUrl, getCleanBackdropUrl } from '../lib/imageUtils';
 import { AbyssService } from '../services/abyssService';
 import { fetchApi } from '../lib/apiClient';
 
@@ -1684,7 +1684,7 @@ export default function MovieDetailModal({
                   <div className="flex gap-4 p-3 rounded-lg border border-zinc-805/50 bg-zinc-900/40 items-center">
                     {movie.posterUrl && (
                       <img
-                        src={movie.posterUrl}
+                        src={getCleanPosterUrl(movie.posterUrl)}
                         alt={movie.title}
                         className="w-12 h-18 object-cover rounded border border-zinc-700 shadow animate-pulse"
                         referrerPolicy="no-referrer"
@@ -1954,7 +1954,7 @@ export default function MovieDetailModal({
                 <>
                   <div className="absolute inset-0 bg-gradient-to-br from-zinc-900 via-rose-950/20 to-zinc-950" />
                   <img
-                    src={movie.backdropUrl || movie.posterUrl || DEFAULT_BACKDROP_FALLBACK}
+                    src={getCleanBackdropUrl(movie.backdropUrl, movie.posterUrl)}
                     alt={movie.title}
                     className="w-full h-full object-cover object-center select-none scale-100 transform duration-700 hover:scale-105 relative z-0"
                     referrerPolicy="no-referrer"
@@ -2219,7 +2219,7 @@ export default function MovieDetailModal({
                         <div className="flex items-center gap-4 text-left w-full md:w-auto">
                           <div className="relative w-20 h-14 rounded-lg overflow-hidden shrink-0 border border-rose-500/30">
                             <img
-                              src={selectedEpData.thumbnailUrl || movie.backdropUrl || DEFAULT_BACKDROP_FALLBACK}
+                              src={getCleanBackdropUrl(selectedEpData.thumbnailUrl || movie.backdropUrl, movie.posterUrl)}
                               alt={selectedEpData.title}
                               className="w-full h-full object-cover"
                               referrerPolicy="no-referrer"
@@ -2275,7 +2275,7 @@ export default function MovieDetailModal({
                             {/* Imagem do Capítulo (Thumbnail) */}
                             <div className="relative aspect-[16/9] w-full bg-zinc-950 overflow-hidden">
                               <img
-                                src={ep.thumbnailUrl || movie.backdropUrl || DEFAULT_BACKDROP_FALLBACK}
+                                src={getCleanBackdropUrl(ep.thumbnailUrl || movie.backdropUrl, movie.posterUrl)}
                                 alt={`Episódio ${ep.number}`}
                                 referrerPolicy="no-referrer"
                                 className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"

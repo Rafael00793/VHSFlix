@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Movie, User, Profile, WatchProgress, AppNotification, MovieRequest, MovieComment, getSubscriptionDaysLeft, renewSubscription } from './types';
 import { INITIAL_MOVIES, INITIAL_USERS, DEFAULT_PROFILES, GENRE_CATEGORIES, getMovieDetailsTMDB, getTMDBTrendingMovies } from './data';
-import { DEFAULT_POSTER_FALLBACK, DEFAULT_BACKDROP_FALLBACK, handlePosterError, handleBackdropError, isBrokenImageUrl } from './lib/imageUtils';
+import { DEFAULT_POSTER_FALLBACK, DEFAULT_BACKDROP_FALLBACK, handlePosterError, handleBackdropError, isBrokenImageUrl, getCleanPosterUrl, getCleanBackdropUrl } from './lib/imageUtils';
 import Navbar from './components/Navbar';
 import ProfileSelector from './components/ProfileSelector';
 import MovieRow from './components/MovieRow';
@@ -168,14 +168,14 @@ export default function App() {
 
       const matchingInit = initialMap.get(m.id) || initialMap.get((m.title || '').trim().toLowerCase());
 
-      let posterUrl = m.posterUrl;
-      let backdropUrl = m.backdropUrl;
+      let posterUrl = getCleanPosterUrl(m.posterUrl);
+      let backdropUrl = getCleanBackdropUrl(m.backdropUrl, m.posterUrl);
 
-      if (isBrokenUrl(posterUrl)) {
-        posterUrl = matchingInit?.posterUrl || DEFAULT_POSTER_FALLBACK;
+      if (isBrokenUrl(posterUrl) && matchingInit) {
+        posterUrl = getCleanPosterUrl(matchingInit.posterUrl);
       }
-      if (isBrokenUrl(backdropUrl)) {
-        backdropUrl = matchingInit?.backdropUrl || DEFAULT_BACKDROP_FALLBACK;
+      if (isBrokenUrl(backdropUrl) && matchingInit) {
+        backdropUrl = getCleanBackdropUrl(matchingInit.backdropUrl, matchingInit.posterUrl);
       }
 
       return {
@@ -378,8 +378,22 @@ export default function App() {
     // 3. Escuta em tempo real a coleção de filmes/séries (catálogo)
     const unsubMovies = onSnapshot(collection(db, 'movies'), (snapshot) => {
       const fetchedMovies: Movie[] = [];
-      snapshot.forEach((doc) => {
-        fetchedMovies.push(doc.data() as Movie);
+      snapshot.forEach((docSnap) => {
+        const rawMovie = docSnap.data() as Movie;
+        const cleanPoster = getCleanPosterUrl(rawMovie.posterUrl);
+        const cleanBackdrop = getCleanBackdropUrl(rawMovie.backdropUrl, rawMovie.posterUrl);
+
+        let sanitizedMovie = rawMovie;
+        if (cleanPoster !== rawMovie.posterUrl || cleanBackdrop !== rawMovie.backdropUrl) {
+          sanitizedMovie = {
+            ...rawMovie,
+            posterUrl: cleanPoster,
+            backdropUrl: cleanBackdrop
+          };
+          // Cura automática e silenciosa da URL no banco Firestore
+          saveSingleMovieToFirestore(sanitizedMovie);
+        }
+        fetchedMovies.push(sanitizedMovie);
       });
       if (fetchedMovies.length === 0) {
         // Se o catálogo estiver vazio, verificamos no settings/global se já foi inicializado anteriormente
@@ -843,14 +857,8 @@ export default function App() {
           year: year,
           rating: Number((topTrending.vote_average || 8.5).toFixed(1)),
           duration: isTv ? '1 Temporada' : '2h 10m',
-          posterUrl: topTrending.poster_path 
-            ? `https://image.tmdb.org/t/p/w500${topTrending.poster_path}`
-            : DEFAULT_POSTER_FALLBACK,
-          backdropUrl: topTrending.backdrop_path 
-            ? `https://image.tmdb.org/t/p/w1280${topTrending.backdrop_path}`
-            : topTrending.poster_path
-              ? `https://image.tmdb.org/t/p/w780${topTrending.poster_path}`
-              : DEFAULT_BACKDROP_FALLBACK,
+          posterUrl: getCleanPosterUrl(topTrending.poster_path),
+          backdropUrl: getCleanBackdropUrl(topTrending.backdrop_path, topTrending.poster_path),
           description: topTrending.overview || 'Título em alta no TMDB hoje.',
           trailerUrl: 'https://www.youtube.com/embed/CRRlbK5w8AE',
           isFeatured: true,
@@ -1777,17 +1785,17 @@ export default function App() {
                       transition={{ duration: 0.85, ease: "easeInOut" }}
                       className="absolute inset-0 z-0"
                     >
-                      <div className="absolute inset-0 bg-gradient-to-br from-zinc-900 via-rose-950/20 to-zinc-950" />
+                      <div className="absolute inset-0 bg-gradient-to-br from-zinc-950 via-rose-950/20 to-zinc-950 z-0" />
                       <img
-                        src={featuredMovie.backdropUrl || featuredMovie.posterUrl || DEFAULT_BACKDROP_FALLBACK}
+                        src={getCleanBackdropUrl(featuredMovie.backdropUrl, featuredMovie.posterUrl)}
                         alt={featuredMovie.title}
-                        className="w-full h-full object-cover select-none brightness-[0.70] scale-102 hover:scale-105 transition-transform duration-10000 relative z-10"
+                        className="w-full h-full object-cover select-none brightness-[0.88] scale-102 hover:scale-105 transition-transform duration-10000 relative z-10"
                         referrerPolicy="no-referrer"
                         onError={handleBackdropError}
                       />
-                      {/* Sombras pretas de ambientação */}
-                      <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/25 to-black/20" />
-                      <div className="absolute inset-0 bg-gradient-to-r from-zinc-950/90 via-transparent to-transparent hidden md:block" />
+                      {/* Sombras pretas de ambientação suaves */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/30 to-transparent pointer-events-none z-20" />
+                      <div className="absolute inset-0 bg-gradient-to-r from-zinc-950/80 via-transparent to-transparent pointer-events-none z-20 hidden md:block" />
                     </motion.div>
                   </AnimatePresence>
 
@@ -1971,7 +1979,7 @@ export default function App() {
                         title={mostDesejadaMovie.title}
                       >
                         <img 
-                          src={mostDesejadaMovie.posterUrl} 
+                          src={getCleanPosterUrl(mostDesejadaMovie.posterUrl)} 
                           alt={mostDesejadaMovie.title}
                           className="w-full h-full object-cover group-hover:opacity-90 transition-opacity"
                           referrerPolicy="no-referrer"
@@ -2225,7 +2233,7 @@ export default function App() {
                                       className="relative w-20 sm:w-26 aspect-[2/3] shrink-0 rounded-lg overflow-hidden border border-zinc-850 group-hover:border-rose-500/60 shadow-md cursor-pointer transform group-hover:scale-[1.02] transition-all duration-300"
                                     >
                                       <img 
-                                        src={movie.posterUrl || DEFAULT_POSTER_FALLBACK} 
+                                        src={getCleanPosterUrl(movie.posterUrl)} 
                                         alt={movie.title} 
                                         className="w-full h-full object-cover"
                                         referrerPolicy="no-referrer"
@@ -2324,7 +2332,7 @@ export default function App() {
                                     className="aspect-[2/3] overflow-hidden bg-zinc-900 relative shrink-0"
                                   >
                                     <img 
-                                      src={movie.posterUrl || DEFAULT_POSTER_FALLBACK} 
+                                      src={getCleanPosterUrl(movie.posterUrl)} 
                                       alt={movie.title} 
                                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                                       referrerPolicy="no-referrer"
@@ -2438,7 +2446,7 @@ export default function App() {
                             >
                               <div className="aspect-[2/3] overflow-hidden bg-zinc-900 relative">
                                 <img 
-                                  src={movie.posterUrl || DEFAULT_POSTER_FALLBACK} 
+                                  src={getCleanPosterUrl(movie.posterUrl)} 
                                   alt={movie.title} 
                                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                                   referrerPolicy="no-referrer"
@@ -2567,7 +2575,7 @@ export default function App() {
                   {hasPoster ? (
                     <div className="relative w-18 sm:w-22 aspect-[2/3] rounded-lg overflow-hidden shrink-0 border border-zinc-800 shadow-[0_4px_16px_rgba(0,0,0,0.6)] group">
                       <img
-                        src={poster || DEFAULT_POSTER_FALLBACK}
+                        src={getCleanPosterUrl(poster)}
                         alt={titleToShow}
                         className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                         referrerPolicy="no-referrer"
