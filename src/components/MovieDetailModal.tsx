@@ -8,6 +8,7 @@ import { Movie, WatchProgress, MovieComment } from '../types';
 import { X, Play, Pause, Plus, Check, Star, RefreshCw, Tv, Clock, HelpCircle, Film, Sparkles, AlertCircle, ExternalLink, Maximize, Shield, Sliders, ThumbsUp, ThumbsDown, ChevronDown, ArrowLeft, Settings, Volume2, VolumeX, User, Users, Send, MessageSquare, Trash2, Zap, Server } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { INITIAL_MOVIES } from '../data';
+import { handlePosterError, handleBackdropError } from '../lib/imageUtils';
 import { AbyssService } from '../services/abyssService';
 import { fetchApi } from '../lib/apiClient';
 
@@ -1571,11 +1572,11 @@ export default function MovieDetailModal({
                       title={`Reproduzindo ${movie.title}`}
                       className="w-full h-full border-0 absolute inset-0 video-player-iframe"
                       width="100%"
-                      height={movie.type === 'series' ? "600" : "600"}
+                      height="100%"
                       allowFullScreen
                       loading="lazy"
-                      allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
-                      referrerPolicy="origin"
+                      allow="autoplay; fullscreen; encrypted-media; picture-in-picture; accelerometer; gyroscope; display-capture"
+                      referrerPolicy="no-referrer"
                     />
                   ) : (
                     <div className="w-full max-w-md p-6 bg-zinc-900/95 border border-amber-500/30 rounded-2xl flex flex-col items-center justify-center text-center shadow-2xl backdrop-blur-md z-50 my-auto">
@@ -1687,6 +1688,7 @@ export default function MovieDetailModal({
                         alt={movie.title}
                         className="w-12 h-18 object-cover rounded border border-zinc-700 shadow animate-pulse"
                         referrerPolicy="no-referrer"
+                        onError={handlePosterError}
                       />
                     )}
                     <div className="text-left">
@@ -1955,6 +1957,7 @@ export default function MovieDetailModal({
                     alt={movie.title}
                     className="w-full h-full object-cover object-center select-none scale-100 transform duration-700 hover:scale-105"
                     referrerPolicy="no-referrer"
+                    onError={handleBackdropError}
                   />
                   
                   {/* Sombreado elegante estilo Prime Video / Netflix */}

@@ -6,6 +6,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Movie, User, Profile, WatchProgress, AppNotification, MovieRequest, MovieComment, getSubscriptionDaysLeft, renewSubscription } from './types';
 import { INITIAL_MOVIES, INITIAL_USERS, DEFAULT_PROFILES, GENRE_CATEGORIES, getMovieDetailsTMDB, getTMDBTrendingMovies } from './data';
+import { DEFAULT_POSTER_FALLBACK, DEFAULT_BACKDROP_FALLBACK, handlePosterError, handleBackdropError } from './lib/imageUtils';
 import Navbar from './components/Navbar';
 import ProfileSelector from './components/ProfileSelector';
 import MovieRow from './components/MovieRow';
@@ -129,7 +130,25 @@ export default function App() {
     const saved = localStorage.getItem('vhsflix_movies');
     const base = saved ? JSON.parse(saved) : INITIAL_MOVIES;
     
-    // Remove qualquer duplicata histórica persistida no localStorage por Title+Type ou TMDBID+Type
+    // Mapa de filmes iniciais por ID e Título em minúsculas para cura de imagens
+    const initialMap = new Map<string, Movie>();
+    INITIAL_MOVIES.forEach(im => {
+      if (im.id) initialMap.set(im.id, im);
+      if (im.title) initialMap.set(im.title.trim().toLowerCase(), im);
+    });
+
+    const brokenHashes = [
+      'jX7mK6H2', '49Wp6m9l', 'orS9OFID', '8uO0gUMY', 'lS9cl9mS', 'h66GZ66W',
+      'vfrQZS3m', 'n779Ufe', 'b0Y6209q', '6v8yNlId', '670T88B4', '7g72uV9Q',
+      '6gX2ZcQ7', '9p3i8O2g'
+    ];
+
+    const isBrokenUrl = (url?: string) => {
+      if (!url) return true;
+      return brokenHashes.some(h => url.includes(h));
+    };
+
+    // Remove qualquer duplicata histórica persistida no localStorage
     const uniqueMovies: Movie[] = [];
     const seen = new Set<string>();
     for (const m of base) {
@@ -145,21 +164,44 @@ export default function App() {
       }
     }
 
-    return uniqueMovies.map((m: Movie, idx: number) => {
+    const sanitized = uniqueMovies.map((m: Movie, idx: number) => {
       const seed = (m.title?.length || 10) + idx * 7;
       const rating = m.rating || 7.5;
       const voteCount = m.tmdbVoteCount || (1200 + (seed * 37) % 3500);
       const calculatedLikes = Math.round((rating / 10) * voteCount);
       const calculatedDislikes = Math.round(((10 - rating) / 10) * voteCount * 0.25);
 
+      const matchingInit = initialMap.get(m.id) || initialMap.get((m.title || '').trim().toLowerCase());
+
+      let posterUrl = m.posterUrl;
+      let backdropUrl = m.backdropUrl;
+
+      if (isBrokenUrl(posterUrl)) {
+        posterUrl = matchingInit?.posterUrl || DEFAULT_POSTER_FALLBACK;
+      }
+      if (isBrokenUrl(backdropUrl)) {
+        backdropUrl = matchingInit?.backdropUrl || DEFAULT_BACKDROP_FALLBACK;
+      }
+
       return {
         ...m,
+        posterUrl,
+        backdropUrl,
         clicksCount: m.clicksCount !== undefined ? m.clicksCount : (100 + (seed * 19) % 850),
         votesLikes: m.votesLikes !== undefined && m.votesLikes > 0 ? m.votesLikes : calculatedLikes,
         votesDislikes: m.votesDislikes !== undefined && m.votesDislikes > 0 ? m.votesDislikes : calculatedDislikes,
         tmdbVoteCount: m.tmdbVoteCount || voteCount
       };
     });
+
+    // Atualizar localStorage para persistir a correção
+    try {
+      localStorage.setItem('vhsflix_movies', JSON.stringify(sanitized));
+    } catch (e) {
+      console.warn('Erro ao atualizar localStorage com filmes corrigidos:', e);
+    }
+
+    return sanitized;
   });
 
   const [tmdbApiKey, setTmdbApiKey] = useState<string>(() => {
@@ -1743,6 +1785,7 @@ export default function App() {
                         alt={featuredMovie.title}
                         className="w-full h-full object-cover select-none brightness-[0.70] scale-102 hover:scale-105 transition-transform duration-10000"
                         referrerPolicy="no-referrer"
+                        onError={handleBackdropError}
                       />
                       {/* Sombras pretas de ambientação */}
                       <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/25 to-black/20" />
@@ -1934,6 +1977,7 @@ export default function App() {
                           alt={mostDesejadaMovie.title}
                           className="w-full h-full object-cover group-hover:opacity-90 transition-opacity"
                           referrerPolicy="no-referrer"
+                          onError={handlePosterError}
                         />
 
                         {/* Hover Overlay para Sintonizar */}

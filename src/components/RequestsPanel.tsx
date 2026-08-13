@@ -3,6 +3,7 @@ import { MessageSquare, Film, Tv, Play, AlertTriangle, Check, Plus, Trash, Searc
 import { motion, AnimatePresence } from 'motion/react';
 import { Movie, MovieRequest, Profile } from '../types';
 import { searchMoviesTMDB, getMovieDetailsTMDB } from '../data';
+import { handlePosterError } from '../lib/imageUtils';
 
 interface RequestsPanelProps {
   movies: Movie[];
@@ -318,6 +319,7 @@ export default function RequestsPanel({
                             referrerPolicy="no-referrer"
                             className="w-7 h-10 object-cover rounded border border-zinc-800 group-hover:border-zinc-650 shrink-0 select-none"
                             loading="lazy"
+                            onError={handlePosterError}
                           />
                           <div className="flex-1 min-w-0">
                             <h4 className="text-xs font-bold text-zinc-200 group-hover:text-white truncate font-sans">
@@ -385,6 +387,7 @@ export default function RequestsPanel({
                       referrerPolicy="no-referrer"
                       className="w-16 sm:w-20 aspect-[2/3] object-cover rounded-lg border border-zinc-800 shadow-lg shrink-0 select-none"
                       loading="lazy"
+                      onError={handlePosterError}
                     />
 
                     <div className="flex-1 min-w-0 flex flex-col justify-between">
@@ -529,6 +532,7 @@ export default function RequestsPanel({
                             referrerPolicy="no-referrer"
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 select-none"
                             loading="lazy"
+                            onError={handlePosterError}
                           />
                         ) : (
                           /* Fallback de fita VHS retro */

@@ -7,6 +7,7 @@ import React, { useRef, useState } from 'react';
 import { Movie, WatchProgress } from '../types';
 import { ChevronLeft, ChevronRight, Play, Plus, Check, Star, Info } from 'lucide-react';
 import { motion } from 'motion/react';
+import { handlePosterError } from '../lib/imageUtils';
 
 interface MovieRowProps {
   key?: string;
@@ -165,6 +166,7 @@ export default function MovieRow({
                     className="w-full h-full object-cover select-none group-hover/card:scale-108 transition-transform duration-500"
                     loading="lazy"
                     referrerPolicy="no-referrer"
+                    onError={handlePosterError}
                   />
                   
                   {/* Overlay Escurecido Rápido de Hover */}
