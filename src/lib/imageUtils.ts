@@ -3,18 +3,12 @@ import React from 'react';
 export const DEFAULT_POSTER_FALLBACK = 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&w=780&q=80';
 export const DEFAULT_BACKDROP_FALLBACK = 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=1200&q=80';
 
-export const BROKEN_IMAGE_HASHES = [
-  'jX7mK6H2', '49Wp6m9l', 'orS9OFID', '8uO0gUMY', 'lS9cl9mS', 'h66GZ66W',
-  'vfrQZS3m', 'n779Ufe', 'b0Y6209q', '6v8yNlId', '670T88B4', '7g72uV9Q',
-  '6gX2ZcQ7', '9p3i8O2g', 'vKof7jZ50vS2pYgO569ofCidG9y', '16a34aofqK8gZ9s4aofqK8gZ'
-];
-
 export const isBrokenImageUrl = (url?: string): boolean => {
   if (!url || typeof url !== 'string' || url.trim() === '') return true;
   const trimmed = url.trim();
   if (trimmed === 'null' || trimmed === 'undefined' || trimmed === 'NO PIC') return true;
   if (trimmed.endsWith('/null') || trimmed.endsWith('/undefined') || trimmed.includes('originalnull') || trimmed.includes('w780null') || trimmed.includes('w1280null') || trimmed.includes('w500null')) return true;
-  return BROKEN_IMAGE_HASHES.some(h => trimmed.includes(h));
+  return false;
 };
 
 export function getCleanPosterUrl(url?: string): string {
@@ -61,6 +55,19 @@ export function getCleanBackdropUrl(url?: string, fallbackPoster?: string): stri
 
 export const handlePosterError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
   const target = e.currentTarget;
+
+  // Se for uma imagem do TMDB que falhou por rede/adblocker, tenta primeiro através do proxy do backend
+  if (!target.dataset.hasTriedProxy && target.src && target.src.includes('image.tmdb.org')) {
+    target.dataset.hasTriedProxy = 'true';
+    try {
+      const urlObj = new URL(target.src);
+      target.src = `/api/tmdb-image-proxy?path=${encodeURIComponent(urlObj.pathname)}`;
+      return;
+    } catch {
+      // continua para o fallback
+    }
+  }
+
   if (target.dataset.hasFailed) return;
   target.dataset.hasFailed = 'true';
   target.src = DEFAULT_POSTER_FALLBACK;
@@ -68,37 +75,23 @@ export const handlePosterError = (e: React.SyntheticEvent<HTMLImageElement, Even
 
 export const handleBackdropError = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
   const target = e.currentTarget;
+
+  if (!target.dataset.hasTriedProxy && target.src && target.src.includes('image.tmdb.org')) {
+    target.dataset.hasTriedProxy = 'true';
+    try {
+      const urlObj = new URL(target.src);
+      target.src = `/api/tmdb-image-proxy?path=${encodeURIComponent(urlObj.pathname)}`;
+      return;
+    } catch {
+      // continua para o fallback
+    }
+  }
+
   if (target.dataset.hasFailed) return;
   target.dataset.hasFailed = 'true';
   target.src = DEFAULT_BACKDROP_FALLBACK;
 };
 
-/**
- * Pré-carrega e armazena preventivamente imagens do TMDB no cache local do Service Worker
- */
-export const prefetchTmdbImage = (url: string) => {
-  if (!url || typeof window === 'undefined' || !('caches' in window)) return;
-  if (!url.includes('image.tmdb.org') && !url.includes('tmdb.org')) return;
-
-  caches.open('tmdb-images-v1').then((cache) => {
-    cache.match(url).then((existing) => {
-      if (!existing) {
-        fetch(url, { mode: 'cors' })
-          .then((res) => {
-            if (res.status === 200 || res.type === 'opaque') {
-              cache.put(url, res);
-            }
-          })
-          .catch(() => {
-            fetch(url, { mode: 'no-cors' })
-              .then((res) => {
-                if (res.status === 200 || res.type === 'opaque' || res.status === 0) {
-                  cache.put(url, res);
-                }
-              })
-              .catch(() => {});
-          });
-      }
-    });
-  }).catch(() => {});
+export const prefetchTmdbImage = (_url: string) => {
+  // No-op inteligente para evitar gargalos no carregamento
 };

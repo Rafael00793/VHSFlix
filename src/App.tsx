@@ -383,16 +383,11 @@ export default function App() {
         const cleanPoster = getCleanPosterUrl(rawMovie.posterUrl);
         const cleanBackdrop = getCleanBackdropUrl(rawMovie.backdropUrl, rawMovie.posterUrl);
 
-        let sanitizedMovie = rawMovie;
-        if (cleanPoster !== rawMovie.posterUrl || cleanBackdrop !== rawMovie.backdropUrl) {
-          sanitizedMovie = {
-            ...rawMovie,
-            posterUrl: cleanPoster,
-            backdropUrl: cleanBackdrop
-          };
-          // Cura automática e silenciosa da URL no banco Firestore
-          saveSingleMovieToFirestore(sanitizedMovie);
-        }
+        const sanitizedMovie = {
+          ...rawMovie,
+          posterUrl: cleanPoster,
+          backdropUrl: cleanBackdrop
+        };
         fetchedMovies.push(sanitizedMovie);
       });
       if (fetchedMovies.length === 0) {

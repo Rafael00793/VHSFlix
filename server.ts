@@ -82,6 +82,68 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', time: new Date().toISOString() });
 });
 
+// 3.0. PROXY SEGURO DE IMAGENS DO TMDB (Backup para redes com bloqueio de DNS/Adblockers)
+const tmdbImageCache = new Map<string, { buffer: Buffer; contentType: string; timestamp: number }>();
+
+app.get('/api/tmdb-image-proxy', async (req, res) => {
+  try {
+    const rawPath = String(req.query.path || '').trim();
+    if (!rawPath) return res.status(400).send('Path is required');
+
+    let targetUrl = rawPath;
+    if (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://')) {
+      const tmdbPath = targetUrl.startsWith('/') ? targetUrl : '/' + targetUrl;
+      if (tmdbPath.startsWith('/t/p/')) {
+        targetUrl = `https://image.tmdb.org${tmdbPath}`;
+      } else {
+        targetUrl = `https://image.tmdb.org/t/p/w780${tmdbPath}`;
+      }
+    }
+
+    // Permitir apenas TMDB, Unsplash e Amazon
+    const parsed = new URL(targetUrl);
+    if (!['image.tmdb.org', 'images.unsplash.com', 'm.media-amazon.com'].includes(parsed.hostname)) {
+      return res.status(403).send('Domain not allowed');
+    }
+
+    const cached = tmdbImageCache.get(targetUrl);
+    if (cached && (Date.now() - cached.timestamp < 3600000 * 24)) { // 24 horas de cache em memória
+      res.setHeader('Content-Type', cached.contentType);
+      res.setHeader('Cache-Control', 'public, max-age=604800, immutable');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      return res.send(cached.buffer);
+    }
+
+    const response = await fetch(targetUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      }
+    });
+
+    if (!response.ok) {
+      return res.status(response.status).send('Failed to fetch image');
+    }
+
+    const contentType = response.headers.get('content-type') || 'image/jpeg';
+    const arrayBuf = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuf);
+
+    if (tmdbImageCache.size > 200) {
+      const oldestKey = tmdbImageCache.keys().next().value;
+      if (oldestKey) tmdbImageCache.delete(oldestKey);
+    }
+    tmdbImageCache.set(targetUrl, { buffer, contentType, timestamp: Date.now() });
+
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'public, max-age=604800, immutable');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.send(buffer);
+  } catch (err) {
+    console.error('[PROXY IMAGEM ERROR]:', err);
+    res.status(500).send('Proxy error');
+  }
+});
+
 // 3.1. SISTEMA INTELIGENTE DE TRAILERS (TMDB + YOUTUBE DATA API V3 + SCRAPER)
 const inMemoryTrailerCache = new Map<string, { videoId: string; trailerUrl: string; source: string; channelTitle?: string }>();
 

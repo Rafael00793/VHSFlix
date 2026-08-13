@@ -31,18 +31,20 @@ window.addEventListener('unhandledrejection', (event) => {
   }
 }, true);
 
-// Registro do Service Worker com estratégia Cache-First para imagens do TMDB
+// Unregister service worker and clear sw caches to restore direct image loading
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker
-      .register('/sw.js')
-      .then((registration) => {
-        console.log('[SW TMDB] Service Worker registrado com sucesso no escopo:', registration.scope);
-      })
-      .catch((error) => {
-        console.warn('[SW TMDB] Falha ao registrar Service Worker:', error);
-      });
-  });
+  navigator.serviceWorker.getRegistrations().then((registrations) => {
+    for (const registration of registrations) {
+      registration.unregister();
+    }
+  }).catch(() => {});
+  if ('caches' in window) {
+    caches.keys().then((names) => {
+      for (const name of names) {
+        caches.delete(name);
+      }
+    }).catch(() => {});
+  }
 }
 
 createRoot(document.getElementById('root')!).render(
