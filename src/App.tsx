@@ -14,7 +14,7 @@ import MovieDetailModal from './components/MovieDetailModal';
 import AdminPanel from './components/AdminPanel';
 import RequestsPanel from './components/RequestsPanel';
 import SupportPanel from './components/SupportPanel';
-import { Play, Info, Sparkles, Star, Plus, Check, Shield, HelpCircle, AlertCircle, Heart, HeartOff, Volume1, Volume2, VolumeX, Bell, X, Flame, LayoutGrid, List, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Play, Info, Sparkles, Star, Plus, Check, Shield, HelpCircle, AlertCircle, Heart, HeartOff, Volume1, Volume2, VolumeX, Bell, X, Flame, LayoutGrid, List, Trash2, ChevronLeft, ChevronRight, Film, Tv, Clock, Award } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { db, saveUsersToFirestore, deleteUserFromFirestore, saveProfilesToFirestore, saveMoviesToFirestore, saveSingleMovieToFirestore, deleteMovieFromFirestore, saveSettingsToFirestore, saveRequestsToFirestore, deleteRequestFromFirestore, handleFirestoreError, OperationType, saveSingleNotificationToFirestore, deleteNotificationFromFirestore, saveSingleCommentToFirestore, deleteCommentFromFirestore } from './lib/firebase';
 import { onSnapshot, collection, doc, setDoc, getDoc } from 'firebase/firestore';
@@ -140,6 +140,7 @@ export default function App() {
     const isBrokenUrl = (url?: string) => {
       if (!url || typeof url !== 'string' || url.trim() === '') return true;
       if (url.startsWith('http:')) return true;
+      if (url.includes('photo-1536440136628-849c177e76a1') || url.includes('photo-1489599849927-2ee91cede3ba')) return true;
       return isBrokenImageUrl(url);
     };
 
@@ -235,11 +236,6 @@ export default function App() {
     }
     await saveSettingsToFirestore(adguardEnabled, newPinnedId);
   };
-
-  const [vhsMode, setVhsMode] = useState<boolean>(() => {
-    const saved = localStorage.getItem('vhsflix_vhs_mode');
-    return saved ? JSON.parse(saved) : true; // Ativo por padrão pois dá o charme do VHSFLIX
-  });
 
   // Perfis ativos atuais
   const [currentUserId, setCurrentUserId] = useState<string>(() => {
@@ -573,10 +569,6 @@ export default function App() {
   // --- OFFLINE STATE HANDLERS (AUTOMATIC LOCALSTORAGE SAVING) ---
 
   useEffect(() => {
-    localStorage.setItem('vhsflix_vhs_mode', JSON.stringify(vhsMode));
-  }, [vhsMode]);
-
-  useEffect(() => {
     localStorage.setItem('vhsflix_mylist_view', myListViewMode);
   }, [myListViewMode]);
 
@@ -879,24 +871,24 @@ export default function App() {
     return Boolean(pinnedMostDesiredMovieId && movies.some(m => m.id === pinnedMostDesiredMovieId));
   }, [pinnedMostDesiredMovieId, movies]);
 
-  // Mais Votados da Audiência (Ordenado por Likes)
-  const moviesSortedByLikes = useMemo(() => {
-    return [...movies].sort((a, b) => (b.votesLikes || 0) - (a.votesLikes || 0));
+  // 10 Lançamentos Filmes (Filmes ordenados por ano/data de lançamento mais recente)
+  const moviesReleasesTop10 = useMemo(() => {
+    return movies.filter(m => m.type === 'movie').sort(sortByReleaseYear).slice(0, 10);
   }, [movies]);
 
-  // Melhores Avaliações (Ordenado por Nota)
-  const moviesSortedByRating = useMemo(() => {
-    return [...movies].sort((a, b) => (b.rating || 0) - (a.rating || 0));
+  // 10 Lançamentos Séries (Séries ordenadas por ano/data de lançamento mais recente)
+  const seriesReleasesTop10 = useMemo(() => {
+    return movies.filter(m => m.type === 'series').sort(sortByReleaseYear).slice(0, 10);
   }, [movies]);
 
-  // Lançamentos VHS (Ordenado por ano de lançamento mais recente: 2026, 2025, 2024...)
-  const moviesSortedByYear = useMemo(() => {
-    return [...movies].sort(sortByReleaseYear);
+  // 10 Melhores Avaliações (Ordenado por Nota)
+  const moviesSortedByRatingTop10 = useMemo(() => {
+    return [...movies].sort((a, b) => (b.rating || 0) - (a.rating || 0)).slice(0, 10);
   }, [movies]);
 
-  // VHS Recém Adicionados (Ordenado estritamente por ordem de adição no admin)
-  const recentlyAddedMovies = useMemo(() => {
-    return [...movies].sort((a, b) => getMovieAdditionWeight(b) - getMovieAdditionWeight(a));
+  // 10 VHS Recém Adicionados (Ordenado estritamente por ordem de adição no admin)
+  const recentlyAddedMoviesTop10 = useMemo(() => {
+    return [...movies].sort((a, b) => getMovieAdditionWeight(b) - getMovieAdditionWeight(a)).slice(0, 10);
   }, [movies]);
 
   // Transição automática das fitas de destaque rotativas a cada 10 segundos
@@ -1624,9 +1616,6 @@ export default function App() {
   return (
     <div className="bg-zinc-950 min-h-screen relative text-zinc-100 flex flex-col justify-between overflow-x-hidden">
       
-      {/* EFEITO FILTRO CRT DE TUBO VHS (RETRO AESTHETIC) */}
-      {vhsMode && <div className="vhs-crt-overlay vhs-crt-flicker pointer-events-none" />}
-
       {/* --- SEÇÃO 1: LOGIN E SELEÇÃO DE PERFIL --- */}
       {!activeProfile ? (
         <ProfileSelector
@@ -1712,8 +1701,6 @@ export default function App() {
             onTabChange={(tab) => { setActiveTab(tab); setSelectedCategory(null); setIsAdminView(false); }}
             isAdminView={isAdminView}
             onToggleAdminView={setIsAdminView}
-            vhsMode={vhsMode}
-            onToggleVhsMode={() => setVhsMode(!vhsMode)}
             notifications={notifications}
             onNotificationClick={handleNotificationClick}
             onMarkAllAsRead={handleMarkAllNotificationsAsRead}
@@ -2077,15 +2064,21 @@ export default function App() {
                   </div>
                 )}
 
-                {/* --- 2.B.II: ROWS MAIS VOTADOS, LANÇAMENTOS E MELHORES AVALIAÇÕES NA HOME PAGE OU MINHA LISTA NA ABA MYLIST --- */}
+                {/* --- 2.B.II: ROWS DE LANÇAMENTOS FILMES, SÉRIES, AVALIAÇÕES E RECÉM ADICIONADOS (10 CADA) --- */}
                 {(!searchVal && !selectedCategory && (activeTab === 'all' || activeTab === 'mylist')) && (
                   (() => {
                     if (activeTab === 'all') {
                       return (
-                        <div className="space-y-2">
+                        <div className="space-y-4">
+                          {/* 1. Lançamentos Filmes (Top 10) */}
                           <MovieRow
-                            title="🏆 Mais Votados (Prêmio da Audiência)"
-                            movies={moviesSortedByLikes}
+                            title="Lançamentos Filmes"
+                            icon={
+                              <div className="w-8 h-8 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-500 shadow-[0_0_12px_rgba(244,63,94,0.35)]">
+                                <Film className="w-4 h-4" />
+                              </div>
+                            }
+                            movies={moviesReleasesTop10}
                             watchHistory={activeProfile.watchHistory}
                             myList={activeProfile.myList}
                             onMovieClick={handleSelectMovie}
@@ -2093,9 +2086,15 @@ export default function App() {
                             onPlayClick={handleFeaturedPlay}
                           />
 
+                          {/* 2. Lançamentos Séries (Top 10) */}
                           <MovieRow
-                            title="✨ Lançamentos VHS"
-                            movies={moviesSortedByYear}
+                            title="Lançamentos Séries"
+                            icon={
+                              <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.35)]">
+                                <Tv className="w-4 h-4" />
+                              </div>
+                            }
+                            movies={seriesReleasesTop10}
                             watchHistory={activeProfile.watchHistory}
                             myList={activeProfile.myList}
                             onMovieClick={handleSelectMovie}
@@ -2103,9 +2102,15 @@ export default function App() {
                             onPlayClick={handleFeaturedPlay}
                           />
 
+                          {/* 3. Melhores Avaliações (Top 10) */}
                           <MovieRow
-                            title="⭐ Melhores Avaliações"
-                            movies={moviesSortedByRating}
+                            title="Melhores Avaliações"
+                            icon={
+                              <div className="w-8 h-8 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.35)]">
+                                <Sparkles className="w-4 h-4" />
+                              </div>
+                            }
+                            movies={moviesSortedByRatingTop10}
                             watchHistory={activeProfile.watchHistory}
                             myList={activeProfile.myList}
                             onMovieClick={handleSelectMovie}
@@ -2113,9 +2118,15 @@ export default function App() {
                             onPlayClick={handleFeaturedPlay}
                           />
 
+                          {/* 4. VHS Recém Adicionados (Top 10) */}
                           <MovieRow
-                            title="📼 VHS Recém Adicionados"
-                            movies={recentlyAddedMovies}
+                            title="VHS Recém Adicionados"
+                            icon={
+                              <div className="w-8 h-8 rounded-xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shadow-[0_0_12px_rgba(6,182,212,0.35)]">
+                                <Clock className="w-4 h-4" />
+                              </div>
+                            }
+                            movies={recentlyAddedMoviesTop10}
                             watchHistory={activeProfile.watchHistory}
                             myList={activeProfile.myList}
                             onMovieClick={handleSelectMovie}
@@ -2225,19 +2236,21 @@ export default function App() {
                                     {/* Capa/Poster da Fita */}
                                     <div 
                                       onClick={() => handleSelectMovie(movie)}
-                                      className="relative w-20 sm:w-26 aspect-[2/3] shrink-0 rounded-lg overflow-hidden border border-zinc-850 group-hover:border-rose-500/60 shadow-md cursor-pointer transform group-hover:scale-[1.02] transition-all duration-300"
+                                      className="relative w-20 sm:w-26 aspect-[2/3] shrink-0 rounded-lg overflow-hidden border border-zinc-850 group-hover:border-rose-500/60 shadow-md cursor-pointer transform group-hover:scale-[1.02] transition-all duration-300 bg-zinc-950"
                                     >
                                       <img 
                                         src={getCleanPosterUrl(movie.posterUrl)} 
                                         alt={movie.title} 
                                         className="w-full h-full object-cover"
+                                        loading="lazy"
+                                        decoding="async"
                                         referrerPolicy="no-referrer"
                                         onError={handlePosterError}
                                       />
-                                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60" />
+                                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60 pointer-events-none" />
                                       
                                       {/* Badge superior na imagem */}
-                                      <div className="absolute top-1.5 left-1.5 bg-zinc-950/80 border border-zinc-800/80 text-[8px] font-mono font-bold text-zinc-300 px-1.5 py-0.5 rounded leading-none uppercase">
+                                      <div className="absolute top-1.5 left-1.5 bg-zinc-950/80 border border-zinc-800/80 text-[8px] font-mono font-bold text-zinc-300 px-1.5 py-0.5 rounded leading-none uppercase z-20">
                                         {movie.type === 'series' ? 'Série' : 'Movie'}
                                       </div>
                                     </div>
@@ -2330,10 +2343,12 @@ export default function App() {
                                       src={getCleanPosterUrl(movie.posterUrl)} 
                                       alt={movie.title} 
                                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                      loading="lazy"
+                                      decoding="async"
                                       referrerPolicy="no-referrer"
                                       onError={handlePosterError}
                                     />
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2.5">
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2.5 z-20">
                                       <button
                                         onClick={(e) => {
                                           e.stopPropagation();
@@ -2350,7 +2365,7 @@ export default function App() {
                                         e.stopPropagation();
                                         handleToggleMyList(movie.id);
                                       }}
-                                      className="absolute top-2 right-2 bg-zinc-950/90 hover:bg-rose-950/90 border border-zinc-800 text-zinc-400 hover:text-rose-400 p-1.5 rounded-full transition-all cursor-pointer z-10"
+                                      className="absolute top-2 right-2 bg-zinc-950/90 hover:bg-rose-950/90 border border-zinc-800 text-zinc-400 hover:text-rose-400 p-1.5 rounded-full transition-all cursor-pointer z-20"
                                       title="Remover"
                                     >
                                       <Trash2 className="w-3.5 h-3.5" />
@@ -2409,26 +2424,49 @@ export default function App() {
                       if (selectedCategory) return selectedCategory;
                       if (activeTab === 'movies') return 'Filmes';
                       if (activeTab === 'series') return 'Séries';
-                      return 'Catálogo Digital';
+                      return 'Catálogo';
+                    };
+
+                    const getGridIcon = () => {
+                      if (activeTab === 'movies') {
+                        return (
+                          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-500 shadow-[0_0_14px_rgba(244,63,94,0.35)] shrink-0">
+                            <Film className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+                          </div>
+                        );
+                      }
+                      if (activeTab === 'series') {
+                        return (
+                          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-[0_0_14px_rgba(16,185,129,0.35)] shrink-0">
+                            <Tv className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+                          </div>
+                        );
+                      }
+                      if (selectedCategory) {
+                        return (
+                          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 shadow-[0_0_14px_rgba(245,158,11,0.35)] shrink-0">
+                            <Sparkles className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+                          </div>
+                        );
+                      }
+                      return (
+                        <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shadow-[0_0_14px_rgba(6,182,212,0.35)] shrink-0">
+                          <Sparkles className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+                        </div>
+                      );
                     };
 
                     return (
                       <div className="px-4 sm:px-8 py-2">
-                        {/* Cabeçalho do Filtro / Categoria com Indicador de Ordem de Lançamento */}
-                        <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-900/80 pb-4">
-                          <div>
-                            <span className="text-zinc-500 font-mono text-[9px] uppercase font-bold tracking-widest block mb-0.5">
-                              Acervo Retro Digital
-                            </span>
-                            <h2 className="text-xl sm:text-2xl font-black font-display text-white uppercase tracking-tight flex items-center gap-2">
+                        {/* Cabeçalho do Filtro / Categoria com Estilo Neon e Layout Limpo */}
+                        <div className="mb-6 flex items-center gap-3 border-b border-zinc-900/80 pb-4">
+                          <div className="flex items-center gap-3">
+                            {getGridIcon()}
+                            <h2 className="text-xl sm:text-2xl font-black font-display text-white uppercase tracking-tight">
                               {getGridTitle()}
-                              <span className="text-rose-500 text-sm font-mono font-bold">({filteredMovies.length})</span>
                             </h2>
                           </div>
-                          <div className="text-[10px] font-mono text-zinc-300 bg-zinc-950/80 border border-zinc-800 px-3 py-1.5 rounded-lg flex items-center gap-2 self-start sm:self-auto shadow-sm">
-                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                            <span>Ordem: Lançamento & Ano (Mais Recentes Primeiro)</span>
-                          </div>
+                          <span className="h-px flex-1 bg-gradient-to-r from-zinc-800 via-zinc-800/40 to-transparent"></span>
                         </div>
 
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-y-6 gap-x-4 sm:gap-x-5">
@@ -2444,10 +2482,12 @@ export default function App() {
                                   src={getCleanPosterUrl(movie.posterUrl)} 
                                   alt={movie.title} 
                                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                  loading="lazy"
+                                  decoding="async"
                                   referrerPolicy="no-referrer"
                                   onError={handlePosterError}
                                 />
-                                <div className="absolute top-2 left-2 bg-black/85 border border-zinc-800/80 text-[9px] font-mono font-bold text-zinc-200 px-1.5 py-0.5 rounded shadow">
+                                <div className="absolute top-2 left-2 bg-black/85 border border-zinc-800/80 text-[9px] font-mono font-bold text-zinc-200 px-1.5 py-0.5 rounded shadow z-20">
                                   {movie.year}
                                 </div>
                               </div>
@@ -2470,48 +2510,17 @@ export default function App() {
             </div>
           )}
 
-          {/* RODAPÉ DO FOOTER - ESTILO PROFISSIONAL NETFLIX */}
-          <footer className="border-t border-zinc-900/40 bg-zinc-950 py-12 px-6 sm:px-12 text-zinc-500 font-sans mt-auto">
-            <div className="max-w-6xl mx-auto space-y-8">
-              {/* Grid de Links Netflix Style */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-[11px] sm:text-xs">
-                <div className="flex flex-col gap-2.5">
-                  <a href="#help-center" className="hover:underline transition-colors text-zinc-400">Central de Ajuda</a>
-                  <a href="#vouchers" className="hover:underline transition-colors">Resgatar Fitas</a>
-                  <a href="#privacy" className="hover:underline transition-colors">Privacidade</a>
-                  <a href="#cookies" className="hover:underline transition-colors">Termos de Uso</a>
-                </div>
-                <div className="flex flex-col gap-2.5">
-                  <a href="#media-center" className="hover:underline transition-colors">Imprensa</a>
-                  <a href="#jobs" className="hover:underline transition-colors">Carreiras</a>
-                  <a href="#corporate" className="hover:underline transition-colors">Informações Corporativas</a>
-                  <a href="#contact" className="hover:underline transition-colors">Fale Conosco</a>
-                </div>
-                <div className="flex flex-col gap-2.5">
-                  <a href="#account" className="hover:underline transition-colors">Conta de Colecionador</a>
-                  <a href="#vhs-specs" className="hover:underline transition-colors font-mono">Especificações CRT</a>
-                  <a href="#terms" className="hover:underline transition-colors">Preferências de Cookies</a>
-                  <a href="#legal" className="hover:underline transition-colors">Avisos Legais</a>
-                </div>
-                <div className="flex flex-col gap-2.5 text-zinc-400">
-                  <p className="font-black tracking-widest text-rose-600 text-xs uppercase text-left">VHSFLIX ENTERACTIVE</p>
-                  <p className="text-[10px] leading-relaxed text-zinc-600 mt-1 text-left">
-                    O maior acervo retrodigital da internet. Assista a clássicos cinematográficos e raridades com codificação analógica em alta fidelidade retrô.
-                  </p>
-                </div>
-              </div>
-
-              {/* Linha Inferior com os Direitos Autorais e Estilo Profissional */}
-              <div className="pt-6 border-t border-zinc-910 flex flex-col sm:flex-row items-center justify-between text-[11px] text-zinc-650 gap-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-zinc-400 font-bold tracking-wider">VHSFLIX Brasil</span>
-                  <span>© 2026</span>
-                  <span className="hidden sm:inline">•</span>
-                  <span>Todos os direitos reservados.</span>
-                </div>
-                <div className="font-mono text-[9px] tracking-wider uppercase text-zinc-600 text-center sm:text-right">
-                  PLATAFORMA RETRÔ DIGITAL v2.0
-                </div>
+          {/* RODAPÉ LIMPO E MODERNO */}
+          <footer className="border-t border-zinc-900/60 bg-zinc-950/95 py-8 px-6 sm:px-12 text-zinc-500 font-sans mt-auto">
+            <div className="max-w-4xl mx-auto text-center space-y-3">
+              <p className="text-xs sm:text-sm text-zinc-400 font-medium leading-relaxed">
+                Esse site não hospeda nenhum vídeo em seu servidor. Todo o conteúdo é disponibilizado por terceiros.
+              </p>
+              <div className="flex items-center justify-center gap-2 text-[11px] sm:text-xs text-zinc-500 font-mono">
+                <span className="text-zinc-300 font-bold tracking-wider">VHSFLIX</span>
+                <span>© 2026</span>
+                <span>•</span>
+                <span>Todos os direitos reservados.</span>
               </div>
             </div>
           </footer>

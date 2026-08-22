@@ -1422,7 +1422,7 @@ async function startServer() {
   // Configuração do Vite middleware para desenvolvimento dinâmico e compilação
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: { middlewareMode: true, hmr: false },
       appType: "spa",
     });
     app.use(vite.middlewares);

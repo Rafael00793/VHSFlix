@@ -493,7 +493,7 @@ export default function MovieDetailModal({
   activeProfile
 }: MovieDetailModalProps) {
   const [isPlaying, setIsPlaying] = useState(false);
-  const [selectedServer, setSelectedServer] = useState<'abyss' | 'embedmovies'>('abyss');
+  const [selectedServer, setSelectedServer] = useState<'embedmovies' | 'abyss'>('embedmovies');
   const [isServerSelectorOpen, setIsServerSelectorOpen] = useState(false);
   const [manualEmbedInput, setManualEmbedInput] = useState('');
   const [isTapeLoading, setIsTapeLoading] = useState(false);
@@ -826,12 +826,18 @@ export default function MovieDetailModal({
             movie.episodeEmbeds = { [`${season}_${episode}`]: targetId };
           }
         } else {
-          setSyncFailedMessage(searchRes.message || `A Temporada ${season}, Episódio ${episode} (S${season.toString().padStart(2, '0')}E${episode.toString().padStart(2, '0')}) de "${movie.title}" ainda não existe no seu painel do Abyss.`);
+          setSyncFailedMessage(searchRes.message || (movie.type === 'series' 
+            ? `A Temporada ${season}, Episódio ${episode} (S${season.toString().padStart(2, '0')}E${episode.toString().padStart(2, '0')}) de "${movie.title}" aguarda o envio para este servidor.`
+            : `O filme "${movie.title}" aguarda o envio para este servidor.`
+          ));
         }
       } catch (clientErr: any) {
         setIsCheckingSync(false);
-        console.error('[Abyss Player Client Fallback] Erro ao sintonizar:', clientErr);
-        setSyncFailedMessage(`O episódio S${season.toString().padStart(2, '0')}E${episode.toString().padStart(2, '0')} de "${movie.title}" aguarda envio no seu painel Abyss.`);
+        console.error('[Player Client Fallback] Erro ao sintonizar:', clientErr);
+        setSyncFailedMessage(movie.type === 'series'
+          ? `O episódio S${season.toString().padStart(2, '0')}E${episode.toString().padStart(2, '0')} de "${movie.title}" aguarda o envio dos arquivos.`
+          : `O filme "${movie.title}" aguarda o envio dos arquivos.`
+        );
       }
     });
   }, [movie?.id, season, episode, abyssApiKey]);
@@ -865,7 +871,7 @@ export default function MovieDetailModal({
         return;
       }
     } catch (err) {
-      console.warn('[Abyss Player] Backend indisponível para re-sync, testando client-side...');
+      console.warn('[Player] Backend indisponível para re-sync, testando client-side...');
     }
 
     // Client fallback se o backend falhar
@@ -889,11 +895,14 @@ export default function MovieDetailModal({
           movie.episodeEmbeds = { [`${season}_${episode}`]: targetId };
         }
       } else {
-        setSyncFailedMessage(searchRes.message || `O vídeo do episódio (S${season.toString().padStart(2, '0')}E${episode.toString().padStart(2, '0')}) ainda não existe no Abyss.`);
+        setSyncFailedMessage(searchRes.message || (movie.type === 'series'
+          ? `O vídeo do episódio (S${season.toString().padStart(2, '0')}E${episode.toString().padStart(2, '0')}) de "${movie.title}" ainda não foi disponibilizado neste servidor.`
+          : `O filme "${movie.title}" ainda não foi disponibilizado neste servidor.`
+        ));
       }
     } catch (clientErr: any) {
       setIsCheckingSync(false);
-      setSyncFailedMessage(`Erro de conexão ao verificar o episódio S${season}E${episode} no Abyss.`);
+      setSyncFailedMessage(`Não foi possível verificar a disponibilidade no momento. Tente novamente.`);
     }
   };
 
@@ -1251,7 +1260,7 @@ export default function MovieDetailModal({
     }
   };
 
-  const handleSelectServerAndPlay = (server: 'abyss' | 'embedmovies') => {
+  const handleSelectServerAndPlay = (server: 'embedmovies' | 'abyss') => {
     setSelectedServer(server);
     setIsServerSelectorOpen(false);
     handleStartPlayback();
@@ -1579,71 +1588,38 @@ export default function MovieDetailModal({
                       referrerPolicy="no-referrer"
                     />
                   ) : (
-                    <div className="w-full max-w-md p-6 bg-zinc-900/95 border border-amber-500/30 rounded-2xl flex flex-col items-center justify-center text-center shadow-2xl backdrop-blur-md z-50 my-auto">
-                      <div className="w-14 h-14 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mb-3 text-amber-400">
+                    <div className="w-full max-w-md p-6 bg-zinc-900/95 border border-zinc-800 rounded-2xl flex flex-col items-center justify-center text-center shadow-2xl backdrop-blur-md z-50 my-auto">
+                      <div className="w-14 h-14 rounded-full bg-rose-500/10 border border-rose-500/20 flex items-center justify-center mb-3 text-rose-500">
                         <Tv className="w-7 h-7" />
                       </div>
-                      <h3 className="text-lg font-bold text-white mb-1">Aguardando Envio no Abyss</h3>
-                      <p className="text-zinc-400 text-xs leading-relaxed mb-4">
-                        {syncFailedMessage || `A Temporada ${season}, Episódio ${episode} de "${movie.title}" ainda não está sintonizada no seu painel Abyss.`}
+                      <h3 className="text-lg font-bold text-white mb-1.5 font-sans">Aguardando Envio</h3>
+                      <p className="text-zinc-400 text-xs leading-relaxed mb-5 font-sans">
+                        {syncFailedMessage || (movie.type === 'series'
+                          ? `A Temporada ${season}, Episódio ${episode} de "${movie.title}" aguarda o envio dos arquivos para este servidor.`
+                          : `O filme "${movie.title}" aguarda o envio dos arquivos para este servidor.`
+                        )}
                       </p>
 
-                      <button
-                        onClick={handleReSyncCurrentEpisode}
-                        disabled={isCheckingSync}
-                        className="w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition-all shadow-lg shadow-amber-500/20 active:scale-95 disabled:opacity-50 cursor-pointer"
-                      >
-                        <RefreshCw className={`w-3.5 h-3.5 ${isCheckingSync ? 'animate-spin' : ''}`} />
-                        {isCheckingSync ? 'Sintonizando no Abyss...' : 'Tentar Verificar Novamente no Abyss'}
-                      </button>
+                      <div className="flex flex-col sm:flex-row gap-2.5 w-full font-sans">
+                        <button
+                          onClick={handleReSyncCurrentEpisode}
+                          disabled={isCheckingSync}
+                          className="flex-1 py-3 bg-zinc-800 hover:bg-zinc-750 border border-zinc-700 text-zinc-200 font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition-all shadow-md active:scale-95 disabled:opacity-50 cursor-pointer"
+                        >
+                          <RefreshCw className={`w-3.5 h-3.5 ${isCheckingSync ? 'animate-spin' : ''}`} />
+                          {isCheckingSync ? 'Verificando...' : 'Verificar Novamente'}
+                        </button>
 
-                      {/* Manual Link Input */}
-                      <div className="w-full mt-4 pt-4 border-t border-zinc-800/80 text-left">
-                        <label className="block text-[11px] font-mono font-semibold text-zinc-400 mb-1.5">
-                          Ou vincule o ID / Link do Player Abyss manualmente:
-                        </label>
-                        <form
-                          onSubmit={(e) => {
-                            e.preventDefault();
-                            if (!manualEmbedInput.trim()) return;
-                            const input = manualEmbedInput.trim();
-                            let cleanId = input;
-                            if (input.includes('play.abyssplayer.com/')) {
-                              cleanId = input.split('play.abyssplayer.com/')[1].split('?')[0].split('#')[0];
-                            } else if (input.includes('abyssplayer.com/')) {
-                              cleanId = input.split('abyssplayer.com/')[1].split('?')[0].split('#')[0];
-                            }
-                            
-                            const playerUrl = `https://play.abyssplayer.com/${cleanId}`;
-
-                            if (movie.type === 'series') {
-                              const key = `${season}_${episode}`;
-                              if (!movie.episodeEmbeds) movie.episodeEmbeds = {};
-                              movie.episodeEmbeds[key] = playerUrl;
-                              setAbyssEpisodeId(playerUrl);
-                            } else {
-                              movie.embedUrl = playerUrl;
-                            }
-                            setSyncFailedMessage(null);
-                            setManualEmbedInput('');
+                        <button
+                          onClick={() => {
+                            setSelectedServer('embedmovies');
                             setIsPlaying(true);
                           }}
-                          className="flex gap-2"
+                          className="flex-1 py-3 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition-all shadow-lg shadow-rose-950/30 active:scale-95 cursor-pointer"
                         >
-                          <input
-                            type="text"
-                            value={manualEmbedInput}
-                            onChange={(e) => setManualEmbedInput(e.target.value)}
-                            placeholder="https://play.abyssplayer.com/{id} ou ID"
-                            className="flex-1 bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-rose-500 font-mono"
-                          />
-                          <button
-                            type="submit"
-                            className="bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs px-3 py-1.5 rounded-lg transition-all font-mono shrink-0 cursor-pointer"
-                          >
-                            Salvar
-                          </button>
-                        </form>
+                          <Server className="w-3.5 h-3.5" />
+                          <span>Alternar p/ Servidor 1</span>
+                        </button>
                       </div>
                     </div>
                   )}
@@ -1784,13 +1760,13 @@ export default function MovieDetailModal({
                     </span>
                     <div className="grid grid-cols-2 gap-2.5 font-mono">
                       {[
-                        { id: 'abyss', label: 'Servidor 1', desc: 'Opção Principal' },
-                        { id: 'embedmovies', label: 'Servidor 2', desc: 'Opção Alternativa' }
+                        { id: 'embedmovies', label: 'Servidor 1', desc: 'Opção Principal' },
+                        { id: 'abyss', label: 'Servidor 2', desc: 'Opção Alternativa' }
                       ].map(s => (
                         <button
                           key={s.id}
                           type="button"
-                          onClick={() => setSelectedServer(s.id as 'abyss' | 'embedmovies')}
+                          onClick={() => setSelectedServer(s.id as 'embedmovies' | 'abyss')}
                           className={`p-3 rounded-lg border text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-1 select-none ${
                             selectedServer === s.id
                               ? 'bg-rose-500/10 border-rose-500 text-rose-400 shadow-md shadow-rose-600/15'
@@ -1882,7 +1858,7 @@ export default function MovieDetailModal({
 
                     <div className="flex flex-col gap-3 font-sans">
                       <button
-                        onClick={() => handleSelectServerAndPlay('abyss')}
+                        onClick={() => handleSelectServerAndPlay('embedmovies')}
                         className="w-full bg-rose-600 hover:bg-rose-500 text-white font-bold py-3.5 px-4 rounded-xl transition-all flex items-center justify-between shadow-lg shadow-rose-950/30 cursor-pointer active:scale-95 group"
                       >
                         <div className="flex items-center gap-3">
@@ -1896,7 +1872,7 @@ export default function MovieDetailModal({
                       </button>
 
                       <button
-                        onClick={() => handleSelectServerAndPlay('embedmovies')}
+                        onClick={() => handleSelectServerAndPlay('abyss')}
                         className="w-full bg-zinc-800 hover:bg-zinc-750 border border-zinc-700 hover:border-rose-500/50 text-white font-bold py-3.5 px-4 rounded-xl transition-all flex items-center justify-between shadow-lg cursor-pointer active:scale-95 group"
                       >
                         <div className="flex items-center gap-3">

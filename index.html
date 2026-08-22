@@ -15,28 +15,33 @@
     <link rel="dns-prefetch" href="https://play.abyss.to" />
     <script>
       // Ignorar erros benignos do WebSocket e do Vite HMR para não interpor sobreposições ou quebras em tempo de desenvolvimento
-      window.addEventListener('unhandledrejection', function(event) {
-        if (event.reason && (
-          String(event.reason).toUpperCase().includes('WEBSOCKET') || 
-          String(event.reason).toUpperCase().includes('VITE') ||
-          String(event.reason.message || '').toUpperCase().includes('WEBSOCKET') ||
-          String(event.reason.message || '').toUpperCase().includes('VITE')
-        )) {
-          event.preventDefault();
-          event.stopPropagation();
+      (function() {
+        function isBenign(str) {
+          if (!str) return false;
+          var s = String(str).toLowerCase();
+          return s.includes('websocket') || 
+                 s.includes('vite') || 
+                 s.includes('without opened') || 
+                 s.includes('failed to connect') ||
+                 s.includes('connection closed');
         }
-      }, true);
 
-      window.addEventListener('error', function(event) {
-        if (event.message && (
-          event.message.toUpperCase().includes('WEBSOCKET') || 
-          event.message.toUpperCase().includes('VITE') ||
-          event.message.toUpperCase().includes('WEBSOCKET CLOSED')
-        )) {
-          event.preventDefault();
-          event.stopPropagation();
-        }
-      }, true);
+        window.addEventListener('unhandledrejection', function(event) {
+          var reasonStr = event.reason ? (event.reason.message || String(event.reason) || '') : '';
+          if (isBenign(reasonStr)) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+          }
+        }, true);
+
+        window.addEventListener('error', function(event) {
+          var errorMsg = event.message || (event.error && event.error.message) || String(event) || '';
+          if (isBenign(errorMsg)) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+          }
+        }, true);
+      })();
     </script>
   </head>
   <body>

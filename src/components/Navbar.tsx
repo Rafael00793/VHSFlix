@@ -22,8 +22,6 @@ interface NavbarProps {
   onTabChange: (tab: 'all' | 'movies' | 'series' | 'mylist' | 'requests' | 'support') => void;
   isAdminView: boolean;
   onToggleAdminView: (val: boolean) => void;
-  vhsMode: boolean;
-  onToggleVhsMode: () => void;
   notifications: AppNotification[];
   onNotificationClick: (movieId: string, notificationId: string) => void;
   onMarkAllAsRead: () => void;
@@ -45,8 +43,6 @@ export default function Navbar({
   onTabChange,
   isAdminView,
   onToggleAdminView,
-  vhsMode,
-  onToggleVhsMode,
   notifications,
   onNotificationClick,
   onMarkAllAsRead,
@@ -110,20 +106,34 @@ export default function Navbar({
         {/* Lado Esquerdo: Logo e Navegação de Abas */}
         <div className="flex items-center gap-3 sm:gap-6 md:gap-10">
           
-          {/* Logo VHSFLIX */}
-          <button 
+          {/* Logo VHSFLIX Animado Moderno */}
+          <motion.button 
             onClick={() => {
               onSelectCategory(null);
               onToggleAdminView(false);
               onTabChange('all');
             }}
-            className="flex flex-col items-start leading-none group text-left focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none focus-visible:scale-102 rounded p-0.5"
+            whileHover={{ scale: 1.04 }}
+            whileTap={{ scale: 0.96 }}
+            className="relative flex items-center group cursor-pointer focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none rounded-xl p-1 select-none"
+            id="navbar-logo-vhsflix"
           >
-            <span className="text-xl xs:text-2xl md:text-3xl font-black font-display tracking-widest text-rose-600 group-hover:text-rose-500 transition-colors text-neon-glow leading-none select-none">
-              VHS<span className="text-white italic text-base md:text-lg font-mono align-super">FLIX</span>
-            </span>
-            <span className="text-[8px] text-rose-500/80 font-mono tracking-widest mt-0.5 font-bold uppercase hidden md:inline">Retro Tube v2.0</span>
-          </button>
+            {/* Efeito de Brilho Neon Atrás do Logo */}
+            <div className="absolute -inset-1.5 bg-gradient-to-r from-rose-600/30 via-red-600/20 to-rose-500/10 rounded-2xl blur-md opacity-50 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+            
+            <div className="relative z-10 flex items-center leading-none">
+              <span className="text-2xl xs:text-3xl md:text-4xl font-black font-display tracking-wider text-rose-500 group-hover:text-rose-400 transition-colors drop-shadow-[0_0_15px_rgba(244,63,94,0.7)]">
+                VHS
+              </span>
+              <span className="text-white italic text-lg xs:text-xl md:text-2xl font-mono font-extrabold ml-0.5 tracking-tight group-hover:text-rose-100 transition-colors drop-shadow-[0_0_10px_rgba(255,255,255,0.4)]">
+                FLIX
+              </span>
+              <span className="relative flex h-2 w-2 ml-1 self-start mt-0.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500 shadow-[0_0_6px_#f43f5e]" />
+              </span>
+            </div>
+          </motion.button>
 
           {/* Abas Estilo Netflix (Oculta se estiver no Admin) */}
           {!isAdminView && (
@@ -257,24 +267,9 @@ export default function Navbar({
           )}
         </div>
 
-        {/* Lado Direito: Busca, Filtros, VHS Mode, Menu Perfil */}
+        {/* Lado Direito: Busca, Filtros, Menu Perfil */}
         <div className="flex items-center gap-1.5 xs:gap-3 sm:gap-5">
           
-          {/* Seletor de modo fita VHS (Ligar / Desligar Scanlines CRT) */}
-          <button
-            onClick={onToggleVhsMode}
-            className={`border rounded-full px-2 py-0.5 xs:px-3 xs:py-1 flex items-center gap-1 xs:gap-1.5 transition-all text-[9px] xs:text-xs font-mono font-bold select-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none ${
-              vhsMode 
-                ? 'bg-amber-500/20 border-amber-400 text-amber-300 shadow-md shadow-amber-500/10' 
-                : 'border-zinc-800 text-zinc-500 hover:border-zinc-500 hover:text-zinc-300 bg-zinc-900/50'
-            }`}
-            title="Ligar efeito estético VHS de Tubo CRT"
-            id="vhs-aesthetic-toggle"
-          >
-            <span className={`w-1 xs:w-1.5 h-1 xs:h-1.5 rounded-full ${vhsMode ? 'bg-amber-400 animate-pulse' : 'bg-zinc-650'}`}></span>
-            <span className="truncate max-w-[55px] xs:max-w-none">VHS MODE</span>
-          </button>
-
           {/* Barra de Busca Animada (Oculta se Admin) */}
           {!isAdminView && (
             <div className="relative flex items-center">

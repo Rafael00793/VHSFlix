@@ -11,23 +11,27 @@ import { handlePosterError, getCleanPosterUrl } from '../lib/imageUtils';
 
 interface MovieRowProps {
   key?: string;
-  title: string;
+  title: string | React.ReactNode;
+  icon?: React.ReactNode;
   movies: Movie[];
   watchHistory?: { [movieId: string]: WatchProgress };
   myList: string[];
   onMovieClick: (movie: Movie) => void;
   onToggleMyList: (movieId: string, e?: React.MouseEvent) => void;
   onPlayClick: (movie: Movie, e?: React.MouseEvent) => void;
+  showCount?: boolean;
 }
 
-export default function MovieRow({
+export const MovieRow = React.memo(function MovieRow({
   title,
+  icon,
   movies,
   watchHistory,
   myList,
   onMovieClick,
   onToggleMyList,
-  onPlayClick
+  onPlayClick,
+  showCount = false
 }: MovieRowProps) {
   const rowRef = useRef<HTMLDivElement>(null);
   const [showLeftArrow, setShowLeftArrow] = useState(false);
@@ -60,17 +64,28 @@ export default function MovieRow({
     }
   };
 
+  const titleString = typeof title === 'string' ? title : 'categoria';
+
   return (
-    <div className="relative mb-8 sm:mb-12 font-sans group/row">
+    <div className="relative mb-6 sm:mb-10 font-sans group/row">
       {/* Título da Categoria */}
-      <div className="flex items-center gap-3 mb-3.5 sm:mb-5 px-4 sm:px-8">
-        <h2 className="text-lg sm:text-2xl font-bold tracking-tight text-white font-display group-hover/row:text-rose-500 transition-colors">
-          {title}
-        </h2>
-        <span className="h-0.5 flex-1 bg-gradient-to-r from-zinc-800 to-transparent"></span>
-        <span className="text-[10px] text-zinc-500 font-mono tracking-widest uppercase font-semibold hidden sm:inline">
-          {movies.length} {movies.length === 1 ? 'TÍTULO' : 'TÍTULOS'}
-        </span>
+      <div className="flex items-center gap-3 mb-2.5 sm:mb-4 px-4 sm:px-8">
+        <div className="flex items-center gap-2.5">
+          {icon && (
+            <div className="flex items-center justify-center shrink-0">
+              {icon}
+            </div>
+          )}
+          <h2 className="text-base sm:text-xl font-black tracking-tight text-white font-display group-hover/row:text-rose-400 transition-colors flex items-center gap-2 uppercase">
+            {title}
+          </h2>
+        </div>
+        <span className="h-px flex-1 bg-gradient-to-r from-zinc-800 via-zinc-800/40 to-transparent"></span>
+        {showCount && (
+          <span className="text-[10px] text-zinc-500 font-mono tracking-widest uppercase font-semibold hidden sm:inline">
+            {movies.length} {movies.length === 1 ? 'TÍTULO' : 'TÍTULOS'}
+          </span>
+        )}
       </div>
 
       {/* Container do Slider de Filmes */}
@@ -81,7 +96,7 @@ export default function MovieRow({
           <button
             onClick={() => handleScroll('left')}
             className="absolute left-0 top-0 bottom-0 w-12 sm:w-14 bg-gradient-to-r from-zinc-950 to-transparent text-white hover:text-rose-500 flex items-center justify-center z-30 transition-all opacity-0 group-hover/row:opacity-100 hover:scale-105 active:scale-95 cursor-pointer"
-            id={`btn-scroll-left-${title.replace(/\s+/g, '-').toLowerCase()}`}
+            id={`btn-scroll-left-${titleString.replace(/\s+/g, '-').toLowerCase()}`}
           >
             <ChevronLeft className="w-8 h-8 sm:w-10 sm:h-10 text-white hover:scale-110 drop-shadow-lg" />
           </button>
@@ -91,7 +106,7 @@ export default function MovieRow({
         <button
           onClick={() => handleScroll('right')}
           className="absolute right-0 top-0 bottom-0 w-12 sm:w-14 bg-gradient-to-l from-zinc-950 to-transparent text-white hover:text-rose-500 flex items-center justify-center z-30 transition-all opacity-0 group-hover/row:opacity-100 hover:scale-105 active:scale-95 cursor-pointer"
-          id={`btn-scroll-right-${title.replace(/\s+/g, '-').toLowerCase()}`}
+          id={`btn-scroll-right-${titleString.replace(/\s+/g, '-').toLowerCase()}`}
         >
           <ChevronRight className="w-8 h-8 sm:w-10 sm:h-10 text-white hover:scale-110 drop-shadow-lg" />
         </button>
@@ -163,14 +178,15 @@ export default function MovieRow({
                   <img
                     src={getCleanPosterUrl(movie.posterUrl)}
                     alt={movie.title}
-                    className="w-full h-full object-cover select-none group-hover/card:scale-108 transition-transform duration-500"
+                    className="w-full h-full object-cover select-none group-hover/card:scale-108 transition-transform duration-300"
                     loading="lazy"
+                    decoding="async"
                     referrerPolicy="no-referrer"
                     onError={handlePosterError}
                   />
                   
                   {/* Overlay Escurecido Rápido de Hover */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black via-black/10 to-transparent opacity-0 group-hover/card:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-3 sm:p-4">
+                  <div className="absolute inset-0 bg-gradient-to-t from-black via-black/10 to-transparent opacity-0 group-hover/card:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-3 sm:p-4 z-20">
                     
                     {/* Botões rápidos de controle */}
                     <div className="flex items-center gap-1.5 sm:gap-2 mb-2 sm:mb-3">
@@ -255,4 +271,6 @@ export default function MovieRow({
       </div>
     </div>
   );
-}
+});
+
+export default MovieRow;
