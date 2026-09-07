@@ -358,7 +358,6 @@ export const DEFAULT_PROFILES: { [userId: string]: Profile[] } = {
 // CATEGORIES definidos de forma robusta e estilosa para a navegação de gênero
 export const GENRE_CATEGORIES = [
   'Todos',
-  'Melhores Avaliações',
   'Ação',
   'Animes',
   'Aventura',

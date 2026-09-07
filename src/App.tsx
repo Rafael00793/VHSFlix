@@ -916,17 +916,6 @@ export default function App() {
     return movies.filter(m => m.type === 'series').sort(sortByReleaseYear).slice(0, 10);
   }, [movies]);
 
-  // 10 Melhores Avaliações (Ordenado de forma 100% ESTÁVEL e determinística por Nota, Curtidas e ID para não mudar capas)
-  const moviesSortedByRatingTop10 = useMemo(() => {
-    return [...movies].sort((a, b) => {
-      const diff = (b.rating || 0) - (a.rating || 0);
-      if (Math.abs(diff) > 0.001) return diff;
-      const likesDiff = (b.votesLikes || 0) - (a.votesLikes || 0);
-      if (likesDiff !== 0) return likesDiff;
-      return String(a.id).localeCompare(String(b.id));
-    }).slice(0, 10);
-  }, [movies]);
-
   // 10 VHS Recém Adicionados (Ordenado estritamente por ordem de adição no admin)
   const recentlyAddedMoviesTop10 = useMemo(() => {
     return [...movies].sort((a, b) => getMovieAdditionWeight(b) - getMovieAdditionWeight(a)).slice(0, 10);
@@ -973,9 +962,7 @@ export default function App() {
 
     // Filtro por categoria selecionada
     if (selectedCategory) {
-      if (selectedCategory === 'Melhores Avaliações') {
-        return list.sort((a, b) => (b.rating || 0) - (a.rating || 0));
-      } else if (selectedCategory === 'Séries') {
+      if (selectedCategory === 'Séries') {
         list = list.filter(m => m.type === 'series');
       } else if (selectedCategory === 'Animes' || selectedCategory === 'Anime') {
         list = list.filter(m => 
@@ -2253,26 +2240,7 @@ export default function App() {
                             />
                           )}
 
-                          {/* 2. Melhores Avaliações (Top 10) - Capas 100% Estáveis e Verde Neon */}
-                          <MovieRow
-                            title="Melhores Avaliações • Top 10"
-                            icon={
-                              <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-400/50 flex items-center justify-center text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.4)]">
-                                <Sparkles className="w-4 h-4 text-emerald-400" />
-                              </div>
-                            }
-                            movies={moviesSortedByRatingTop10}
-                            watchHistory={activeProfile.watchHistory}
-                            myList={activeProfile.myList}
-                            onMovieClick={handleSelectMovie}
-                            onToggleMyList={handleToggleMyList}
-                            onPlayClick={handleFeaturedPlay}
-                            showRankingBadge={true}
-                            accentColor="neon"
-                            showCount={true}
-                          />
-
-                          {/* 3. Lançamentos Filmes (Top 10) */}
+                          {/* 1. Lançamentos Filmes (Top 10) */}
                           <MovieRow
                             title="Lançamentos Filmes"
                             icon={
