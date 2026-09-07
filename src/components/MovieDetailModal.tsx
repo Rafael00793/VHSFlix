@@ -1033,7 +1033,9 @@ export default function MovieDetailModal({
     currentTimeRef.current = currentTime;
   }, [currentTime]);
 
-  const isAddedToList = movie ? myList.includes(movie.id) : false;
+  const isAddedToList = movie && Array.isArray(myList) 
+    ? myList.some(id => String(id) === String(movie.id) || (movie.tmdbId && String(id) === `tmdb_${movie.tmdbId}`)) 
+    : false;
   const progressState = movie ? watchHistory[movie.id] : undefined;
 
   // Converte string de duração do filme "1h 56m" ou "3 Temporadas" para segundos razoáveis

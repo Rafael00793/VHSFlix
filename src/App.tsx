@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Movie, User, Profile, WatchProgress, AppNotification, MovieRequest, MovieComment, getSubscriptionDaysLeft, renewSubscription } from './types';
-import { INITIAL_MOVIES, INITIAL_USERS, DEFAULT_PROFILES, GENRE_CATEGORIES, getMovieDetailsTMDB, getTMDBTrendingMovies } from './data';
+import { INITIAL_MOVIES, INITIAL_USERS, DEFAULT_PROFILES, GENRE_CATEGORIES, getMovieDetailsTMDB, getTMDBTrendingMovies, getTMDBTrendingContent } from './data';
 import { DEFAULT_POSTER_FALLBACK, DEFAULT_BACKDROP_FALLBACK, handlePosterError, handleBackdropError, isBrokenImageUrl, getCleanPosterUrl, getCleanBackdropUrl } from './lib/imageUtils';
 import Navbar from './components/Navbar';
 import ProfileSelector from './components/ProfileSelector';
@@ -351,23 +351,60 @@ export default function App() {
       }
     }, (err) => console.warn('[FIRESTORE] users listener warning:', err));
 
-    // 2. Escuta em tempo real a coleção de perfis
+    // 2. Escuta em tempo real a coleção de perfis com mesclagem segura
     const unsubProfiles = onSnapshot(collection(db, 'profiles'), (snapshot) => {
       const fetchedProfiles: { [userId: string]: Profile[] } = {};
       let hasData = false;
-      snapshot.forEach((doc) => {
+      snapshot.forEach((docSnap) => {
         hasData = true;
-        const data = doc.data();
+        const data = docSnap.data();
         if (data.userId && data.profiles && Array.isArray(data.profiles) && data.profiles.length > 0) {
           const valid = data.profiles.filter((p: Profile) => p.name !== 'Crianças VHS' && p.id !== 'p1_2');
-          fetchedProfiles[data.userId] = valid.length > 0 ? [valid[0]] : [data.profiles[0]];
+          const cleanProfs = valid.length > 0 ? valid : data.profiles;
+          fetchedProfiles[data.userId] = cleanProfs.map((p: any) => ({
+            id: String(p.id || 'p_' + Date.now()),
+            name: String(p.name || 'Meu Perfil'),
+            avatarUrl: p.avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
+            myList: Array.isArray(p.myList) ? p.myList.map(String) : [],
+            watchHistory: p.watchHistory || {}
+          }));
         }
       });
+
       if (!hasData) {
         // Se estiver vazio, popula com os perfis padrão
         saveProfilesToFirestore(DEFAULT_PROFILES);
       } else {
-        setAllProfiles(fetchedProfiles);
+        setAllProfiles(prev => {
+          // Mesclagem segura: preserva filmes adicionados à lista localmente se o snapshot for antigo
+          const merged: { [userId: string]: Profile[] } = { ...fetchedProfiles };
+          (Object.entries(prev) as [string, Profile[]][]).forEach(([uid, localList]) => {
+            if (!merged[uid]) {
+              merged[uid] = localList;
+            } else {
+              merged[uid] = merged[uid].map(remP => {
+                const locP = localList.find(lp => lp.id === remP.id);
+                if (locP) {
+                  const remList = Array.isArray(remP.myList) ? remP.myList : [];
+                  const locList = Array.isArray(locP.myList) ? locP.myList : [];
+                  const combined = Array.from(new Set([...remList, ...locList].map(String)));
+                  return {
+                    ...remP,
+                    myList: combined,
+                    watchHistory: { ...(locP.watchHistory || {}), ...(remP.watchHistory || {}) }
+                  };
+                }
+                return remP;
+              });
+            }
+          });
+          try {
+            localStorage.setItem('vhsflix_profiles', JSON.stringify(merged));
+          } catch (e) {
+            console.warn('Erro ao atualizar localStorage com perfis:', e);
+          }
+          return merged;
+        });
       }
     }, (err) => console.warn('[FIRESTORE] profiles listener warning:', err));
 
@@ -657,9 +694,14 @@ export default function App() {
   }, [currentUserId, allProfiles, users]);
 
   const activeProfile = useMemo(() => {
-    if (!currentUserId || !currentProfileId) return null;
+    if (!currentUserId) return null;
     const userProfs = allProfiles[currentUserId] || [];
-    return userProfs.find(p => p.id === currentProfileId) || null;
+    if (userProfs.length === 0) return null;
+    if (currentProfileId) {
+      const found = userProfs.find(p => p.id === currentProfileId);
+      if (found) return found;
+    }
+    return userProfs[0] || null;
   }, [allProfiles, currentUserId, currentProfileId]);
 
   // Escolhe o filme em grande plano (Hero Banner)
@@ -761,28 +803,29 @@ export default function App() {
   }, [featuredHighlights, activeHighlightIndex]);
 
   const [tmdbTrendingList, setTmdbTrendingList] = useState<any[]>([]);
+  const [tmdbTrendingType, setTmdbTrendingType] = useState<'all' | 'movie' | 'tv'>('all');
 
-  // Carrega em segundo plano as tendências reais de hoje do TMDB e atualiza métricas de audiência
+  // Carrega em segundo plano as tendências reais de hoje do TMDB (Filmes e Séries)
   useEffect(() => {
     let isMounted = true;
-    getTMDBTrendingMovies(tmdbApiKey).then(results => {
+    getTMDBTrendingContent(tmdbApiKey, tmdbTrendingType).then(results => {
       if (isMounted && Array.isArray(results) && results.length > 0) {
         setTmdbTrendingList(results);
 
         // Atualiza estatísticas reais de curtidas e audiência do TMDB nos títulos do acervo
+        // SEM alterar a nota (rating) do filme no catálogo para que as capas de Melhores Avaliações
+        // NUNCA fiquem mudando ou recalculando de ordem
         setMovies(prev => {
           let updated = false;
           const next = prev.map(m => {
-            const match = results.find(r => r.id === m.tmdbId || (r.title || r.name || '').toLowerCase().trim() === m.title.toLowerCase().trim());
-            if (match && match.vote_count && match.vote_average) {
-              const tmdbLikes = Math.round((match.vote_average / 10) * match.vote_count);
-              const tmdbDislikes = Math.round(((10 - match.vote_average) / 10) * match.vote_count * 0.25);
-              const newRating = Number((match.vote_average).toFixed(1));
-              if (m.votesLikes !== tmdbLikes || m.votesDislikes !== tmdbDislikes || m.rating !== newRating) {
+            const match = results.find(r => (r.id && m.tmdbId === r.id) || (r.title || r.name || '').toLowerCase().trim() === m.title.toLowerCase().trim());
+            if (match && match.vote_count) {
+              const tmdbLikes = Math.round(((match.vote_average || 8) / 10) * match.vote_count);
+              const tmdbDislikes = Math.round(((10 - (match.vote_average || 8)) / 10) * match.vote_count * 0.25);
+              if (m.votesLikes !== tmdbLikes || m.votesDislikes !== tmdbDislikes || m.tmdbVoteCount !== match.vote_count) {
                 updated = true;
                 return {
                   ...m,
-                  rating: newRating,
                   votesLikes: tmdbLikes,
                   votesDislikes: tmdbDislikes,
                   tmdbVoteCount: match.vote_count
@@ -796,11 +839,47 @@ export default function App() {
       }
     }).catch(err => console.warn('[TMDB] Erro ao carregar tendências:', err));
     return () => { isMounted = false; };
-  }, [tmdbApiKey]);
+  }, [tmdbApiKey, tmdbTrendingType]);
+
+  // Lista de Filmes & Séries em Tendência no TMDB convertidos para objetos Movie
+  const tmdbTrendingContentList = useMemo<Movie[]>(() => {
+    if (!tmdbTrendingList || tmdbTrendingList.length === 0) return [];
+    return tmdbTrendingList.map((item, idx) => {
+      const isTv = item.media_type === 'tv' || Boolean(item.name);
+      const title = item.title || item.name || `Tendência #${idx + 1}`;
+      const releaseDate = item.release_date || item.first_air_date || '2026';
+      const year = parseInt(releaseDate.substring(0, 4)) || new Date().getFullYear();
+
+      const inCatalog = movies.find(m => (item.id && m.tmdbId === item.id) || m.title.toLowerCase().trim() === title.toLowerCase().trim());
+      if (inCatalog) {
+        return inCatalog;
+      }
+
+      return {
+        id: `tmdb_trend_${item.id || idx}`,
+        tmdbId: item.id,
+        title: title,
+        type: isTv ? 'series' : 'movie',
+        category: isTv ? 'Séries' : 'Ação',
+        year: year,
+        rating: Number((item.vote_average || 8.2).toFixed(1)),
+        duration: isTv ? 'Série TMDB' : 'Filme TMDB',
+        posterUrl: getCleanPosterUrl(item.poster_path),
+        backdropUrl: getCleanBackdropUrl(item.backdrop_path, item.poster_path),
+        description: item.overview || 'Título em alta global no TMDB com grande audiência hoje.',
+        trailerUrl: 'https://www.youtube.com/embed/CRRlbK5w8AE',
+        isFeatured: idx === 0,
+        clicksCount: item.vote_count || (2500 - idx * 100),
+        votesLikes: Math.round((item.vote_average || 8) * 140),
+        votesDislikes: 12,
+        vhsTapeColor: isTv ? '#10b981' : '#00ff88'
+      } as Movie;
+    });
+  }, [tmdbTrendingList, movies]);
 
   // Fita VHS Mais Desejada (Fita #1 em alta no TMDB disponível no catálogo, ou Fixação do Admin)
   const mostDesejadaMovie = useMemo(() => {
-    if (movies.length === 0) return null;
+    if (movies.length === 0 && tmdbTrendingContentList.length === 0) return null;
 
     // 1. MODO MANUAL: Prioridade total se o Admin fixou uma fita específica
     if (pinnedMostDesiredMovieId) {
@@ -808,53 +887,9 @@ export default function App() {
       if (pinned) return pinned;
     }
 
-    // 2. TENDÊNCIAS DO TMDB: Seleciona a fita #1 em alta no TMDB
-    if (tmdbTrendingList && tmdbTrendingList.length > 0) {
-      for (const trending of tmdbTrendingList) {
-        if (trending.id) {
-          const matchByTmdbId = movies.find(m => m.tmdbId === trending.id);
-          if (matchByTmdbId) return matchByTmdbId;
-        }
-
-        const trendingTitle = (trending.title || trending.name || '').toLowerCase().trim();
-        if (trendingTitle) {
-          const matchByTitle = movies.find(m => {
-            const mTitle = m.title.toLowerCase().trim();
-            return mTitle === trendingTitle || mTitle.includes(trendingTitle) || trendingTitle.includes(mTitle);
-          });
-          if (matchByTitle) return matchByTitle;
-        }
-      }
-
-      // Se o item #1 do TMDB não está no acervo local ainda, cria dinamicamente o objeto Movie
-      // do item #1 do TMDB para garantir que a Tendência #1 seja EXATAMENTE o que está em alta no TMDB
-      const topTrending = tmdbTrendingList[0];
-      if (topTrending) {
-        const isTv = topTrending.media_type === 'tv' || Boolean(topTrending.name);
-        const title = topTrending.title || topTrending.name || 'Tendência TMDB';
-        const releaseDate = topTrending.release_date || topTrending.first_air_date || '2026';
-        const year = parseInt(releaseDate.substring(0, 4)) || new Date().getFullYear();
-        
-        const dynamicMovie: Movie = {
-          id: `tmdb_trend_${topTrending.id}`,
-          tmdbId: topTrending.id,
-          title: title,
-          type: isTv ? 'series' : 'movie',
-          category: isTv ? 'Séries' : 'Ação',
-          year: year,
-          rating: Number((topTrending.vote_average || 8.5).toFixed(1)),
-          duration: isTv ? '1 Temporada' : '2h 10m',
-          posterUrl: getCleanPosterUrl(topTrending.poster_path),
-          backdropUrl: getCleanBackdropUrl(topTrending.backdrop_path, topTrending.poster_path),
-          description: topTrending.overview || 'Título em alta no TMDB hoje.',
-          trailerUrl: 'https://www.youtube.com/embed/CRRlbK5w8AE',
-          isFeatured: true,
-          clicksCount: topTrending.vote_count || 1250,
-          votesLikes: Math.round((topTrending.vote_average || 8.5) * 100),
-          votesDislikes: 12
-        };
-        return dynamicMovie;
-      }
+    // 2. TENDÊNCIAS DO TMDB: Seleciona a fita #1 da lista de tendências
+    if (tmdbTrendingContentList.length > 0) {
+      return tmdbTrendingContentList[0];
     }
 
     // 3. FALLBACK: Fita com maior pontuação (Nota + Curtidas)
@@ -865,7 +900,7 @@ export default function App() {
     });
 
     return sorted[0];
-  }, [movies, pinnedMostDesiredMovieId, tmdbTrendingList]);
+  }, [movies, pinnedMostDesiredMovieId, tmdbTrendingContentList]);
 
   const isMostDesiredPinnedByAdmin = useMemo(() => {
     return Boolean(pinnedMostDesiredMovieId && movies.some(m => m.id === pinnedMostDesiredMovieId));
@@ -881,9 +916,15 @@ export default function App() {
     return movies.filter(m => m.type === 'series').sort(sortByReleaseYear).slice(0, 10);
   }, [movies]);
 
-  // 10 Melhores Avaliações (Ordenado por Nota)
+  // 10 Melhores Avaliações (Ordenado de forma 100% ESTÁVEL e determinística por Nota, Curtidas e ID para não mudar capas)
   const moviesSortedByRatingTop10 = useMemo(() => {
-    return [...movies].sort((a, b) => (b.rating || 0) - (a.rating || 0)).slice(0, 10);
+    return [...movies].sort((a, b) => {
+      const diff = (b.rating || 0) - (a.rating || 0);
+      if (Math.abs(diff) > 0.001) return diff;
+      const likesDiff = (b.votesLikes || 0) - (a.votesLikes || 0);
+      if (likesDiff !== 0) return likesDiff;
+      return String(a.id).localeCompare(String(b.id));
+    }).slice(0, 10);
   }, [movies]);
 
   // 10 VHS Recém Adicionados (Ordenado estritamente por ordem de adição no admin)
@@ -926,7 +967,8 @@ export default function App() {
     } else if (activeTab === 'series') {
       list = list.filter(m => m.type === 'series');
     } else if (activeTab === 'mylist' && activeProfile) {
-      list = list.filter(m => activeProfile.myList.includes(m.id));
+      const savedList = Array.isArray(activeProfile.myList) ? activeProfile.myList : [];
+      list = list.filter(m => savedList.some(id => String(id) === String(m.id) || (m.tmdbId && String(id) === `tmdb_${m.tmdbId}`)));
     }
 
     // Filtro por categoria selecionada
@@ -1154,24 +1196,62 @@ export default function App() {
     localStorage.removeItem('vhs_session_logged_in');
   };
 
-  // --- TRATADORES DE LISTA E WATCH HISTORY (LOCALSTORAGE ENGINE) ---
+  // --- TRATADORES DE LISTA E WATCH HISTORY (LOCALSTORAGE ENGINE & CLOUD FIRESTORE) ---
   const handleToggleMyList = (movieId: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation(); // Evita abrir o modal se clicar no card
-    if (!currentProfileId) return;
+    const strMovieId = String(movieId).trim();
+    if (!strMovieId) return;
+
+    const targetUserId = currentUserId || users[0]?.id || 'u1';
+    const userProfs = allProfiles[targetUserId] || [];
+    const targetProfile = (currentProfileId ? userProfs.find(p => p.id === currentProfileId) : null) || userProfs[0];
+
+    if (!targetProfile) {
+      console.warn('[MyList] Nenhum perfil encontrado para alternar fita:', strMovieId);
+      return;
+    }
+
+    const targetPid = targetProfile.id;
 
     setAllProfiles(prev => {
-      const userList = prev[currentUserId] || [];
-      const updatedList = userList.map(p => {
-        if (p.id === currentProfileId) {
-          const exists = p.myList.includes(movieId);
+      const currentList = prev[targetUserId] || (targetProfile ? [targetProfile] : []);
+      let targetFound = false;
+      const updatedUserProfs = currentList.map(p => {
+        if (p.id === targetPid) {
+          targetFound = true;
+          const currentMyList = Array.isArray(p.myList) ? p.myList.map(String) : [];
+          const exists = currentMyList.some(id => String(id) === strMovieId);
           const nextMyList = exists 
-            ? p.myList.filter(id => id !== movieId) 
-            : [...p.myList, movieId];
+            ? currentMyList.filter(id => String(id) !== strMovieId) 
+            : [...currentMyList, strMovieId];
           return { ...p, myList: nextMyList };
         }
         return p;
       });
-      return { ...prev, [currentUserId]: updatedList };
+
+      if (!targetFound && currentList.length > 0) {
+        const p = currentList[0];
+        const currentMyList = Array.isArray(p.myList) ? p.myList.map(String) : [];
+        const exists = currentMyList.some(id => String(id) === strMovieId);
+        const nextMyList = exists 
+          ? currentMyList.filter(id => String(id) !== strMovieId) 
+          : [...currentMyList, strMovieId];
+        updatedUserProfs[0] = { ...p, myList: nextMyList };
+      }
+
+      const nextAllProfiles = { ...prev, [targetUserId]: updatedUserProfs };
+
+      // 1. Imediatamente salva de forma síncrona no LocalStorage
+      try {
+        localStorage.setItem('vhsflix_profiles', JSON.stringify(nextAllProfiles));
+      } catch (err) {
+        console.warn('Erro ao salvar perfis no LocalStorage:', err);
+      }
+
+      // 2. Imediatamente envia para a nuvem no Firestore
+      saveProfilesToFirestore({ [targetUserId]: updatedUserProfs });
+
+      return nextAllProfiles;
     });
   };
 
@@ -1182,14 +1262,18 @@ export default function App() {
     duration: number, 
     isFinished: boolean
   ) => {
-    if (!currentProfileId) return;
+    const targetUserId = currentUserId || users[0]?.id || 'u1';
+    const userProfs = allProfiles[targetUserId] || [];
+    const targetProfile = (currentProfileId ? userProfs.find(p => p.id === currentProfileId) : null) || userProfs[0];
+    if (!targetProfile) return;
+    const targetPid = targetProfile.id;
 
     setAllProfiles(prev => {
-      const userList = prev[currentUserId] || [];
+      const userList = prev[targetUserId] || [];
       const updatedList = userList.map(p => {
-        if (p.id === currentProfileId) {
+        if (p.id === targetPid) {
           const currentProgress: WatchProgress = {
-            movieId,
+            movieId: String(movieId),
             progress,
             currentTime,
             duration,
@@ -1200,16 +1284,28 @@ export default function App() {
           const nextHistory = { ...p.watchHistory };
           if (isFinished) {
             // Se concluiu a fita, marcamos como finalizado
-            nextHistory[movieId] = { ...currentProgress, progress: 100, isFinished: true };
+            nextHistory[String(movieId)] = { ...currentProgress, progress: 100, isFinished: true };
           } else {
-            nextHistory[movieId] = currentProgress;
+            nextHistory[String(movieId)] = currentProgress;
           }
 
           return { ...p, watchHistory: nextHistory };
         }
         return p;
       });
-      return { ...prev, [currentUserId]: updatedList };
+
+      const nextAll = { ...prev, [targetUserId]: updatedList };
+      try {
+        localStorage.setItem('vhsflix_profiles', JSON.stringify(nextAll));
+      } catch (err) {
+        console.warn('Erro ao salvar progresso no LocalStorage:', err);
+      }
+
+      if (isFinished) {
+        saveProfilesToFirestore({ [targetUserId]: updatedList });
+      }
+
+      return nextAll;
     });
   };
 
@@ -1858,14 +1954,14 @@ export default function App() {
                         whileTap={{ scale: 0.90 }}
                         onClick={() => handleToggleMyList(featuredMovie.id)}
                         className={`p-3 sm:p-4 border rounded-full transition-all flex items-center justify-center cursor-pointer ${
-                          activeProfile.myList.includes(featuredMovie.id)
+                          (activeProfile?.myList || []).some(id => String(id) === String(featuredMovie.id) || (featuredMovie.tmdbId && String(id) === `tmdb_${featuredMovie.tmdbId}`))
                             ? 'bg-rose-500/10 border-rose-500 text-rose-400'
                             : 'border-zinc-750 text-zinc-400 hover:text-white hover:border-zinc-500 bg-zinc-900/60'
                         }`}
                         title="Adicionar à lista"
                         id="btn-hero-add-list"
                       >
-                        {activeProfile.myList.includes(featuredMovie.id) ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                        {(activeProfile?.myList || []).some(id => String(id) === String(featuredMovie.id) || (featuredMovie.tmdbId && String(id) === `tmdb_${featuredMovie.tmdbId}`)) ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
                       </motion.button>
                     </motion.div>
                   </div>
@@ -1945,20 +2041,82 @@ export default function App() {
                   })()
                 )}
 
-                {/* --- 2.B.I.B: SPOTHLIGHT / HIGHLIGHT DA FITA VHS MAIS DESEJADA (TENDÊNCIAS + MANUAL PIN) --- */}
+                {/* --- 2.B.I.B: SPOTLIGHT / RADAR DE TENDÊNCIAS TMDB • FILMES & SÉRIES (VERDE NEON PROFISSIONAL) --- */}
                 {!searchVal && !selectedCategory && activeTab === 'all' && mostDesejadaMovie && (
-                  <div className="px-4 sm:px-8 mb-10 select-none animate-fade-in">
-                    <div className="relative overflow-hidden rounded-2xl border-2 border-rose-500/40 bg-gradient-to-r from-zinc-950 via-rose-950/25 to-zinc-950 p-5 sm:p-7 flex flex-col md:flex-row items-center gap-6 shadow-2xl shadow-rose-950/40 hover:border-rose-500/80 transition-all duration-300">
-                      {/* Efeitos neon glow e partículas de iluminação retro */}
-                      <div className="absolute top-0 right-0 w-96 h-96 bg-rose-600/15 rounded-full blur-[120px] pointer-events-none"></div>
-                      <div className="absolute bottom-0 left-0 w-80 h-80 bg-amber-500/10 rounded-full blur-[100px] pointer-events-none"></div>
-                      <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff05_1px,transparent_1px),linear-gradient(to_bottom,#ffffff05_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none"></div>
+                  <div className="px-4 sm:px-8 mb-8 select-none animate-fade-in" id="tmdb-trending-spotlight-section">
+                    {/* Header do Radar com Estética Verde Neon e Filtros Filmes/Séries */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="relative flex items-center justify-center">
+                          <span className="absolute w-4 h-4 rounded-full bg-emerald-400 opacity-75 animate-ping"></span>
+                          <span className="relative w-3 h-3 rounded-full bg-emerald-400 shadow-[0_0_12px_#10b981]"></span>
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h2 className="text-base sm:text-xl font-black tracking-tight text-white font-display flex items-center gap-2 uppercase">
+                              Tendências do TMDB <span className="text-emerald-400 font-mono text-xs sm:text-sm font-bold tracking-widest px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/40 shadow-[0_0_10px_rgba(16,185,129,0.3)]">LIVE RADAR</span>
+                            </h2>
+                          </div>
+                          <p className="text-[11px] sm:text-xs text-zinc-400 mt-0.5">
+                            Os títulos mais pesquisados e assistidos no mundo hoje em filmes e séries via TMDB
+                          </p>
+                        </div>
+                      </div>
 
-                      {/* Capa VHS Interativa (Foto Livre sem escrita por cima) */}
+                      {/* Seletor Rápido: Todos, Filmes ou Séries (Verde Neon) */}
+                      <div className="flex items-center gap-1.5 bg-zinc-950/90 p-1 rounded-xl border border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.15)] self-start sm:self-auto">
+                        <button
+                          onClick={() => setTmdbTrendingType('all')}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition-all flex items-center gap-1.5 ${
+                            tmdbTrendingType === 'all'
+                              ? 'bg-emerald-500 text-zinc-950 shadow-[0_0_12px_rgba(16,185,129,0.5)]'
+                              : 'text-zinc-400 hover:text-emerald-300 hover:bg-zinc-900'
+                          }`}
+                          id="btn-tmdb-trend-all"
+                        >
+                          <Flame className="w-3.5 h-3.5" />
+                          <span>Todos</span>
+                        </button>
+                        <button
+                          onClick={() => setTmdbTrendingType('movie')}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition-all flex items-center gap-1.5 ${
+                            tmdbTrendingType === 'movie'
+                              ? 'bg-emerald-500 text-zinc-950 shadow-[0_0_12px_rgba(16,185,129,0.5)]'
+                              : 'text-zinc-400 hover:text-emerald-300 hover:bg-zinc-900'
+                          }`}
+                          id="btn-tmdb-trend-movie"
+                        >
+                          <Film className="w-3.5 h-3.5" />
+                          <span>Filmes</span>
+                        </button>
+                        <button
+                          onClick={() => setTmdbTrendingType('tv')}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition-all flex items-center gap-1.5 ${
+                            tmdbTrendingType === 'tv'
+                              ? 'bg-emerald-500 text-zinc-950 shadow-[0_0_12px_rgba(16,185,129,0.5)]'
+                              : 'text-zinc-400 hover:text-emerald-300 hover:bg-zinc-900'
+                          }`}
+                          id="btn-tmdb-trend-tv"
+                        >
+                          <Tv className="w-3.5 h-3.5" />
+                          <span>Séries</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Cartão de Destaque / Spotlight em Verde Neon */}
+                    <div className="relative overflow-hidden rounded-2xl border-2 border-emerald-500/50 bg-gradient-to-r from-zinc-950 via-zinc-950 to-emerald-950/30 p-5 sm:p-7 flex flex-col md:flex-row items-center gap-6 shadow-[0_0_35px_rgba(16,185,129,0.2)] hover:border-emerald-400 hover:shadow-[0_0_45px_rgba(0,255,136,0.3)] transition-all duration-300 group/spotlight">
+                      {/* Efeitos neon glow e grade retro */}
+                      <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-500/15 rounded-full blur-[120px] pointer-events-none"></div>
+                      <div className="absolute bottom-0 left-0 w-80 h-80 bg-teal-500/10 rounded-full blur-[100px] pointer-events-none"></div>
+                      <div className="absolute inset-0 bg-[linear-gradient(to_right,#10b98108_1px,transparent_1px),linear-gradient(to_bottom,#10b98108_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none"></div>
+
+                      {/* Capa VHS Interativa com borda verde neon */}
                       <div 
                         onClick={() => handleSelectMovie(mostDesejadaMovie)}
-                        className="relative shrink-0 w-36 sm:w-44 aspect-[2/3] rounded-xl overflow-hidden border-2 border-rose-500 shadow-2xl shadow-rose-500/30 scale-100 hover:scale-105 transition-all duration-300 cursor-pointer group z-10"
+                        className="relative shrink-0 w-36 sm:w-44 aspect-[2/3] rounded-xl overflow-hidden border-2 border-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.4)] scale-100 group-hover/spotlight:scale-105 transition-all duration-300 cursor-pointer group z-10"
                         title={mostDesejadaMovie.title}
+                        id="spotlight-poster-cover"
                       >
                         <img 
                           src={getCleanPosterUrl(mostDesejadaMovie.posterUrl)} 
@@ -1968,9 +2126,9 @@ export default function App() {
                           onError={handlePosterError}
                         />
 
-                        {/* Hover Overlay para Sintonizar */}
-                        <div className="absolute inset-0 bg-rose-900/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                          <div className="bg-rose-600 text-white p-3 rounded-full shadow-xl transform scale-90 group-hover:scale-100 transition-transform flex items-center gap-1 font-mono text-xs font-bold uppercase">
+                        {/* Hover Overlay Verde Neon para Sintonizar */}
+                        <div className="absolute inset-0 bg-emerald-950/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          <div className="bg-emerald-500 text-zinc-950 p-3 rounded-full shadow-[0_0_15px_rgba(16,185,129,0.8)] transform scale-90 group-hover:scale-100 transition-transform flex items-center gap-1 font-mono text-xs font-bold uppercase">
                             <Play className="w-5 h-5 fill-current ml-0.5" />
                           </div>
                         </div>
@@ -1978,22 +2136,26 @@ export default function App() {
 
                       {/* Conteúdo Detalhado e Métricas */}
                       <div className="flex-1 text-center md:text-left flex flex-col items-center md:items-start z-10">
-                        {/* Tag/Selo Fora do Quadrado da Imagem */}
+                        {/* Badges do Spotlight */}
                         <div className="flex flex-wrap items-center justify-center md:justify-start gap-2.5">
                           {isMostDesiredPinnedByAdmin ? (
-                            <span className="text-[11px] sm:text-xs font-mono font-black text-rose-300 uppercase tracking-widest bg-rose-600/25 border-2 border-rose-500/50 px-3.5 py-1.5 rounded-full flex items-center gap-1.5 shadow-lg shadow-rose-950/40">
-                              <Sparkles className="w-4 h-4 text-rose-400 animate-spin" />
-                              📌 DESTAQUE ESPECIAL • FITA VHS MAIS DESEJADA
+                            <span className="text-[11px] sm:text-xs font-mono font-black text-emerald-300 uppercase tracking-widest bg-emerald-950/60 border-2 border-emerald-400 px-3.5 py-1.5 rounded-full flex items-center gap-1.5 shadow-[0_0_15px_rgba(16,185,129,0.35)]">
+                              <Sparkles className="w-4 h-4 text-emerald-300 animate-spin" />
+                              📌 DESTAQUE ESPECIAL • FITA MAIS DESEJADA
                             </span>
                           ) : (
-                            <span className="text-[11px] sm:text-xs font-mono font-black text-amber-300 uppercase tracking-widest bg-amber-500/25 border-2 border-amber-500/50 px-3.5 py-1.5 rounded-full flex items-center gap-1.5 shadow-lg shadow-amber-950/40">
-                              <Flame className="w-4 h-4 fill-amber-400 text-amber-400 animate-pulse" />
-                              🔥 TENDÊNCIA Nº 1 DO TMDB
+                            <span className="text-[11px] sm:text-xs font-mono font-black text-zinc-950 uppercase tracking-widest bg-emerald-400 border border-emerald-300 px-3.5 py-1.5 rounded-full flex items-center gap-1.5 shadow-[0_0_15px_rgba(16,185,129,0.5)] font-bold">
+                              <Flame className="w-4 h-4 fill-current text-zinc-950 animate-pulse" />
+                              🔥 Nº 1 EM ALTA NO TMDB
                             </span>
                           )}
 
-                          <span className="text-[10px] sm:text-xs font-mono text-emerald-400 bg-emerald-500/15 px-3 py-1 rounded-full border border-emerald-500/30 font-bold flex items-center gap-1">
-                            🔥 {mostDesejadaMovie.clicksCount || 0} acessos
+                          <span className="text-[10px] sm:text-xs font-mono text-emerald-300 bg-emerald-500/15 px-3 py-1 rounded-full border border-emerald-500/40 font-bold flex items-center gap-1">
+                            ⚡ {mostDesejadaMovie.type === 'series' ? 'SÉRIE' : 'FILME'}
+                          </span>
+
+                          <span className="text-[10px] sm:text-xs font-mono text-zinc-300 bg-zinc-900/80 px-3 py-1 rounded-full border border-zinc-700 font-medium flex items-center gap-1">
+                            🔥 {mostDesejadaMovie.clicksCount || 1850} acessos
                           </span>
                         </div>
 
@@ -2007,15 +2169,15 @@ export default function App() {
 
                         {/* Metadados Estilizados */}
                         <div className="flex flex-wrap items-center justify-center md:justify-start gap-2.5 sm:gap-3.5 text-xs font-mono text-zinc-400 mt-4">
-                          <span className="flex items-center gap-1 bg-zinc-900/80 border border-zinc-800 px-2.5 py-1 rounded text-white font-bold">
-                            <Star className="w-3.5 h-3.5 text-yellow-400 fill-current" />
-                            <span>{mostDesejadaMovie.rating}</span>
-                            <span className="text-zinc-500 text-[10px]">/10</span>
+                          <span className="flex items-center gap-1 bg-zinc-900/90 border border-emerald-500/40 px-2.5 py-1 rounded text-white font-bold shadow-[0_0_10px_rgba(16,185,129,0.2)]">
+                            <Star className="w-3.5 h-3.5 text-emerald-400 fill-current" />
+                            <span className="text-emerald-300 font-black">{mostDesejadaMovie.rating}</span>
+                            <span className="text-zinc-500 text-[10px]">/10 TMDB</span>
                           </span>
                           <span className="bg-zinc-900/80 border border-zinc-800 px-2.5 py-1 rounded text-zinc-300">
                             {mostDesejadaMovie.year}
                           </span>
-                          <span className="bg-zinc-900/80 border border-zinc-800 px-2.5 py-1 rounded text-rose-400 font-semibold uppercase">
+                          <span className="bg-zinc-900/80 border border-emerald-500/30 px-2.5 py-1 rounded text-emerald-400 font-semibold uppercase">
                             {mostDesejadaMovie.category}
                           </span>
                           <span className="bg-zinc-900/80 border border-zinc-800 px-2.5 py-1 rounded text-zinc-300">
@@ -2023,11 +2185,11 @@ export default function App() {
                           </span>
                         </div>
 
-                        {/* Botões Interativos de Ação */}
+                        {/* Botões Interativos de Ação em Verde Neon */}
                         <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 mt-6">
                           <button
                             onClick={() => handleSelectMovie(mostDesejadaMovie)}
-                            className="bg-rose-600 hover:bg-rose-500 active:scale-95 text-white font-mono text-xs font-black uppercase tracking-wider px-6 py-3 rounded-xl flex items-center gap-2 transition-all cursor-pointer shadow-lg shadow-rose-600/30"
+                            className="bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-zinc-950 font-mono text-xs font-black uppercase tracking-wider px-6 py-3 rounded-xl flex items-center gap-2 transition-all cursor-pointer shadow-[0_0_20px_rgba(16,185,129,0.5)] hover:shadow-[0_0_30px_rgba(16,185,129,0.7)]"
                             id="btn-play-most-desired"
                           >
                             <Play className="w-4.5 h-4.5 fill-current" />
@@ -2041,14 +2203,14 @@ export default function App() {
                             }}
                             className={`border font-mono text-xs font-bold uppercase tracking-wider px-5 py-3 rounded-xl transition-all cursor-pointer flex items-center gap-2 ${
                               activeProfile?.myList?.includes(mostDesejadaMovie.id)
-                                ? 'bg-rose-500/15 border-rose-500 text-rose-400'
-                                : 'border-zinc-700 hover:border-zinc-500 text-zinc-300 hover:text-white bg-zinc-900/60'
+                                ? 'bg-emerald-500/20 border-emerald-400 text-emerald-300 shadow-[0_0_12px_rgba(16,185,129,0.3)]'
+                                : 'border-zinc-700 hover:border-emerald-500/50 text-zinc-300 hover:text-white bg-zinc-900/60'
                             }`}
                             id="btn-toggle-mylist-most-desired"
                           >
                             {activeProfile?.myList?.includes(mostDesejadaMovie.id) ? (
                               <>
-                                <Check className="w-4 h-4 text-rose-400" />
+                                <Check className="w-4 h-4 text-emerald-400" />
                                 <span>Na Sua Estante</span>
                               </>
                             ) : (
@@ -2064,13 +2226,53 @@ export default function App() {
                   </div>
                 )}
 
-                {/* --- 2.B.II: ROWS DE LANÇAMENTOS FILMES, SÉRIES, AVALIAÇÕES E RECÉM ADICIONADOS (10 CADA) --- */}
+                {/* --- 2.B.II: ROWS DE TENDÊNCIAS TMDB, LANÇAMENTOS, AVALIAÇÕES E RECÉM ADICIONADOS --- */}
                 {(!searchVal && !selectedCategory && (activeTab === 'all' || activeTab === 'mylist')) && (
                   (() => {
                     if (activeTab === 'all') {
                       return (
                         <div className="space-y-4">
-                          {/* 1. Lançamentos Filmes (Top 10) */}
+                          {/* 1. Tendências do TMDB (Filmes e Séries em Alta Global) - Verde Neon */}
+                          {tmdbTrendingContentList.length > 0 && (
+                            <MovieRow
+                              title={`Tendências TMDB em Alta • ${tmdbTrendingType === 'movie' ? 'Filmes' : tmdbTrendingType === 'tv' ? 'Séries' : 'Filmes & Séries'}`}
+                              icon={
+                                <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-400/50 flex items-center justify-center text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.4)]">
+                                  <Flame className="w-4 h-4 fill-current text-emerald-400" />
+                                </div>
+                              }
+                              movies={tmdbTrendingContentList}
+                              watchHistory={activeProfile.watchHistory}
+                              myList={activeProfile.myList}
+                              onMovieClick={handleSelectMovie}
+                              onToggleMyList={handleToggleMyList}
+                              onPlayClick={handleFeaturedPlay}
+                              showRankingBadge={true}
+                              accentColor="neon"
+                              showCount={true}
+                            />
+                          )}
+
+                          {/* 2. Melhores Avaliações (Top 10) - Capas 100% Estáveis e Verde Neon */}
+                          <MovieRow
+                            title="Melhores Avaliações • Top 10"
+                            icon={
+                              <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-400/50 flex items-center justify-center text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.4)]">
+                                <Sparkles className="w-4 h-4 text-emerald-400" />
+                              </div>
+                            }
+                            movies={moviesSortedByRatingTop10}
+                            watchHistory={activeProfile.watchHistory}
+                            myList={activeProfile.myList}
+                            onMovieClick={handleSelectMovie}
+                            onToggleMyList={handleToggleMyList}
+                            onPlayClick={handleFeaturedPlay}
+                            showRankingBadge={true}
+                            accentColor="neon"
+                            showCount={true}
+                          />
+
+                          {/* 3. Lançamentos Filmes (Top 10) */}
                           <MovieRow
                             title="Lançamentos Filmes"
                             icon={
@@ -2086,7 +2288,7 @@ export default function App() {
                             onPlayClick={handleFeaturedPlay}
                           />
 
-                          {/* 2. Lançamentos Séries (Top 10) */}
+                          {/* 4. Lançamentos Séries (Top 10) */}
                           <MovieRow
                             title="Lançamentos Séries"
                             icon={
@@ -2102,23 +2304,7 @@ export default function App() {
                             onPlayClick={handleFeaturedPlay}
                           />
 
-                          {/* 3. Melhores Avaliações (Top 10) */}
-                          <MovieRow
-                            title="Melhores Avaliações"
-                            icon={
-                              <div className="w-8 h-8 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.35)]">
-                                <Sparkles className="w-4 h-4" />
-                              </div>
-                            }
-                            movies={moviesSortedByRatingTop10}
-                            watchHistory={activeProfile.watchHistory}
-                            myList={activeProfile.myList}
-                            onMovieClick={handleSelectMovie}
-                            onToggleMyList={handleToggleMyList}
-                            onPlayClick={handleFeaturedPlay}
-                          />
-
-                          {/* 4. VHS Recém Adicionados (Top 10) */}
+                          {/* 5. VHS Recém Adicionados (Top 10) */}
                           <MovieRow
                             title="VHS Recém Adicionados"
                             icon={
@@ -2137,7 +2323,8 @@ export default function App() {
                       );
                     } else {
                       // activeTab === 'mylist'
-                      const listMovies = movies.filter(m => activeProfile.myList.includes(m.id));
+                      const savedMyList = Array.isArray(activeProfile?.myList) ? activeProfile.myList : [];
+                      const listMovies = movies.filter(m => savedMyList.some(id => String(id) === String(m.id) || (m.tmdbId && String(id) === `tmdb_${m.tmdbId}`)));
                       if (listMovies.length === 0) {
                         return (
                           <div className="text-center py-24 px-4 font-sans max-w-md mx-auto flex flex-col items-center">

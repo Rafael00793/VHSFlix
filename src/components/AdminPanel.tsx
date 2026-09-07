@@ -771,16 +771,21 @@ export default function AdminPanel({
     <div className="min-h-screen bg-zinc-950 font-sans text-zinc-100 pt-28 pb-16 px-4 sm:px-8 vhs-grid-pattern">
       <div className="max-w-[1400px] mx-auto">
         
-        {/* Cabeçalho do Painel com Efeitos Modernos */}
-        <div className="relative flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 border-b border-zinc-800/80 pb-6">
+        {/* Cabeçalho do Painel com Efeitos Modernos e Animações Profissionais */}
+        <motion.div 
+          initial={{ opacity: 0, y: -12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, ease: "easeOut" }}
+          className="relative flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 border-b border-zinc-800/80 pb-6"
+        >
           <div className="relative">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rose-500/10 border border-rose-500/25 text-rose-400 text-[11px] font-mono font-bold tracking-wider uppercase mb-2">
               <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
               Console Administrativo
             </div>
             <h1 className="text-3xl sm:text-4xl font-black font-display tracking-tight text-white flex items-center gap-3">
-              <Shield className="w-8 h-8 text-rose-600 drop-shadow-[0_0_12px_rgba(225,29,72,0.6)]" /> 
-              VHSFLIX <span className="text-rose-500 font-mono italic text-xl sm:text-2xl font-light">PRO PANEL</span>
+              <Shield className="w-8 h-8 text-rose-600 drop-shadow-[0_0_14px_rgba(225,29,72,0.65)]" /> 
+              VHSFLIX <span className="text-transparent bg-clip-text bg-gradient-to-r from-rose-500 via-rose-400 to-amber-400 font-mono italic text-xl sm:text-2xl font-light">PRO PANEL</span>
             </h1>
             <p className="text-xs text-zinc-400 font-sans mt-1 tracking-normal">
               Gestão de mídias, importador inteligente TMDB/Abyss, monitoramento de usuários e controle retro.
@@ -788,17 +793,17 @@ export default function AdminPanel({
           </div>
 
           <div className="flex items-center gap-3 flex-wrap">
-            <div className="px-3.5 py-1.5 rounded-xl bg-zinc-900/90 border border-zinc-800 flex items-center gap-2 text-xs font-mono">
+            <div className="px-3.5 py-1.5 rounded-xl bg-zinc-900/90 border border-zinc-800/90 flex items-center gap-2 text-xs font-mono shadow-sm">
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               <span className="text-zinc-400">STATUS:</span>
               <span className="text-emerald-400 font-bold">ONLINE</span>
             </div>
-            <div className="px-3.5 py-1.5 rounded-xl bg-zinc-900/90 border border-zinc-800 flex items-center gap-2 text-xs font-mono text-zinc-300">
+            <div className="px-3.5 py-1.5 rounded-xl bg-zinc-900/90 border border-zinc-800/90 flex items-center gap-2 text-xs font-mono text-zinc-300 shadow-sm">
               <span className="text-zinc-500">TITULAR:</span>
               <span className="text-white font-bold">{currentUser.name || 'Admin'}</span>
             </div>
           </div>
-        </div>
+        </motion.div>
 
         {/* Estrutura Lateral Principal (Sidebar + Conteúdo das Abas) */}
         <div className="flex flex-col lg:flex-row gap-8 mt-2">
@@ -814,13 +819,13 @@ export default function AdminPanel({
                 <div className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
               </div>
 
-              {/* Menu de Abas na Sidebar */}
+              {/* Menu de Abas na Sidebar com animações de toque e hover */}
               <nav className="flex flex-row lg:flex-col overflow-x-auto lg:overflow-x-visible pb-2 lg:pb-0 gap-2 scrollbar-none">
                 <button
                   onClick={() => { setActiveAdminTab('dashboard'); setIsFormOpen(false); }}
-                  className={`w-full px-3.5 py-3 rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-start gap-3 transition-all truncate whitespace-nowrap cursor-pointer ${
+                  className={`w-full px-3.5 py-3 rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-start gap-3 transition-all truncate whitespace-nowrap cursor-pointer hover:scale-[1.01] active:scale-[0.98] ${
                     activeAdminTab === 'dashboard'
-                      ? 'bg-gradient-to-r from-rose-600 to-rose-700 text-white shadow-lg shadow-rose-600/20 font-bold translate-x-0.5'
+                      ? 'bg-gradient-to-r from-rose-600 to-rose-700 text-white shadow-lg shadow-rose-600/25 font-bold translate-x-0.5 border border-rose-500/40'
                       : 'text-zinc-400 hover:text-white hover:bg-zinc-800/60'
                   }`}
                 >
@@ -830,9 +835,9 @@ export default function AdminPanel({
 
                 <button
                   onClick={() => { setActiveAdminTab('catalog'); setIsFormOpen(false); }}
-                  className={`w-full px-3.5 py-3 rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-start gap-3 transition-all truncate whitespace-nowrap cursor-pointer ${
+                  className={`w-full px-3.5 py-3 rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-start gap-3 transition-all truncate whitespace-nowrap cursor-pointer hover:scale-[1.01] active:scale-[0.98] ${
                     activeAdminTab === 'catalog'
-                      ? 'bg-gradient-to-r from-rose-600 to-rose-700 text-white shadow-lg shadow-rose-600/20 font-bold translate-x-0.5'
+                      ? 'bg-gradient-to-r from-rose-600 to-rose-700 text-white shadow-lg shadow-rose-600/25 font-bold translate-x-0.5 border border-rose-500/40'
                       : 'text-zinc-400 hover:text-white hover:bg-zinc-800/60'
                   }`}
                   id="sidebar-btn-catalog"
@@ -846,9 +851,9 @@ export default function AdminPanel({
 
                 <button
                   onClick={() => { setActiveAdminTab('users'); setIsFormOpen(false); }}
-                  className={`w-full px-3.5 py-3 rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-start gap-3 transition-all truncate whitespace-nowrap cursor-pointer ${
+                  className={`w-full px-3.5 py-3 rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-start gap-3 transition-all truncate whitespace-nowrap cursor-pointer hover:scale-[1.01] active:scale-[0.98] ${
                     activeAdminTab === 'users'
-                      ? 'bg-gradient-to-r from-rose-600 to-rose-700 text-white shadow-lg shadow-rose-600/20 font-bold translate-x-0.5'
+                      ? 'bg-gradient-to-r from-rose-600 to-rose-700 text-white shadow-lg shadow-rose-600/25 font-bold translate-x-0.5 border border-rose-500/40'
                       : 'text-zinc-400 hover:text-white hover:bg-zinc-800/60'
                   }`}
                   id="sidebar-btn-users"
@@ -862,9 +867,9 @@ export default function AdminPanel({
 
                 <button
                   onClick={() => { setActiveAdminTab('myaccount'); setIsFormOpen(false); }}
-                  className={`w-full px-3.5 py-3 rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-start gap-3 transition-all truncate whitespace-nowrap cursor-pointer ${
+                  className={`w-full px-3.5 py-3 rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-start gap-3 transition-all truncate whitespace-nowrap cursor-pointer hover:scale-[1.01] active:scale-[0.98] ${
                     activeAdminTab === 'myaccount'
-                      ? 'bg-gradient-to-r from-rose-600 to-rose-700 text-white shadow-lg shadow-rose-600/20 font-bold translate-x-0.5'
+                      ? 'bg-gradient-to-r from-rose-600 to-rose-700 text-white shadow-lg shadow-rose-600/25 font-bold translate-x-0.5 border border-rose-500/40'
                       : 'text-zinc-400 hover:text-white hover:bg-zinc-800/60'
                   }`}
                   id="sidebar-btn-myaccount"
@@ -875,9 +880,9 @@ export default function AdminPanel({
 
                 <button
                   onClick={() => { setActiveAdminTab('settings'); setIsFormOpen(false); }}
-                  className={`w-full px-3.5 py-3 rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-start gap-3 transition-all truncate whitespace-nowrap cursor-pointer ${
+                  className={`w-full px-3.5 py-3 rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-start gap-3 transition-all truncate whitespace-nowrap cursor-pointer hover:scale-[1.01] active:scale-[0.98] ${
                     activeAdminTab === 'settings'
-                      ? 'bg-gradient-to-r from-rose-600 to-rose-700 text-white shadow-lg shadow-rose-600/20 font-bold translate-x-0.5'
+                      ? 'bg-gradient-to-r from-rose-600 to-rose-700 text-white shadow-lg shadow-rose-600/25 font-bold translate-x-0.5 border border-rose-500/40'
                       : 'text-zinc-400 hover:text-white hover:bg-zinc-800/60'
                   }`}
                   id="sidebar-btn-settings"
@@ -912,28 +917,31 @@ export default function AdminPanel({
           {/* COLUNA DA DIREITA: CONTEÚDO PRINCIPAL DINÂMICO */}
           <div className="flex-1 space-y-6">
 
-            {/* --- ABA 0: DASHBOARD STATS GERAIS (MODERNIZADO E RESUMIDO) --- */}
+            {/* --- ABA 0: DASHBOARD STATS GERAIS (EXECUTIVO, RESUMIDO E COM ANIMAÇÕES PROFISSIONAIS) --- */}
             {activeAdminTab === 'dashboard' && (
               <motion.div 
-                initial={{ opacity: 0, y: 10 }}
+                initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.25 }}
+                transition={{ duration: 0.3, ease: "easeOut" }}
                 className="space-y-6"
               >
                 
-                {/* HUD Resumido de Alta Visibilidade */}
+                {/* HUD Resumido de Alta Visibilidade com Stagger Motion */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   
                   {/* Card 1: Catálogo */}
-                  <div className="bg-gradient-to-b from-zinc-900 to-zinc-950 border border-zinc-800/90 p-5 rounded-2xl shadow-xl relative overflow-hidden group hover:border-rose-500/40 transition-all">
+                  <motion.div 
+                    whileHover={{ y: -3, transition: { duration: 0.2 } }}
+                    className="bg-gradient-to-b from-zinc-900 via-zinc-900/90 to-zinc-950 border border-zinc-800/90 hover:border-rose-500/40 p-5 rounded-2xl shadow-xl relative overflow-hidden group transition-all"
+                  >
                     <div className="absolute top-0 right-0 w-24 h-24 bg-rose-600/10 rounded-full blur-xl pointer-events-none group-hover:bg-rose-600/20 transition-all" />
                     <div className="flex justify-between items-start">
                       <div>
                         <span className="text-[10px] text-zinc-400 font-mono uppercase font-bold tracking-wider">Total de Mídias</span>
-                        <p className="text-3xl font-black font-display text-white mt-1.5">{movies.length}</p>
-                        <p className="text-xs text-zinc-400 mt-1">Fitas no Acervo</p>
+                        <p className="text-3xl font-black font-display text-white mt-1.5 tracking-tight">{movies.length}</p>
+                        <p className="text-xs text-rose-400/90 font-mono mt-0.5 font-semibold">Fitas no Acervo</p>
                       </div>
-                      <div className="p-2.5 bg-rose-500/10 border border-rose-500/25 text-rose-500 rounded-xl">
+                      <div className="p-2.5 bg-rose-500/15 border border-rose-500/30 text-rose-500 rounded-xl shadow-inner">
                         <Film className="w-5 h-5" />
                       </div>
                     </div>
@@ -941,18 +949,21 @@ export default function AdminPanel({
                       <span className="text-emerald-400 font-bold flex items-center gap-1"><Play className="w-3 h-3 fill-emerald-400" /> {countMovies} Filmes</span>
                       <span className="text-sky-400 font-bold flex items-center gap-1"><Tv className="w-3 h-3" /> {countSeries} Séries</span>
                     </div>
-                  </div>
+                  </motion.div>
 
                   {/* Card 2: Usuários e Perfis */}
-                  <div className="bg-gradient-to-b from-zinc-900 to-zinc-950 border border-zinc-800/90 p-5 rounded-2xl shadow-xl relative overflow-hidden group hover:border-emerald-500/40 transition-all">
+                  <motion.div 
+                    whileHover={{ y: -3, transition: { duration: 0.2 } }}
+                    className="bg-gradient-to-b from-zinc-900 via-zinc-900/90 to-zinc-950 border border-zinc-800/90 hover:border-emerald-500/40 p-5 rounded-2xl shadow-xl relative overflow-hidden group transition-all"
+                  >
                     <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-600/10 rounded-full blur-xl pointer-events-none group-hover:bg-emerald-600/20 transition-all" />
                     <div className="flex justify-between items-start">
                       <div>
                         <span className="text-[10px] text-zinc-400 font-mono uppercase font-bold tracking-wider">Espectadores</span>
-                        <p className="text-3xl font-black font-display text-emerald-400 mt-1.5">{users.length}</p>
-                        <p className="text-xs text-zinc-400 mt-1">Contas Registradas</p>
+                        <p className="text-3xl font-black font-display text-emerald-400 mt-1.5 tracking-tight">{users.length}</p>
+                        <p className="text-xs text-emerald-400/80 font-mono mt-0.5 font-semibold">Contas Registradas</p>
                       </div>
-                      <div className="p-2.5 bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 rounded-xl">
+                      <div className="p-2.5 bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 rounded-xl shadow-inner">
                         <Users className="w-5 h-5" />
                       </div>
                     </div>
@@ -960,18 +971,21 @@ export default function AdminPanel({
                       <span>👥 {totalSubProfiles} Subperfis</span>
                       <span className="text-emerald-400 font-bold">100% Conectados</span>
                     </div>
-                  </div>
+                  </motion.div>
 
                   {/* Card 3: Saves e Avaliações */}
-                  <div className="bg-gradient-to-b from-zinc-900 to-zinc-950 border border-zinc-800/90 p-5 rounded-2xl shadow-xl relative overflow-hidden group hover:border-amber-500/40 transition-all">
+                  <motion.div 
+                    whileHover={{ y: -3, transition: { duration: 0.2 } }}
+                    className="bg-gradient-to-b from-zinc-900 via-zinc-900/90 to-zinc-950 border border-zinc-800/90 hover:border-amber-500/40 p-5 rounded-2xl shadow-xl relative overflow-hidden group transition-all"
+                  >
                     <div className="absolute top-0 right-0 w-24 h-24 bg-amber-600/10 rounded-full blur-xl pointer-events-none group-hover:bg-amber-600/20 transition-all" />
                     <div className="flex justify-between items-start">
                       <div>
                         <span className="text-[10px] text-zinc-400 font-mono uppercase font-bold tracking-wider">Favoritos</span>
-                        <p className="text-3xl font-black font-display text-amber-400 mt-1.5">{totalMyListSoma}</p>
-                        <p className="text-xs text-zinc-400 mt-1">Itens em Minha Lista</p>
+                        <p className="text-3xl font-black font-display text-amber-400 mt-1.5 tracking-tight">{totalMyListSoma}</p>
+                        <p className="text-xs text-amber-400/80 font-mono mt-0.5 font-semibold">Itens em Minha Lista</p>
                       </div>
-                      <div className="p-2.5 bg-amber-500/10 border border-amber-500/25 text-amber-400 rounded-xl">
+                      <div className="p-2.5 bg-amber-500/15 border border-amber-500/30 text-amber-400 rounded-xl shadow-inner">
                         <Star className="w-5 h-5" />
                       </div>
                     </div>
@@ -979,18 +993,21 @@ export default function AdminPanel({
                       <span>Nota Média:</span>
                       <span className="text-amber-400 font-bold flex items-center gap-1"><Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" /> {mediaRating} / 10</span>
                     </div>
-                  </div>
+                  </motion.div>
 
                   {/* Card 4: Execuções / Minutos */}
-                  <div className="bg-gradient-to-b from-zinc-900 to-zinc-950 border border-zinc-800/90 p-5 rounded-2xl shadow-xl relative overflow-hidden group hover:border-cyan-500/40 transition-all">
+                  <motion.div 
+                    whileHover={{ y: -3, transition: { duration: 0.2 } }}
+                    className="bg-gradient-to-b from-zinc-900 via-zinc-900/90 to-zinc-950 border border-zinc-800/90 hover:border-cyan-500/40 p-5 rounded-2xl shadow-xl relative overflow-hidden group transition-all"
+                  >
                     <div className="absolute top-0 right-0 w-24 h-24 bg-cyan-600/10 rounded-full blur-xl pointer-events-none group-hover:bg-cyan-600/20 transition-all" />
                     <div className="flex justify-between items-start">
                       <div>
                         <span className="text-[10px] text-zinc-400 font-mono uppercase font-bold tracking-wider">Minutos Rodados</span>
-                        <p className="text-3xl font-black font-display text-cyan-400 mt-1.5">{totalMinutosReproduzidos}</p>
-                        <p className="text-xs text-zinc-400 mt-1">Tempo de Play</p>
+                        <p className="text-3xl font-black font-display text-cyan-400 mt-1.5 tracking-tight">{totalMinutosReproduzidos}</p>
+                        <p className="text-xs text-cyan-400/80 font-mono mt-0.5 font-semibold">Tempo de Play</p>
                       </div>
-                      <div className="p-2.5 bg-cyan-500/10 border border-cyan-500/25 text-cyan-400 rounded-xl">
+                      <div className="p-2.5 bg-cyan-500/15 border border-cyan-500/30 text-cyan-400 rounded-xl shadow-inner">
                         <Clock className="w-5 h-5" />
                       </div>
                     </div>
@@ -998,36 +1015,60 @@ export default function AdminPanel({
                       <span className="text-cyan-300 font-bold">{emProgresso} em Progresso</span>
                       <span className="text-emerald-400 font-bold">{fitasConcluidas} Concluídas</span>
                     </div>
-                  </div>
+                  </motion.div>
 
                 </div>
 
                 {/* Card de Fita Destaque Resumido & Compacto */}
                 {popularMovie && (
-                  <div className="bg-gradient-to-r from-zinc-900 via-zinc-900/95 to-zinc-950 border border-zinc-800 p-5 rounded-2xl shadow-xl flex flex-col sm:flex-row items-center justify-between gap-5 relative overflow-hidden">
-                    <div className="flex-1 space-y-2">
-                      <div className="flex items-center gap-2">
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.98 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.3 }}
+                    className="bg-gradient-to-r from-zinc-950 via-rose-950/20 to-zinc-950 border border-rose-500/30 p-5 sm:p-6 rounded-2xl shadow-xl flex flex-col sm:flex-row items-center justify-between gap-5 relative overflow-hidden"
+                  >
+                    <div className="flex-1 space-y-2.5">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="bg-rose-500/15 border border-rose-500/30 text-rose-400 font-mono text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase flex items-center gap-1.5">
                           <Flame className="w-3.5 h-3.5 text-rose-500 animate-pulse" /> Fita Mais Desejada
                         </span>
+                        {pinnedMostDesiredId ? (
+                          <span className="text-[10px] font-mono bg-rose-500 text-white px-2 py-0.5 rounded-md font-bold uppercase flex items-center gap-1">
+                            <Pin className="w-3 h-3 fill-current" /> Fixada Manualmente
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-mono bg-amber-500/15 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-md font-bold uppercase flex items-center gap-1">
+                            <Flame className="w-3 h-3 text-amber-400 fill-current" /> Popularidade Automática
+                          </span>
+                        )}
                         <span className="text-xs text-zinc-400 font-mono">{popularMovie.category} • {popularMovie.year}</span>
                       </div>
-                      <h4 className="text-xl font-bold text-white font-display uppercase tracking-tight">{popularMovie.title}</h4>
-                      <p className="text-xs text-zinc-400 line-clamp-2 max-w-2xl leading-relaxed">
+                      <h4 className="text-xl sm:text-2xl font-black text-white font-display uppercase tracking-tight">{popularMovie.title}</h4>
+                      <p className="text-xs text-zinc-400 line-clamp-2 max-w-2xl leading-relaxed font-sans">
                         {popularMovie.description}
                       </p>
-                      <div className="pt-2 flex items-center gap-3 text-xs font-mono text-zinc-400">
+                      <div className="pt-2 flex items-center gap-4 text-xs font-mono text-zinc-400">
                         <span className="flex items-center gap-1.5 text-rose-400 font-bold">
                           <TrendingUp className="w-3.5 h-3.5 text-rose-500" /> Salvo em {popularMovieCount} listas
                         </span>
                         <span>•</span>
                         <span className="text-amber-400 font-bold flex items-center gap-1">
-                          <Star className="w-3 h-3 fill-amber-400 text-amber-400" /> {popularMovie.rating} Nota
+                          <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" /> {popularMovie.rating} Nota
                         </span>
+                        <span>•</span>
+                        <button
+                          onClick={() => {
+                            setActiveAdminTab('catalog');
+                            setIsFormOpen(false);
+                          }}
+                          className="text-rose-400 hover:text-white underline cursor-pointer font-bold"
+                        >
+                          Gerenciar no Catálogo &rarr;
+                        </button>
                       </div>
                     </div>
 
-                    <div className="w-24 sm:w-28 aspect-[2/3] rounded-xl overflow-hidden border border-zinc-750 shadow-2xl shrink-0 group">
+                    <div className="w-24 sm:w-28 aspect-[2/3] rounded-xl overflow-hidden border border-rose-500/40 shadow-2xl shrink-0 group">
                       <img
                         src={popularMovie.posterUrl}
                         alt={popularMovie.title}
@@ -1035,78 +1076,95 @@ export default function AdminPanel({
                         referrerPolicy="no-referrer"
                       />
                     </div>
-                  </div>
+                  </motion.div>
                 )}
 
-                {/* Grid Duplo: Distribuição de Prateleiras e Integridade Operacional */}
+                {/* Grid Duplo Resumido: Distribuição de Prateleiras e Integridade Operacional */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   
-                  {/* Gráfico Visual de Categorias */}
+                  {/* Top 5 Gêneros Mais Expressivos do Catálogo */}
                   <div className="bg-zinc-900/90 border border-zinc-800 p-6 rounded-2xl shadow-xl space-y-4">
                     <div className="flex justify-between items-center border-b border-zinc-800/80 pb-3">
                       <h3 className="font-bold text-sm text-white font-display uppercase tracking-tight flex items-center gap-2">
-                        <Activity className="w-4 h-4 text-rose-500" /> Distribuição por Gênero
+                        <Activity className="w-4 h-4 text-rose-500" /> Principais Gêneros do Acervo
                       </h3>
-                      <span className="text-[10px] text-zinc-400 font-mono font-bold uppercase">{movies.length} Títulos</span>
+                      <span className="text-[10px] text-rose-400 bg-rose-500/10 border border-rose-500/25 px-2 py-0.5 rounded-full font-mono font-bold uppercase">
+                        {movies.length} Títulos
+                      </span>
                     </div>
 
-                    <div className="space-y-3.5 max-h-[300px] overflow-y-auto pr-1">
-                      {categoryStats.map(stat => (
+                    <div className="space-y-3 pt-1">
+                      {categoryStats.slice(0, 5).map((stat, idx) => (
                         <div key={stat.category} className="space-y-1.5">
-                          <div className="flex justify-between font-mono text-[11px] text-zinc-300">
-                            <span className="font-semibold">{stat.category}</span>
-                            <span className="text-zinc-400 font-bold">{stat.count} {stat.count === 1 ? 'Volume' : 'Volumes'} ({Math.round(stat.percentage)}%)</span>
+                          <div className="flex justify-between font-mono text-xs text-zinc-300">
+                            <span className="font-semibold flex items-center gap-2">
+                              <span className="text-[10px] text-zinc-500 font-bold">#{idx + 1}</span>
+                              {stat.category}
+                            </span>
+                            <span className="text-zinc-400 font-bold">
+                              {stat.count} {stat.count === 1 ? 'Volume' : 'Volumes'} ({Math.round(stat.percentage)}%)
+                            </span>
                           </div>
                           <div className="w-full bg-zinc-950 rounded-full h-2 border border-zinc-800 overflow-hidden">
-                            <div 
-                              className="h-full rounded-full transition-all duration-700" 
-                              style={{ 
-                                width: `${stat.percentage}%`,
-                                background: `linear-gradient(90deg, #f43f5e, #e11d48)`
-                              }}
+                            <motion.div 
+                              initial={{ width: 0 }}
+                              animate={{ width: `${stat.percentage}%` }}
+                              transition={{ duration: 0.6, delay: idx * 0.08 }}
+                              className="h-full rounded-full bg-gradient-to-r from-rose-600 to-rose-500"
                             />
                           </div>
                         </div>
                       ))}
+                      {categoryStats.length > 5 && (
+                        <p className="text-[11px] font-mono text-zinc-500 pt-1 text-center">
+                          + {categoryStats.length - 5} outros gêneros catalogados
+                        </p>
+                      )}
                     </div>
                   </div>
 
-                  {/* Status Geral de Conectividade e Ações Rápidas */}
+                  {/* Status Geral de Conectividade e Ações Rápidas Resumidas */}
                   <div className="bg-zinc-900/90 border border-zinc-800 p-6 rounded-2xl shadow-xl flex flex-col justify-between space-y-5">
                     <div>
                       <div className="flex justify-between items-center border-b border-zinc-800/80 pb-3 mb-4">
                         <h3 className="font-bold text-sm text-white font-display uppercase tracking-tight flex items-center gap-2">
                           <Shield className="w-4 h-4 text-rose-500" /> Diagnóstico do Sistema
                         </h3>
-                        <span className="bg-emerald-500/15 font-mono text-[9px] text-emerald-400 font-bold border border-emerald-500/30 px-2 py-0.5 rounded-full flex items-center gap-1">
+                        <span className="bg-emerald-500/15 font-mono text-[9px] text-emerald-400 font-bold border border-emerald-500/30 px-2.5 py-0.5 rounded-full flex items-center gap-1.5">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> OPERACIONAL
                         </span>
                       </div>
 
                       <div className="space-y-2.5 font-mono text-[11px]">
                         <div className="p-3 bg-zinc-950 rounded-xl border border-zinc-800/90 flex justify-between items-center">
-                          <span className="text-zinc-400">INTEGRAÇÃO TMDB:</span>
-                          <span className={tmdbApiKey ? "text-emerald-400 font-bold flex items-center gap-1" : "text-amber-400 font-bold"}>
-                            {tmdbApiKey ? "✅ API V3 CONECTADA" : "⚠️ MODO CONTINGÊNCIA"}
+                          <span className="text-zinc-400 flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500" /> TMDB ENGINE:
+                          </span>
+                          <span className={tmdbApiKey ? "text-emerald-400 font-bold" : "text-amber-400 font-bold"}>
+                            {tmdbApiKey ? "API V3 CONECTADA ✅" : "CONTINGÊNCIA ⚠️"}
                           </span>
                         </div>
                         <div className="p-3 bg-zinc-950 rounded-xl border border-zinc-800/90 flex justify-between items-center">
-                          <span className="text-zinc-400">PLAYER ABYSS:</span>
-                          <span className={abyssApiKey ? "text-emerald-400 font-bold" : "text-zinc-400 font-semibold"}>
-                            {abyssApiKey ? "✅ SINTONIA AUTOMÁTICA" : "PADRÃO DISPONÍVEL"}
+                          <span className="text-zinc-400 flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500" /> PLAYER ABYSS:
+                          </span>
+                          <span className={abyssApiKey ? "text-emerald-400 font-bold" : "text-zinc-300 font-semibold"}>
+                            {abyssApiKey ? "AUTO EMBED ATIVO ✅" : "PADRÃO DISPONÍVEL"}
                           </span>
                         </div>
                         <div className="p-3 bg-zinc-950 rounded-xl border border-zinc-800/90 flex justify-between items-center">
-                          <span className="text-zinc-400">PERSISTÊNCIA LOCAL:</span>
-                          <span className="text-rose-400 font-bold">LOCALSTORAGE & SYNC</span>
+                          <span className="text-zinc-400 flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-rose-500" /> PERSISTÊNCIA:
+                          </span>
+                          <span className="text-rose-400 font-bold">LOCALSTORAGE + FIRESTORE</span>
                         </div>
                       </div>
                     </div>
 
-                    <div className="pt-4 border-t border-zinc-800/80 flex justify-between items-center text-[11px] text-zinc-400 font-mono">
-                      <span>ÚLTIMA SINCRONIA: AGORA</span>
+                    <div className="pt-4 border-t border-zinc-800/80 flex flex-wrap gap-2 justify-between items-center text-[11px] text-zinc-400 font-mono">
+                      <span>SINAL: 100% ESTÁVEL</span>
                       <button 
-                        onClick={() => alert('Plataforma sincronizada e catálogo verificado.')}
+                        onClick={() => alert('Plataforma sincronizada e catálogo verificado em tempo real!')}
                         className="flex items-center gap-2 px-4 py-2 bg-zinc-950 hover:bg-rose-600 hover:text-white border border-zinc-800 rounded-xl text-zinc-300 transition-all cursor-pointer font-bold active:scale-95 shadow-md"
                       >
                         <RefreshCw className="w-3.5 h-3.5 text-rose-500 group-hover:text-white" /> Sincronizar Fitas
@@ -2212,70 +2270,84 @@ export default function AdminPanel({
           </div>
         )}
 
-        {/* --- ABA 2: USUÁRIOS REGISTRADOS --- */}
+        {/* --- ABA 2: USUÁRIOS REGISTRADOS (ANIMAÇÕES PROFISSIONAIS E TIPOGRAFIA DE ALTO CONTRASTE) --- */}
         {activeAdminTab === 'users' && (
           <motion.div 
-            initial={{ opacity: 0, y: 10 }}
+            initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.25 }}
+            transition={{ duration: 0.3, ease: "easeOut" }}
             className="space-y-6"
           >
             
-            {/* Lista Completa de Usuários e Estatísticas Gerais */}
+            {/* Lista Completa de Usuários e Estatísticas Gerais com Stagger Hover */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="bg-gradient-to-b from-zinc-900 to-zinc-950 border border-zinc-800/90 p-5 rounded-2xl shadow-xl relative overflow-hidden group hover:border-rose-500/30 transition-all">
+              <motion.div 
+                whileHover={{ y: -3, transition: { duration: 0.2 } }}
+                className="bg-gradient-to-b from-zinc-900 via-zinc-900/90 to-zinc-950 border border-zinc-800/90 hover:border-rose-500/40 p-5 rounded-2xl shadow-xl relative overflow-hidden group transition-all"
+              >
+                <div className="absolute top-0 right-0 w-24 h-24 bg-rose-600/10 rounded-full blur-xl pointer-events-none group-hover:bg-rose-600/20 transition-all" />
                 <div className="flex justify-between items-start">
                   <div>
                     <span className="text-[10px] text-zinc-400 font-mono uppercase font-bold tracking-wider">Total de Contas</span>
-                    <p className="text-3xl font-black font-display text-white mt-1">{users.length}</p>
+                    <p className="text-3xl font-black font-display text-white mt-1.5 tracking-tight">{users.length}</p>
                     <p className="text-xs text-rose-400 font-mono mt-1 font-semibold">Titulares Registrados</p>
                   </div>
-                  <div className="p-2.5 bg-rose-500/10 border border-rose-500/25 text-rose-500 rounded-xl">
+                  <div className="p-2.5 bg-rose-500/15 border border-rose-500/30 text-rose-500 rounded-xl shadow-inner">
                     <Users className="w-5 h-5" />
                   </div>
                 </div>
-              </div>
+              </motion.div>
 
-              <div className="bg-gradient-to-b from-zinc-900 to-zinc-950 border border-zinc-800/90 p-5 rounded-2xl shadow-xl relative overflow-hidden group hover:border-emerald-500/30 transition-all">
+              <motion.div 
+                whileHover={{ y: -3, transition: { duration: 0.2 } }}
+                className="bg-gradient-to-b from-zinc-900 via-zinc-900/90 to-zinc-950 border border-zinc-800/90 hover:border-emerald-500/40 p-5 rounded-2xl shadow-xl relative overflow-hidden group transition-all"
+              >
+                <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-600/10 rounded-full blur-xl pointer-events-none group-hover:bg-emerald-600/20 transition-all" />
                 <div className="flex justify-between items-start">
                   <div>
                     <span className="text-[10px] text-zinc-400 font-mono uppercase font-bold tracking-wider">Subperfis Ativos</span>
-                    <p className="text-3xl font-black font-display text-emerald-400 mt-1">
+                    <p className="text-3xl font-black font-display text-emerald-400 mt-1.5 tracking-tight">
                       {Object.values(allProfiles).reduce((acc, pList) => acc + pList.length, 0)}
                     </p>
-                    <p className="text-xs text-zinc-400 mt-1 font-sans">Navegando independentemente</p>
+                    <p className="text-xs text-emerald-400/80 font-mono mt-1 font-semibold">Navegando independentemente</p>
                   </div>
-                  <div className="p-2.5 bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 rounded-xl">
+                  <div className="p-2.5 bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 rounded-xl shadow-inner">
                     <Shield className="w-5 h-5" />
                   </div>
                 </div>
-              </div>
+              </motion.div>
 
-              <div className="bg-gradient-to-b from-zinc-900 to-zinc-950 border border-zinc-800/90 p-5 rounded-2xl shadow-xl relative overflow-hidden group hover:border-amber-500/30 transition-all">
+              <motion.div 
+                whileHover={{ y: -3, transition: { duration: 0.2 } }}
+                className="bg-gradient-to-b from-zinc-900 via-zinc-900/90 to-zinc-950 border border-zinc-800/90 hover:border-amber-500/40 p-5 rounded-2xl shadow-xl relative overflow-hidden group transition-all"
+              >
+                <div className="absolute top-0 right-0 w-24 h-24 bg-amber-600/10 rounded-full blur-xl pointer-events-none group-hover:bg-amber-600/20 transition-all" />
                 <div className="flex justify-between items-start">
                   <div>
                     <span className="text-[10px] text-zinc-400 font-mono uppercase font-bold tracking-wider">Fitas Salvas</span>
-                    <p className="text-3xl font-black font-display text-amber-400 mt-1">
+                    <p className="text-3xl font-black font-display text-amber-400 mt-1.5 tracking-tight">
                       {Object.values(allProfiles).reduce((acc, pList) => acc + pList.reduce((accP, p) => accP + p.myList.length, 0), 0)}
                     </p>
-                    <p className="text-xs text-zinc-400 mt-1 font-sans">Favoritos nos perfis</p>
+                    <p className="text-xs text-amber-400/80 font-mono mt-1 font-semibold">Favoritos nos perfis</p>
                   </div>
-                  <div className="p-2.5 bg-amber-500/10 border border-amber-500/25 text-amber-400 rounded-xl">
+                  <div className="p-2.5 bg-amber-500/15 border border-amber-500/30 text-amber-400 rounded-xl shadow-inner">
                     <Star className="w-5 h-5" />
                   </div>
                 </div>
-              </div>
+              </motion.div>
             </div>
 
             {/* Container Principal da Tabela de Usuários com Barra de Pesquisa */}
             <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl overflow-hidden shadow-2xl backdrop-blur-md">
-              <div className="px-6 py-5 border-b border-zinc-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-zinc-950/40">
+              <div className="px-6 py-5 border-b border-zinc-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-zinc-950/50">
                 <div>
                   <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-rose-500/10 border border-rose-500/25 text-rose-400 text-[10px] font-mono font-bold tracking-wider uppercase mb-1">
                     Gerenciamento de Assinantes
                   </div>
-                  <h3 className="font-bold text-xl text-white font-display">Banco de Contas & Espectadores</h3>
-                  <p className="text-xs text-zinc-400 mt-0.5">Gerencie os acessos, senhas, tempos de expiração e subperfis de cada família.</p>
+                  <h3 className="font-bold text-xl text-white font-display flex items-center gap-2">
+                    <Users className="w-5 h-5 text-rose-500" /> Banco de Contas & Espectadores
+                  </h3>
+                  <p className="text-xs text-zinc-400 mt-0.5 font-sans">Gerencie os acessos, senhas, tempos de expiração e subperfis de cada família.</p>
                 </div>
                 
                 <div className="flex items-center gap-3 w-full md:w-auto">
@@ -2287,7 +2359,7 @@ export default function AdminPanel({
                       placeholder="Buscar por nome, email ou ID..."
                       value={userSearchQuery}
                       onChange={e => setUserSearchQuery(e.target.value)}
-                      className="w-full bg-zinc-950 border border-zinc-800 pl-9 pr-3 py-2 rounded-xl text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-rose-500 font-sans transition-all"
+                      className="w-full bg-zinc-950 border border-zinc-800 pl-9 pr-7 py-2.5 rounded-xl text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-rose-500 font-mono transition-all shadow-inner"
                     />
                     {userSearchQuery && (
                       <button
@@ -2299,7 +2371,9 @@ export default function AdminPanel({
                     )}
                   </div>
 
-                  <button
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
                     onClick={() => {
                       setEditingUser(null);
                       setUserFormName('');
@@ -2314,7 +2388,7 @@ export default function AdminPanel({
                     className="bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 hover:to-rose-600 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-lg shadow-rose-600/20 cursor-pointer active:scale-95 whitespace-nowrap shrink-0"
                   >
                     <Plus className="w-4 h-4" /> Criar Novo Usuário
-                  </button>
+                  </motion.button>
                 </div>
               </div>
 
@@ -2336,7 +2410,7 @@ export default function AdminPanel({
                       <tr>
                         <td colSpan={7} className="py-12 text-center text-zinc-500">
                           <Users className="w-8 h-8 text-zinc-600 mx-auto mb-2 opacity-50" />
-                          <p className="text-sm font-semibold text-zinc-400">Nenhum usuário encontrado</p>
+                          <p className="text-sm font-semibold text-zinc-400 font-sans">Nenhum usuário encontrado</p>
                           <p className="text-xs text-zinc-600 font-mono mt-1">Tente pesquisar por outro termo ou cadastre um novo usuário.</p>
                         </td>
                       </tr>
@@ -2346,14 +2420,14 @@ export default function AdminPanel({
                         const isMasterAdmin = u.email === 'rafaelguaruja09@gmail.com' || u.id === 'u1';
                         
                         return (
-                          <tr key={u.id} className="hover:bg-zinc-800/30 transition-colors">
+                          <tr key={u.id} className="hover:bg-zinc-800/30 transition-colors group">
                             <td className="py-4 px-6">
                               <div className="flex items-center gap-3">
-                                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-rose-600/20 to-zinc-900 border border-rose-500/30 text-rose-400 flex items-center justify-center font-black font-display uppercase font-mono shadow-inner shrink-0">
+                                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-rose-600/20 to-zinc-900 border border-rose-500/30 text-rose-400 flex items-center justify-center font-black font-display uppercase font-mono shadow-inner shrink-0 group-hover:scale-105 transition-transform">
                                   {u.name.substring(0, 2)}
                                 </div>
                                 <div>
-                                  <span className="font-semibold block text-zinc-100">{u.name}</span>
+                                  <span className="font-semibold block text-zinc-100 font-sans">{u.name}</span>
                                   <span className="text-xs text-zinc-400 font-mono block">{u.email}</span>
                                 </div>
                               </div>
@@ -2414,7 +2488,9 @@ export default function AdminPanel({
                             </td>
                             <td className="py-4 px-6 text-right">
                               <div className="flex items-center justify-end gap-2">
-                                <button
+                                <motion.button
+                                  whileHover={{ scale: 1.05 }}
+                                  whileTap={{ scale: 0.95 }}
                                   onClick={() => {
                                     setEditingUser(u);
                                     setUserFormName(u.name);
@@ -2432,10 +2508,12 @@ export default function AdminPanel({
                                   title="Editar Usuário"
                                 >
                                   <Edit className="w-3.5 h-3.5" /> <span>Editar</span>
-                                </button>
+                                </motion.button>
                                 
                                 {!isMasterAdmin && (
-                                  <button
+                                  <motion.button
+                                    whileHover={{ scale: 1.05 }}
+                                    whileTap={{ scale: 0.95 }}
                                     onClick={() => {
                                       setUserToDelete(u);
                                     }}
@@ -2443,7 +2521,7 @@ export default function AdminPanel({
                                     title="Excluir Usuário"
                                   >
                                     <Trash className="w-3.5 h-3.5" /> <span>Excluir</span>
-                                  </button>
+                                  </motion.button>
                                 )}
                               </div>
                             </td>
@@ -2782,12 +2860,12 @@ export default function AdminPanel({
           </motion.div>
         )}
 
-        {/* --- ABA: MINHA CONTA --- */}
+        {/* --- ABA: MINHA CONTA (PROFISSIONAL, ANIMAÇÕES FLUIDAS E ALTO CONTRASTE) --- */}
         {activeAdminTab === 'myaccount' && (
           <motion.div 
-            initial={{ opacity: 0, y: 10 }}
+            initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.25 }}
+            transition={{ duration: 0.3, ease: "easeOut" }}
             className="max-w-2xl bg-zinc-900/90 border border-zinc-800 rounded-2xl p-6 md:p-8 space-y-6 shadow-2xl backdrop-blur-md"
           >
             <div className="border-b border-zinc-800 pb-5">
@@ -2797,7 +2875,7 @@ export default function AdminPanel({
               <h3 className="font-bold text-2xl text-white font-display tracking-tight flex items-center gap-2.5">
                 <Shield className="w-6 h-6 text-rose-500" /> Minha Conta Administrativa
               </h3>
-              <p className="text-xs text-zinc-400 mt-1">
+              <p className="text-xs text-zinc-400 mt-1 font-sans">
                 Gerencie suas credenciais de acesso, e-mail do titular e senha de segurança master.
               </p>
             </div>
@@ -2808,12 +2886,14 @@ export default function AdminPanel({
               return (
                 <div className="flex flex-col sm:flex-row items-center gap-5 bg-zinc-950/60 p-5 rounded-2xl border border-zinc-800/80 shadow-inner">
                   <div className="relative w-20 h-20 rounded-2xl overflow-hidden border-2 border-rose-500 shadow-xl shrink-0 group">
-                    <img src={adminActiveProfile.avatarUrl} alt="Foto de perfil" className="w-full h-full object-cover group-hover:scale-110 transition-transform" referrerPolicy="no-referrer" />
+                    <img src={adminActiveProfile.avatarUrl} alt="Foto de perfil" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300" referrerPolicy="no-referrer" />
                   </div>
                   <div className="text-center sm:text-left flex-1">
                     <span className="text-[10px] font-mono text-rose-400 uppercase tracking-widest font-bold">Perfil em Uso</span>
                     <p className="text-base font-black text-white mt-0.5 font-display">{adminActiveProfile.name}</p>
-                    <button
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
                       type="button"
                       onClick={() => {
                         setAdminCustomAvatarUrl(adminActiveProfile.avatarUrl);
@@ -2821,16 +2901,16 @@ export default function AdminPanel({
                         setAdminSelectedAvatarIdx(matchingIdx !== -1 ? matchingIdx : 0);
                         setShowAdminAvatarModal(true);
                       }}
-                      className="text-xs text-rose-400 hover:text-white font-mono font-bold uppercase tracking-wider mt-3 cursor-pointer flex items-center justify-center sm:justify-start gap-1.5 p-2 bg-zinc-900 hover:bg-rose-600 border border-zinc-800 rounded-xl px-3 transition-all active:scale-95 shadow"
+                      className="text-xs text-rose-400 hover:text-white font-mono font-bold uppercase tracking-wider mt-3 cursor-pointer flex items-center justify-center sm:justify-start gap-1.5 p-2 bg-zinc-900 hover:bg-rose-600 border border-zinc-800 rounded-xl px-3 transition-all shadow"
                     >
                       <Edit className="w-3.5 h-3.5" /> Alterar Minha Foto de Perfil
-                    </button>
+                    </motion.button>
                   </div>
                 </div>
               );
             })()}
 
-            <div className="space-y-3 py-3 rounded-2xl bg-zinc-950/60 p-5 border border-zinc-800/80 font-mono text-xs">
+            <div className="space-y-3 py-3 rounded-2xl bg-zinc-950/60 p-5 border border-zinc-800/80 font-mono text-xs shadow-inner">
               <div className="flex justify-between items-center">
                 <span className="text-zinc-400">NOME TITULAR:</span>
                 <span className="text-zinc-100 font-bold">{currentUser.name || 'Rafael Guzmão'}</span>
@@ -2888,7 +2968,7 @@ export default function AdminPanel({
               )}
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-zinc-400 font-bold uppercase tracking-wider text-[10px]">Endereço de E-mail</label>
+                <label className="text-zinc-400 font-bold uppercase tracking-wider text-[10px] font-mono">Endereço de E-mail</label>
                 <div className="relative">
                   <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-zinc-500 text-xs uppercase font-mono">@</span>
                   <input
@@ -2896,13 +2976,13 @@ export default function AdminPanel({
                     required
                     value={myAccountEmail}
                     onChange={(e) => setMyAccountEmail(e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 focus:border-rose-500 rounded-xl py-3 pl-9 pr-4 text-sm text-white focus:outline-none transition-colors font-mono"
+                    className="w-full bg-zinc-950 border border-zinc-800 focus:border-rose-500 rounded-xl py-3 pl-9 pr-4 text-sm text-white focus:outline-none transition-colors font-mono shadow-inner"
                   />
                 </div>
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="text-zinc-400 font-bold uppercase tracking-wider text-[10px]">Alterar Senha Administrativa</label>
+                <label className="text-zinc-400 font-bold uppercase tracking-wider text-[10px] font-mono">Alterar Senha Administrativa</label>
                 <div className="relative flex items-center">
                   <LockIcon className="absolute left-3.5 top-3.5 w-4 h-4 text-zinc-500 pointer-events-none" />
                   <input
@@ -2911,7 +2991,7 @@ export default function AdminPanel({
                     placeholder="Sua nova senha"
                     value={myAccountPassword}
                     onChange={(e) => setMyAccountPassword(e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 focus:border-rose-500 rounded-xl py-3 pl-10 pr-12 text-sm text-white focus:outline-none transition-colors font-mono"
+                    className="w-full bg-zinc-950 border border-zinc-800 focus:border-rose-500 rounded-xl py-3 pl-10 pr-12 text-sm text-white focus:outline-none transition-colors font-mono shadow-inner"
                   />
                   <button
                     type="button"
@@ -2924,27 +3004,32 @@ export default function AdminPanel({
                 </div>
               </div>
 
-              <button
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
                 type="submit"
-                className="w-full bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 hover:to-rose-600 text-white font-bold py-3.5 rounded-xl text-xs font-mono uppercase tracking-wider transition-all shadow-lg shadow-rose-600/20 active:scale-95 cursor-pointer"
+                className="w-full bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 hover:to-rose-600 text-white font-bold py-3.5 rounded-xl text-xs font-mono uppercase tracking-wider transition-all shadow-lg shadow-rose-600/20 cursor-pointer"
               >
                 Salvar Alterações da Conta
-              </button>
+              </motion.button>
             </form>
           </motion.div>
         )}
 
-        {/* --- ABA 3: CONFIGURAÇÕES E CREDENCIAIS TMDB --- */}
+        {/* --- ABA 3: CONFIGURAÇÕES E CREDENCIAIS TMDB (MODERNIZADO E RESUMIDO) --- */}
         {activeAdminTab === 'settings' && (
           <motion.div 
-            initial={{ opacity: 0, y: 10 }}
+            initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.25 }}
+            transition={{ duration: 0.3, ease: "easeOut" }}
             className="grid grid-cols-1 md:grid-cols-2 gap-6"
           >
             
             {/* Bloco TMDB Config */}
-            <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-6 space-y-5 shadow-xl backdrop-blur-md">
+            <motion.div 
+              whileHover={{ y: -3, transition: { duration: 0.2 } }}
+              className="bg-zinc-900/90 border border-zinc-800 hover:border-rose-500/40 rounded-2xl p-6 space-y-5 shadow-xl backdrop-blur-md transition-all"
+            >
               <div className="border-b border-zinc-800 pb-4">
                 <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-rose-500/10 border border-rose-500/25 text-rose-400 text-[10px] font-mono font-bold tracking-wider uppercase mb-1">
                   TMDB Live Engine
@@ -2952,7 +3037,7 @@ export default function AdminPanel({
                 <h3 className="font-bold text-lg text-white font-display uppercase tracking-tight flex items-center gap-2">
                   <Settings className="w-5 h-5 text-rose-500" /> API de Busca do TMDB
                 </h3>
-                <p className="text-xs text-zinc-400 mt-1">Insira suas chaves de API do The Movie Database para habilitar buscas ilimitadas mundiais com metadados e posters em alta resolução.</p>
+                <p className="text-xs text-zinc-400 mt-1 font-sans">Insira suas chaves de API do The Movie Database para buscas mundiais com metadados e posters em alta resolução.</p>
               </div>
 
               <div className="space-y-4 text-xs font-mono">
@@ -2963,15 +3048,15 @@ export default function AdminPanel({
                     placeholder="Cole aqui sua api_key do TMDB v3"
                     value={tmdbApiKey}
                     onChange={e => onUpdateTmdbApiKey(e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 px-3.5 py-3 rounded-xl text-xs text-white focus:outline-none focus:border-rose-500"
+                    className="w-full bg-zinc-950 border border-zinc-800 px-3.5 py-3 rounded-xl text-xs text-white focus:outline-none focus:border-rose-500 shadow-inner"
                     id="input-tmdb-key-entry"
                   />
-                  <p className="text-[11px] text-zinc-400 mt-1.5 leading-relaxed">
-                    Você pode obter esta chave gratuitamente fazendo cadastro rápido em <a href="https://www.themoviedb.org/" target="_blank" rel="noreferrer" className="text-rose-400 underline hover:text-rose-300 font-bold">themoviedb.org</a> sob a seção de Desenvolvedores.
+                  <p className="text-[11px] text-zinc-400 mt-1.5 leading-relaxed font-sans">
+                    Obtenha gratuitamente em <a href="https://www.themoviedb.org/" target="_blank" rel="noreferrer" className="text-rose-400 underline hover:text-rose-300 font-bold">themoviedb.org</a> sob a seção de Desenvolvedores.
                   </p>
                 </div>
 
-                <div className="p-4 bg-zinc-950 rounded-2xl border border-zinc-800 flex items-start gap-3">
+                <div className="p-4 bg-zinc-950 rounded-2xl border border-zinc-800 flex items-start gap-3 shadow-inner">
                   <Check className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
                   <div>
                     <span className="text-xs font-bold text-zinc-200 block font-sans">Status da Conexão TMDB</span>
@@ -2981,10 +3066,13 @@ export default function AdminPanel({
                   </div>
                 </div>
               </div>
-            </div>
+            </motion.div>
 
             {/* Bloco Abyss API Config */}
-            <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-6 space-y-5 shadow-xl backdrop-blur-md">
+            <motion.div 
+              whileHover={{ y: -3, transition: { duration: 0.2 } }}
+              className="bg-zinc-900/90 border border-zinc-800 hover:border-rose-500/40 rounded-2xl p-6 space-y-5 shadow-xl backdrop-blur-md transition-all"
+            >
               <div className="border-b border-zinc-800 pb-4">
                 <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-rose-500/10 border border-rose-500/25 text-rose-400 text-[10px] font-mono font-bold tracking-wider uppercase mb-1">
                   Abyss Stream Player
@@ -2992,7 +3080,7 @@ export default function AdminPanel({
                 <h3 className="font-bold text-lg text-white font-display uppercase tracking-tight flex items-center gap-2">
                   <Play className="w-5 h-5 text-rose-500" /> API do Player Abyss (GET /v1/resources)
                 </h3>
-                <p className="text-xs text-zinc-400 mt-1">Sintonizador automático de player de mídia embutido (https://play.abyssplayer.com/&#123;id&#125;).</p>
+                <p className="text-xs text-zinc-400 mt-1 font-sans">Sintonizador automático de player de mídia embutido (https://play.abyssplayer.com/&#123;id&#125;).</p>
               </div>
 
               <div className="space-y-4 text-xs font-mono">
@@ -3006,15 +3094,15 @@ export default function AdminPanel({
                       if (onUpdateAbyssApiKey) onUpdateAbyssApiKey(e.target.value);
                       AbyssService.setApiKey(e.target.value);
                     }}
-                    className="w-full bg-zinc-950 border border-zinc-800 px-3.5 py-3 rounded-xl text-xs text-white focus:outline-none focus:border-rose-500"
+                    className="w-full bg-zinc-950 border border-zinc-800 px-3.5 py-3 rounded-xl text-xs text-white focus:outline-none focus:border-rose-500 shadow-inner"
                     id="input-abyss-key-entry"
                   />
-                  <p className="text-[11px] text-zinc-400 mt-1.5 leading-relaxed">
+                  <p className="text-[11px] text-zinc-400 mt-1.5 leading-relaxed font-sans">
                     Com esta chave ativa, ao buscar no TMDB o campo Embed URL é preenchido automaticamente com o player correspondente.
                   </p>
                 </div>
 
-                <div className="p-4 bg-zinc-950 rounded-2xl border border-zinc-800 flex items-start gap-3">
+                <div className="p-4 bg-zinc-950 rounded-2xl border border-zinc-800 flex items-start gap-3 shadow-inner">
                   <Check className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
                   <div>
                     <span className="text-xs font-bold text-zinc-200 block font-sans">Sintonização Automática</span>
@@ -3024,10 +3112,13 @@ export default function AdminPanel({
                   </div>
                 </div>
               </div>
-            </div>
+            </motion.div>
 
             {/* Bloco de Versionamento e Sincronização Global */}
-            <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-6 space-y-5 col-span-1 md:col-span-2 shadow-xl backdrop-blur-md">
+            <motion.div 
+              whileHover={{ y: -2, transition: { duration: 0.2 } }}
+              className="bg-zinc-900/90 border border-zinc-800 hover:border-emerald-500/40 rounded-2xl p-6 space-y-5 col-span-1 md:col-span-2 shadow-xl backdrop-blur-md transition-all"
+            >
               <div className="border-b border-zinc-800 flex justify-between items-start gap-4 flex-wrap pb-4">
                 <div>
                   <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 text-[10px] font-mono font-bold tracking-wider uppercase mb-1">
@@ -3036,17 +3127,17 @@ export default function AdminPanel({
                   <h3 className="font-bold text-lg text-emerald-400 font-display uppercase tracking-tight flex items-center gap-2">
                     <RefreshCw className="w-5 h-5" /> Sincronização e Versionamento Global
                   </h3>
-                  <p className="text-xs text-zinc-400 mt-1">
+                  <p className="text-xs text-zinc-400 mt-1 font-sans">
                     Força todos os aparelhos conectados (Smart TVs, Celulares, Tablets, PCs) a limparem o cache local e atualizarem o acervo.
                   </p>
                 </div>
-                <div className="bg-zinc-950 px-3.5 py-1.5 rounded-xl border border-zinc-800 font-mono text-xs text-zinc-400">
+                <div className="bg-zinc-950 px-3.5 py-1.5 rounded-xl border border-zinc-800 font-mono text-xs text-zinc-400 shadow-inner">
                   Sinal de Versão: <span className="text-white font-bold">{localStorage.getItem('vhsflix_system_version') || '1.0.0'}</span>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="p-4.5 bg-zinc-950 rounded-2xl border border-zinc-800 flex flex-col justify-between">
+                <div className="p-4.5 bg-zinc-950 rounded-2xl border border-zinc-800 flex flex-col justify-between shadow-inner">
                   <div>
                     <span className="text-xs font-bold text-zinc-200 block font-sans">Como Funciona a Propagação?</span>
                     <p className="text-[11px] text-zinc-400 mt-2 leading-relaxed font-sans">
@@ -3062,7 +3153,9 @@ export default function AdminPanel({
                       Clique abaixo para propagar as alterações instantaneamente para todos os aparelhos ativos.
                     </span>
                   </div>
-                  <button
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
                     onClick={() => {
                       if (onPublishUpdate) {
                         onPublishUpdate();
@@ -3073,13 +3166,16 @@ export default function AdminPanel({
                     id="btn-publish-global-update"
                   >
                     <RefreshCw className="w-4 h-4" /> Enviar Sinal de Atualização Geral
-                  </button>
+                  </motion.button>
                 </div>
               </div>
-            </div>
+            </motion.div>
 
             {/* Bloco Configurações de Fábrica e Reset GERAL */}
-            <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-6 space-y-5 col-span-1 md:col-span-2 shadow-xl backdrop-blur-md">
+            <motion.div 
+              whileHover={{ y: -2, transition: { duration: 0.2 } }}
+              className="bg-zinc-900/90 border border-zinc-800 hover:border-rose-500/40 rounded-2xl p-6 space-y-5 col-span-1 md:col-span-2 shadow-xl backdrop-blur-md transition-all"
+            >
               <div className="border-b border-zinc-800 pb-4">
                 <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-rose-500/10 border border-rose-500/25 text-rose-400 text-[10px] font-mono font-bold tracking-wider uppercase mb-1">
                   Segurança Crítica
@@ -3087,11 +3183,11 @@ export default function AdminPanel({
                 <h3 className="font-bold text-lg text-rose-500 font-display uppercase tracking-tight flex items-center gap-2">
                   <ShieldAlert className="w-5 h-5" /> Zona de Risco Administrativa
                 </h3>
-                <p className="text-xs text-zinc-400 mt-1">Efetue restaurações do acervo ou reinicializações completas do catálogo.</p>
+                <p className="text-xs text-zinc-400 mt-1 font-sans">Efetue restaurações do acervo ou reinicializações completas do catálogo.</p>
               </div>
 
               <div className="space-y-4">
-                <div className="bg-rose-500/5 p-5 rounded-2xl border border-rose-500/20 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div className="bg-rose-500/5 p-5 rounded-2xl border border-rose-500/20 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 shadow-inner">
                   <div className="flex gap-3 items-start">
                     <AlertTriangle className="w-5 h-5 text-rose-500 flex-shrink-0 mt-0.5" />
                     <div>
@@ -3102,7 +3198,9 @@ export default function AdminPanel({
                     </div>
                   </div>
                   
-                  <button
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
                     onClick={() => {
                       setShowCatalogResetConfirm(true);
                     }}
@@ -3110,10 +3208,10 @@ export default function AdminPanel({
                     id="btn-hard-reset-catalog"
                   >
                     Resetar Catálogo
-                  </button>
+                  </motion.button>
                 </div>
               </div>
-            </div>
+            </motion.div>
 
           </motion.div>
         )}

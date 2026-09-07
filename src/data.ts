@@ -387,67 +387,111 @@ export const GENRE_CATEGORIES = [
 export async function fallbackTMDBSearch(query: string): Promise<any[]> {
   const normalizedQuery = query.toLowerCase();
   
-  // Banco estendido de títulos que simula o TMDB perfeitamente
+  // Banco estendido de títulos que simula o TMDB perfeitamente com posters de alta resolução
   const mockTMDBDatabase = [
     {
-      id: 200,
-      title: 'Blade Runner 2049',
-      overview: 'Trinta anos após os acontecimentos do primeiro filme, a descoberta de um segredo enterrado há muito tempo leva o novo caçador de replicantes da polícia de Los Angeles, K, a procurar o ex-caçador de replicantes Rick Deckard.',
-      release_date: '2017-10-04',
-      poster_path: '/gajva260Yvdf6vSgS769v6ZkS6B.jpg',
-      backdrop_path: '/ilR6g79YgcnXasgOfhqq9Xv60fG.jpg',
-      vote_average: 8.2,
-      duration_min: 164,
-      genres: ['Ficção Científica', 'Ação'],
-      trailerId: 'gCcx85zbxz4'
+      id: 414906,
+      title: 'The Batman: Parte II',
+      overview: 'No segundo capítulo da saga do Cavaleiro das Trevas dirigida por Matt Reeves, Bruce Wayne se aprofunda ainda mais no submundo corrupto e gótico de Gotham City, enfrentando novas ameaças que testam sua integridade e mente investigativa.',
+      release_date: '2026-10-02',
+      poster_path: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=780&q=80',
+      backdrop_path: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=1200&q=80',
+      vote_average: 8.9,
+      duration_min: 165,
+      media_type: 'movie',
+      genres: ['Ação', 'Crime', 'Suspense'],
+      trailerId: 'mqq_H30_u5Q'
     },
     {
-      id: 201,
-      title: 'RoboCop: O Policial do Futuro',
-      overview: 'Em uma Detroit distópica e violenta, um policial honesto é brutalmente assassinado por criminosos e ressuscitado por uma megacorporação como uma cibercrime máquina indestrutível de aplicação da lei.',
-      release_date: '1987-07-17',
-      poster_path: '/g3M0R7jVWhZ9ZgSuSMNkaIsK6e0.jpg',
-      backdrop_path: '/u6A5S3R6cbeMAn9kPjH6C8x6yoA.jpg',
-      vote_average: 7.3,
-      duration_min: 102,
-      genres: ['Ação', 'Ficção Científica'],
-      trailerId: '6tC_5bp1S6Y'
+      id: 66732,
+      title: 'Stranger Things: Temporada Final (5)',
+      overview: 'A épica conclusão da saga dos anos 80 em Hawkins. Eleven, Mike e toda a turma precisam unir forças em uma batalha derradeira contra o mundo invertido e o terrível vilão Vecna, para fechar de vez o portal e salvar o mundo.',
+      release_date: '2026-06-15',
+      poster_path: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=780&q=80',
+      backdrop_path: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=1200&q=80',
+      vote_average: 9.1,
+      duration_min: 55,
+      media_type: 'tv',
+      genres: ['Suspense', 'Ficção Científica', 'Drama'],
+      trailerId: 'b9EkMc79ZSU'
     },
     {
-      id: 202,
-      title: 'O Enigma de Outro Mundo',
-      overview: 'Na Antártica, cientistas americanos de uma estação remota se deparam com um parasita alienígena metamórfico mortal capaz de imitar perfeitamente qualquer ser vivo que consome, gerando paranoia extrema e terror corporal.',
-      release_date: '1982-06-25',
-      poster_path: '/6v8yNlId7Z0fHInx3m6LPh8p1S.jpg',
-      backdrop_path: '/3SFr9Q39hL9tC1fAsR3W4FqCjX8.jpg',
-      vote_average: 8.0,
-      duration_min: 109,
-      genres: ['Terror', 'Ficção Científica'],
-      trailerId: '5gK3fAn98lG'
-    },
-    {
-      id: 203,
-      title: 'Indiana Jones: Caçadores da Arca Perdida',
-      overview: 'O arqueólogo e aventureiro Indiana Jones é contratado pelo governo dos EUA para localizar a lendária Arca da Aliança antes que os nazistas usem suas misteriosas forças cósmicas para dominar o planeta.',
-      release_date: '1981-06-12',
-      poster_path: '/8uO0gUMYrj5BNZ6Z9ZgWaS9Stj3.jpg',
-      backdrop_path: '/vKof7jZ50vS2pYgO569ofCidG9y.jpg',
+      id: 83533,
+      title: 'Avatar: Fogo e Cinzas',
+      overview: 'Jake Sully e Neytiri enfrentam uma nova tribo Na\'vi ameaçadora e vulcânica em Pandora: o Povo das Cinzas. Determinados a manter a paz e proteger seu ecossistema, eles precisam forjar perigosas alianças contra novos inimigos.',
+      release_date: '2026-12-18',
+      poster_path: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=780&q=80',
+      backdrop_path: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=1200&q=80',
       vote_average: 8.4,
-      duration_min: 115,
-      genres: ['Ação', 'Ficção Científica'],
-      trailerId: 'qvsgGtIvCBY'
+      duration_min: 155,
+      media_type: 'movie',
+      genres: ['Ficção Científica', 'Aventura', 'Ação'],
+      trailerId: 'CRRlbK5w8AE'
     },
     {
-      id: 204,
-      title: 'Gremlins',
-      overview: 'Um jovem descobre que seu novo, fofo e exótico bicho de estimação místico vem com três regras fundamentais de cuidado: nunca expô-lo à luz forte, nunca molhá-lo de forma alguma, e o mais crucial de tudo: nunca alimentá-lo após a meia-noite.',
-      release_date: '1984-06-08',
-      poster_path: '/b0Y6209qN8Hqg9I3XmSkaIsK6e0.jpg',
-      backdrop_path: '/3N8pG8cbeMAn9kPjH6C8x6yof88.jpg',
-      vote_average: 7.1,
-      duration_min: 106,
-      genres: ['Comédia', 'Terror'],
-      trailerId: 'weasb_575U0'
+      id: 100088,
+      title: 'The Last of Us: 2ª Temporada',
+      overview: 'Cinco anos após os eventos traumáticos de Salt Lake City, Joel e Ellie tentam se estabelecer em Jackson, Wyoming. Uma tragédia violenta força Ellie a embarcar em uma implacável jornada em busca de justiça e vingança.',
+      release_date: '2025-03-24',
+      poster_path: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=780&q=80',
+      backdrop_path: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=1200&q=80',
+      vote_average: 8.8,
+      duration_min: 58,
+      media_type: 'tv',
+      genres: ['Drama', 'Ação', 'Terror'],
+      trailerId: 'uLtkt8BonwM'
+    },
+    {
+      id: 693134,
+      title: 'Duna: Parte 2',
+      overview: 'Paul Atreides se une a Chani e aos Fremen enquanto busca vingança contra os conspiradores que destruíram sua família. Diante de uma escolha entre o amor de sua vida e o destino do universo, ele deve evitar um futuro terrível que só ele pode prever.',
+      release_date: '2024-03-01',
+      poster_path: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?auto=format&fit=crop&w=780&q=80',
+      backdrop_path: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=1200&q=80',
+      vote_average: 8.6,
+      duration_min: 166,
+      media_type: 'movie',
+      genres: ['Ficção Científica', 'Aventura'],
+      trailerId: 'Way9Dexny3w'
+    },
+    {
+      id: 533535,
+      title: 'Deadpool & Wolverine',
+      overview: 'Wade Wilson leva uma vida tranquila e aposentada até que a Autoridade de Variância Temporal o recruta para uma missão épica que ameaça destruir sua linha temporal, forçando-o a buscar a ajuda relutante de Wolverine.',
+      release_date: '2024-07-26',
+      poster_path: 'https://images.unsplash.com/photo-1485846234645-a62644f84728?auto=format&fit=crop&w=780&q=80',
+      backdrop_path: 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&w=1200&q=80',
+      vote_average: 8.1,
+      duration_min: 128,
+      media_type: 'movie',
+      genres: ['Ação', 'Comédia', 'Ficção Científica'],
+      trailerId: '73_1biulkYk'
+    },
+    {
+      id: 119051,
+      title: 'Wandinha (Wednesday): Temporada 2',
+      overview: 'Wandinha Addams retorna à Academia Nunca Mais para enfrentar novos mistérios sobrenaturais, desvendar antigos segredos de sua família e lidar com o surgimento de uma nova e perigosa ameaça na floresta.',
+      release_date: '2025-08-10',
+      poster_path: 'https://images.unsplash.com/photo-1514565131-fce0801e5785?auto=format&fit=crop&w=780&q=80',
+      backdrop_path: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=1200&q=80',
+      vote_average: 8.5,
+      duration_min: 52,
+      media_type: 'tv',
+      genres: ['Mistério', 'Comédia', 'Fantasia'],
+      trailerId: 'Di310BC8UrU'
+    },
+    {
+      id: 105,
+      title: 'De Volta para o Futuro',
+      overview: 'Marty McFly, um adolescente típico dos anos 80, é acidentalmente enviado de volta a 1955 em uma máquina do tempo construída pelo excêntrico cientista Doc Brown. Para voltar, ele precisa fazer com que seus futuros pais se apaixonem.',
+      release_date: '1985-07-03',
+      poster_path: 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&w=780&q=80',
+      backdrop_path: 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=1200&q=80',
+      vote_average: 8.5,
+      duration_min: 116,
+      media_type: 'movie',
+      genres: ['Ficção Científica', 'Aventura', 'Comédia'],
+      trailerId: 'qvsgGtIvCBY'
     }
   ];
 
@@ -725,45 +769,60 @@ export async function getMovieDetailsTMDB(id: number, type: 'movie' | 'tv', apiK
 
 /**
  * Busca Filmes e Séries em Tendência Hoje no TMDB (Trending / Popular)
+ * Permite filtrar por 'all', 'movie' ou 'tv'
  */
-export async function getTMDBTrendingMovies(apiKey: string): Promise<any[]> {
+export async function getTMDBTrendingContent(apiKey: string, type: 'all' | 'movie' | 'tv' = 'all'): Promise<any[]> {
   if (!apiKey || apiKey === 'MY_GEMINI_API_KEY' || apiKey.trim() === '') {
     const mockDb = await fallbackTMDBSearch('');
-    return mockDb.map(item => ({
+    const filtered = type === 'all' ? mockDb : mockDb.filter(m => m.media_type === type);
+    return filtered.map(item => ({
       id: item.id,
       title: item.title,
       name: item.title,
       popularity: item.vote_average * 10,
       vote_average: item.vote_average,
-      media_type: 'movie',
+      media_type: item.media_type || 'movie',
       poster_path: item.poster_path,
       backdrop_path: item.backdrop_path,
-      overview: item.overview
+      overview: item.overview,
+      release_date: item.release_date,
+      first_air_date: item.release_date
     }));
   }
 
   try {
-    const url = `https://api.themoviedb.org/3/trending/all/day?api_key=${encodeURIComponent(apiKey)}&language=pt-BR`;
+    const endpoint = type === 'movie' ? 'trending/movie/day' : type === 'tv' ? 'trending/tv/day' : 'trending/all/day';
+    const url = `https://api.themoviedb.org/3/${endpoint}?api_key=${encodeURIComponent(apiKey)}&language=pt-BR`;
     const res = await fetchApi(url);
     if (!res.ok || !res.data) {
       throw new Error('Falha ao obter tendências do TMDB');
     }
-    const results = res.data.results || [];
+    const results = (res.data.results || []).map((item: any) => ({
+      ...item,
+      media_type: item.media_type || (type === 'tv' ? 'tv' : 'movie')
+    }));
     return results;
   } catch (err) {
     console.warn('Erro ao obter tendências do TMDB, usando banco simulado:', err);
     const mockDb = await fallbackTMDBSearch('');
-    return mockDb.map(item => ({
+    const filtered = type === 'all' ? mockDb : mockDb.filter(m => m.media_type === type);
+    return filtered.map(item => ({
       id: item.id,
       title: item.title,
       name: item.title,
       popularity: item.vote_average * 10,
       vote_average: item.vote_average,
-      media_type: 'movie',
+      media_type: item.media_type || 'movie',
       poster_path: item.poster_path,
       backdrop_path: item.backdrop_path,
-      overview: item.overview
+      overview: item.overview,
+      release_date: item.release_date,
+      first_air_date: item.release_date
     }));
   }
+}
+
+export async function getTMDBTrendingMovies(apiKey: string): Promise<any[]> {
+  return getTMDBTrendingContent(apiKey, 'all');
 }
 

@@ -20,6 +20,8 @@ interface MovieRowProps {
   onToggleMyList: (movieId: string, e?: React.MouseEvent) => void;
   onPlayClick: (movie: Movie, e?: React.MouseEvent) => void;
   showCount?: boolean;
+  showRankingBadge?: boolean;
+  accentColor?: 'rose' | 'neon' | 'amber';
 }
 
 export const MovieRow = React.memo(function MovieRow({
@@ -31,7 +33,9 @@ export const MovieRow = React.memo(function MovieRow({
   onMovieClick,
   onToggleMyList,
   onPlayClick,
-  showCount = false
+  showCount = false,
+  showRankingBadge = false,
+  accentColor = 'rose'
 }: MovieRowProps) {
   const rowRef = useRef<HTMLDivElement>(null);
   const [showLeftArrow, setShowLeftArrow] = useState(false);
@@ -117,16 +121,34 @@ export const MovieRow = React.memo(function MovieRow({
           onScroll={onScrollContainer}
           className="flex gap-4 md:gap-5 xl:gap-6 px-4 sm:px-8 overflow-x-auto no-scrollbar scroll-smooth py-2 sm:py-4"
         >
-          {movies.map((movie) => {
+          {movies.map((movie, idx) => {
             const hasProgressState = watchHistory && watchHistory[movie.id];
-            const isAddedToList = myList.includes(movie.id);
+            const isAddedToList = Array.isArray(myList) && myList.some(id => String(id) === String(movie.id) || (movie.tmdbId && String(id) === `tmdb_${movie.tmdbId}`));
             const progress = hasProgressState ? watchHistory[movie.id] : null;
+
+            const cardBorderHoverClass = accentColor === 'neon' 
+              ? 'hover:border-emerald-400 hover:shadow-xl hover:shadow-emerald-500/20 focus-visible:ring-emerald-400'
+              : accentColor === 'amber'
+              ? 'hover:border-amber-400 hover:shadow-xl hover:shadow-amber-500/20 focus-visible:ring-amber-400'
+              : 'hover:border-rose-500 hover:shadow-xl hover:shadow-rose-600/10 focus-visible:ring-rose-500';
+
+            const titleHoverClass = accentColor === 'neon'
+              ? 'group-hover/card:text-emerald-400'
+              : accentColor === 'amber'
+              ? 'group-hover/card:text-amber-400'
+              : 'group-hover/card:text-rose-500';
+
+            const playBtnClass = accentColor === 'neon'
+              ? 'bg-emerald-500 hover:bg-emerald-400 text-zinc-950 shadow-[0_0_12px_rgba(16,185,129,0.5)]'
+              : accentColor === 'amber'
+              ? 'bg-amber-400 hover:bg-amber-300 text-zinc-950 shadow-[0_0_12px_rgba(245,158,11,0.5)]'
+              : 'bg-rose-600 hover:bg-rose-700 text-white';
 
             return (
               <div
                 key={movie.id}
                 tabIndex={0}
-                className="relative flex-none w-[145px] xs:w-[165px] sm:w-[195px] md:w-[220px] xl:w-[250px] group/card rounded-lg overflow-hidden bg-zinc-900 border border-zinc-800 hover:border-rose-500 hover:shadow-xl hover:shadow-rose-600/10 focus-visible:ring-4 focus-visible:ring-rose-500 focus-visible:scale-105 focus-visible:outline-none transition-all duration-300 cursor-pointer animate-fade-in"
+                className={`relative flex-none w-[145px] xs:w-[165px] sm:w-[195px] md:w-[220px] xl:w-[250px] group/card rounded-lg overflow-hidden bg-zinc-900 border border-zinc-800 ${cardBorderHoverClass} focus-visible:scale-105 focus-visible:outline-none transition-all duration-300 cursor-pointer animate-fade-in`}
                 onClick={() => onMovieClick(movie)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
@@ -136,6 +158,21 @@ export const MovieRow = React.memo(function MovieRow({
                 }}
                 id={`movie-card-${movie.id}`}
               >
+                {/* Badge de Ranking (Top 10 Melhores Avaliações / Tendências) */}
+                {showRankingBadge && (
+                  <div 
+                    className={`absolute top-2 left-2 z-30 px-2 py-0.5 rounded-md font-mono font-black text-[11px] select-none flex items-center gap-1 ${
+                      accentColor === 'neon'
+                        ? 'bg-emerald-500 text-zinc-950 border border-emerald-300 shadow-[0_0_12px_rgba(16,185,129,0.6)]'
+                        : accentColor === 'amber'
+                        ? 'bg-amber-400 text-zinc-950 border border-amber-200 shadow-[0_0_12px_rgba(245,158,11,0.6)]'
+                        : 'bg-rose-600 text-white border border-rose-400 shadow-md'
+                    }`}
+                  >
+                    <span>#{idx + 1}</span>
+                  </div>
+                )}
+
                 {/* Visual VHS estético: adesivo no poster */}
                 {(() => {
                   const COLOR_MAP: { [key: string]: string } = {
@@ -192,16 +229,16 @@ export const MovieRow = React.memo(function MovieRow({
                     <div className="flex items-center gap-1.5 sm:gap-2 mb-2 sm:mb-3">
                       <button
                         onClick={(e) => onPlayClick(movie, e)}
-                        className="p-1.5 sm:p-2 bg-rose-600 hover:bg-rose-700 text-white rounded-full transition-all active:scale-90"
+                        className={`p-1.5 sm:p-2 rounded-full transition-all active:scale-90 ${playBtnClass}`}
                         title="Assistir agora"
                       >
-                        <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-white" />
+                        <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current" />
                       </button>
                       <button
                         onClick={(e) => onToggleMyList(movie.id, e)}
                         className={`p-1.5 sm:p-2 border rounded-full transition-all active:scale-90 ${
                           isAddedToList 
-                            ? 'bg-rose-500/10 border-rose-500 text-rose-400' 
+                            ? accentColor === 'neon' ? 'bg-emerald-500/20 border-emerald-400 text-emerald-300' : 'bg-rose-500/10 border-rose-500 text-rose-400' 
                             : 'border-zinc-500 text-zinc-300 hover:text-white hover:border-white bg-zinc-900/80'
                         }`}
                         title={isAddedToList ? "Remover da lista" : "Adicionar à lista"}
@@ -237,7 +274,7 @@ export const MovieRow = React.memo(function MovieRow({
 
                 {/* Bloco de Texto Inferior (Fita VHS label look) */}
                 <div className="p-2 sm:p-3 bg-zinc-950 border-t border-zinc-900 flex flex-col justify-between h-14 sm:h-18">
-                  <p className="text-xs sm:text-sm font-semibold text-zinc-200 group-hover/card:text-rose-500 transition-colors truncate">
+                  <p className={`text-xs sm:text-sm font-semibold text-zinc-200 ${titleHoverClass} transition-colors truncate`}>
                     {movie.title}
                   </p>
                   
