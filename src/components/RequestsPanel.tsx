@@ -194,26 +194,22 @@ export default function RequestsPanel({
   return (
     <div className="min-h-screen bg-zinc-950 text-white font-sans pt-28 pb-16 px-4 sm:px-8 max-w-[1400px] mx-auto select-none">
       {/* Cabeçalho */}
-      <div className="mb-10 text-center md:text-left">
-        <span className="text-xs font-mono uppercase tracking-widest text-rose-500 font-bold block mb-1">
+      <div className="mb-8 text-center md:text-left">
+        <span className="text-xs font-mono uppercase tracking-widest text-red-500 font-black block mb-1">
           Espaço do Espectador vhsflix
         </span>
         <h1 className="text-3xl sm:text-4xl font-black font-display uppercase tracking-wider text-white">
-          Pedidos de <span className="text-rose-500 animate-pulse">Filmes e Séries</span>
+          Pedidos de <span className="text-red-600 drop-shadow-[0_0_15px_rgba(239,68,68,0.6)]">Filmes e Séries</span>
         </h1>
-        <p className="text-xs sm:text-sm text-zinc-400 mt-2 max-w-2xl font-light leading-relaxed">
-          Procurou e não encontrou sua fita VHS predileta, clássico dos anos 80, animês ou desenhos vintage? Peça agora mesmo!
-          Nossa pesquisa integrada busca a capa, sinopse e nota oficial em tempo real para deixar o pedido decorado.
-        </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* Formulário de Envio (Lado Esquerdo) */}
-        <div className="lg:col-span-5 bg-zinc-900/60 border border-zinc-800/80 rounded-2xl p-6 relative overflow-hidden backdrop-blur-md shadow-xl shadow-black/40">
-          <div className="absolute top-0 left-0 w-full h-[3px] bg-rose-600" />
+        <div className="lg:col-span-5 bg-zinc-900/80 border border-red-600/25 hover:border-red-600/45 transition-all duration-300 rounded-2xl p-6 relative overflow-hidden backdrop-blur-md shadow-2xl shadow-red-950/20">
+          <div className="absolute top-0 left-0 w-full h-[3px] bg-gradient-to-r from-red-700 via-red-500 to-red-700 shadow-[0_0_10px_rgba(239,68,68,0.8)]" />
           
-          <h2 className="text-lg font-bold uppercase tracking-wider text-rose-500 mb-4 flex items-center gap-2">
-            <Plus className="w-5 h-5 text-rose-500" />
+          <h2 className="text-lg font-black uppercase tracking-wider text-red-500 mb-5 flex items-center gap-2">
+            <Plus className="w-5 h-5 text-red-500 stroke-[3]" />
             <span>Fazer Novo Pedido</span>
           </h2>
 
@@ -228,10 +224,10 @@ export default function RequestsPanel({
                   <button
                     type="button"
                     onClick={() => setType('movie')}
-                    className={`py-2 px-3 rounded-lg border text-xs font-bold font-mono tracking-wider flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer ${
+                    className={`py-2 px-3 rounded-lg border text-xs font-black font-mono tracking-wider flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer ${
                       type === 'movie'
-                        ? 'bg-rose-600 border-rose-500 text-white shadow-lg shadow-rose-600/10'
-                        : 'bg-zinc-950/40 border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-white'
+                        ? 'bg-red-600 border-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.45)]'
+                        : 'bg-zinc-950/60 border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-white'
                     }`}
                   >
                     <Film className="w-3.5 h-3.5" />
@@ -240,10 +236,10 @@ export default function RequestsPanel({
                   <button
                     type="button"
                     onClick={() => setType('series')}
-                    className={`py-2 px-3 rounded-lg border text-xs font-bold font-mono tracking-wider flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer ${
+                    className={`py-2 px-3 rounded-lg border text-xs font-black font-mono tracking-wider flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer ${
                       type === 'series'
-                        ? 'bg-rose-600 border-rose-500 text-white shadow-lg shadow-rose-600/10'
-                        : 'bg-zinc-950/40 border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-white'
+                        ? 'bg-red-600 border-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.45)]'
+                        : 'bg-zinc-950/60 border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-white'
                     }`}
                   >
                     <Tv className="w-3.5 h-3.5" />
@@ -258,8 +254,8 @@ export default function RequestsPanel({
               <label className="block text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-widest mb-1.5 flex justify-between items-center">
                 <span>Título do Vídeo</span>
                 {isSearching && (
-                  <span className="text-[10px] text-rose-400 flex items-center gap-1 font-mono uppercase lowercase-none animate-pulse">
-                    <RefreshCw className="w-3 h-3 animate-spin text-rose-500" /> buscando TMDB...
+                  <span className="text-[10px] text-red-400 flex items-center gap-1 font-mono uppercase animate-pulse">
+                    <RefreshCw className="w-3 h-3 animate-spin text-red-500" /> buscando TMDB...
                   </span>
                 )}
               </label>
@@ -271,14 +267,14 @@ export default function RequestsPanel({
                   onChange={handleInputChange}
                   disabled={isFetchingDetails}
                   placeholder="Ex: De Volta Para o Futuro, Twin Peaks..."
-                  className="w-full bg-zinc-950 border border-zinc-800 focus:border-rose-500/80 rounded-lg pl-3.5 pr-10 py-2.5 text-xs text-white placeholder-zinc-650 focus:outline-none focus:ring-1 focus:ring-rose-500/20 disabled:opacity-50"
+                  className="w-full bg-zinc-950 border border-zinc-800 focus:border-red-500/80 rounded-lg pl-3.5 pr-10 py-2.5 text-xs text-white placeholder-zinc-650 focus:outline-none focus:ring-1 focus:ring-red-500/40 disabled:opacity-50 transition-all"
                 />
                 
                 {selectedTmdb && (
                   <button
                     type="button"
                     onClick={handleClearSelection}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-rose-500 transition-colors p-1"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-red-500 transition-colors p-1"
                     title="Limpar e pesquisar de novo"
                   >
                     <X className="w-4 h-4" />
@@ -464,30 +460,24 @@ export default function RequestsPanel({
             <button
               type="submit"
               disabled={!!error || !title.trim() || isFetchingDetails}
-              className={`w-full py-3 rounded-lg text-xs font-bold uppercase tracking-widest font-mono flex items-center justify-center gap-2 transition-all transition-colors cursor-pointer ${
+              className={`w-full py-3.5 rounded-xl text-xs font-black uppercase tracking-widest font-mono flex items-center justify-center gap-2 transition-all cursor-pointer ${
                 !!error || !title.trim() || isFetchingDetails
-                  ? 'bg-zinc-800 text-zinc-500 border border-zinc-850 cursor-not-allowed'
-                  : 'bg-rose-600 hover:bg-rose-700 text-white shadow-lg shadow-rose-600/15 active:scale-98 border border-rose-500/20'
+                  ? 'bg-zinc-800/80 text-zinc-500 border border-zinc-800 cursor-not-allowed'
+                  : 'bg-red-600 hover:bg-red-500 text-white shadow-[0_0_25px_rgba(239,68,68,0.5)] hover:shadow-[0_0_35px_rgba(239,68,68,0.8)] active:scale-95 border border-red-500'
               }`}
             >
               <span>{selectedTmdb ? 'Confirmar Envio do Pedido' : 'Enviar Pedido Manual'}</span>
-              <ArrowRight className="w-3.5 h-3.5" />
+              <ArrowRight className="w-4 h-4 stroke-[3]" />
             </button>
           </form>
-
-          {/* Dica */}
-          <div className="mt-5 pt-4 border-t border-zinc-800/50 flex gap-2 text-[10px] text-zinc-550 italic leading-snug">
-            <span className="text-rose-500 font-bold">ℹ</span>
-            <span>Seu pedido será associado ao perfil ativo <strong>{activeProfile.name}</strong> para identificação na lista pública de pedidos.</span>
-          </div>
         </div>
 
         {/* Lista Pública de Pedidos (Lado Direito) */}
         <div className="lg:col-span-7 space-y-4">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-zinc-900/20 p-3 rounded-xl border border-zinc-900">
-            <div className="flex items-center gap-2 font-black text-rose-500 font-display text-sm tracking-wide uppercase">
-              <MessageSquare className="w-4 h-4" />
-              <span>Pedido dos Usuários ({filteredRequests.length})</span>
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-zinc-900/60 p-3.5 rounded-xl border border-red-600/20 shadow-md">
+            <div className="flex items-center gap-2 font-black text-red-500 font-display text-sm sm:text-base tracking-wide uppercase">
+              <MessageSquare className="w-4 h-4 text-red-500" />
+              <span>Pedidos dos Usuários ({filteredRequests.length})</span>
             </div>
 
             {/* Barra de Busca de Pedido */}
@@ -498,7 +488,7 @@ export default function RequestsPanel({
                 placeholder="Filtrar pedidos..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-zinc-950 border border-zinc-800 focus:border-zinc-700/80 rounded-lg pl-8 pr-3 py-1.5 text-xs text-white placeholder-zinc-650 focus:outline-none"
+                className="w-full bg-zinc-950 border border-zinc-800 focus:border-red-500/80 rounded-lg pl-8 pr-3 py-1.5 text-xs text-white placeholder-zinc-650 focus:outline-none focus:ring-1 focus:ring-red-500/30 transition-all"
               />
             </div>
           </div>
@@ -506,9 +496,9 @@ export default function RequestsPanel({
           <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1 no-scrollbar-y">
             <AnimatePresence initial={false}>
               {filteredRequests.length === 0 ? (
-                <div className="text-center py-24 border border-zinc-900 rounded-2xl bg-zinc-950/25">
+                <div className="text-center py-24 border border-zinc-900 rounded-2xl bg-zinc-950/40">
                   <MessageCircle className="w-10 h-10 text-zinc-600 mx-auto mb-2.5" />
-                  <p className="text-xs text-zinc-500 font-mono">Nenhum pedido encontrado na videoteca no momento.</p>
+                  <p className="text-xs text-zinc-400 font-mono">Nenhum pedido encontrado no catálogo no momento.</p>
                 </div>
               ) : (
                 filteredRequests.map((req) => (
@@ -517,8 +507,11 @@ export default function RequestsPanel({
                     initial={{ opacity: 0, y: 15 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, scale: 0.95 }}
-                    className="bg-zinc-900/40 border border-zinc-800/70 hover:border-rose-500/20 rounded-xl p-4 relative overflow-hidden transition-all duration-300 hover:bg-zinc-900/80 hover:shadow-xl hover:shadow-rose-600/5 group"
+                    whileHover={{ y: -2 }}
+                    className="bg-zinc-900/60 border border-zinc-800/80 hover:border-red-600/40 rounded-xl p-4 relative overflow-hidden transition-all duration-300 hover:bg-zinc-900/90 hover:shadow-xl hover:shadow-red-950/25 group"
                   >
+                    {/* Linha vermelha no topo ao passar o mouse */}
+                    <div className="absolute top-0 left-0 w-full h-[2px] bg-red-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                     {/* VHS FITA ESTANTE GRID DESIGN */}
                     <div className="flex flex-col sm:flex-row items-start gap-4">
                       {/* Capa Pôster da Fita de Pedido */}
@@ -562,20 +555,20 @@ export default function RequestsPanel({
                             {req.title}
                           </h3>
                           
-                          <span className={`text-[8px] font-mono font-extrabold uppercase tracking-wider px-2 py-0.5 rounded border ${
+                          <span className={`text-[9px] font-mono font-black uppercase tracking-wider px-2 py-0.5 rounded-md border ${
                             req.type === 'movie' 
-                              ? 'bg-rose-500/10 border-rose-500/10 text-rose-400' 
-                              : 'bg-indigo-500/10 border-indigo-505/10 text-indigo-400'
+                              ? 'bg-red-600/20 border-red-500/40 text-red-400' 
+                              : 'bg-indigo-600/20 border-indigo-500/40 text-indigo-400'
                           }`}>
                             {req.type === 'movie' ? 'Filme' : 'Série'}
                           </span>
 
                           {req.year && (
-                            <span className="text-[10px] text-zinc-500 font-mono font-semibold">{req.year}</span>
+                            <span className="text-[11px] text-zinc-400 font-mono font-bold bg-zinc-950 px-2 py-0.5 rounded border border-zinc-800">{req.year}</span>
                           )}
 
                           {req.rating && req.rating > 0 && (
-                            <span className="text-[9px] text-yellow-500 font-bold font-mono flex items-center gap-0.5 select-none hover:scale-105 transition-transform bg-yellow-500/5 px-1.5 py-0.5 rounded border border-yellow-500/10">
+                            <span className="text-[10px] text-amber-400 font-black font-mono flex items-center gap-1 select-none bg-amber-500/15 px-2 py-0.5 rounded border border-amber-500/30 shadow-sm">
                               ★ {req.rating.toFixed(1)}
                             </span>
                           )}
@@ -583,11 +576,11 @@ export default function RequestsPanel({
 
                         {/* Sinopse da Fita na Lista */}
                         {req.overview ? (
-                          <p className="text-[11px] sm:text-xs text-zinc-400 font-sans leading-relaxed line-clamp-2 sm:line-clamp-3 hover:text-zinc-300 transition-colors select-none font-light">
+                          <p className="text-[11px] sm:text-xs text-zinc-300 font-sans leading-relaxed line-clamp-2 sm:line-clamp-3 hover:text-white transition-colors select-none font-normal">
                             {req.overview}
                           </p>
                         ) : (
-                          <p className="text-[11px] sm:text-xs text-zinc-550 font-sans italic leading-relaxed select-none">
+                          <p className="text-[11px] sm:text-xs text-zinc-500 font-sans italic leading-relaxed select-none">
                             Sem sinopse anexada. Este título foi pedido manualmente com formulário livre.
                           </p>
                         )}
@@ -598,13 +591,13 @@ export default function RequestsPanel({
                             {req.genres.map((g, idx) => (
                               <span 
                                 key={idx} 
-                                className="bg-zinc-950 border border-zinc-800 text-[8px] text-rose-400 font-mono tracking-wide px-1.5 py-0.5 rounded uppercase"
+                                className="bg-red-950/40 border border-red-600/30 text-[9px] text-red-400 font-mono font-bold tracking-wide px-2 py-0.5 rounded uppercase"
                               >
                                 {g}
                               </span>
                             ))}
                             {req.seasonsCount && req.seasonsCount > 0 && (
-                              <span className="bg-zinc-950 border border-zinc-800 text-[8px] text-indigo-400 font-mono tracking-wide px-1.5 py-0.5 rounded uppercase">
+                              <span className="bg-indigo-950/40 border border-indigo-500/30 text-[9px] text-indigo-400 font-mono font-bold tracking-wide px-2 py-0.5 rounded uppercase">
                                 {req.seasonsCount} Temporada{req.seasonsCount > 1 ? 's' : ''}
                               </span>
                             )}
@@ -612,9 +605,9 @@ export default function RequestsPanel({
                         )}
 
                         {/* Rodapé com Quem Pediu e Data */}
-                        <div className="flex items-center gap-2 text-[10px] text-zinc-500 font-mono pt-1 flex-wrap select-none">
-                          <span className="flex items-center gap-1 font-semibold text-zinc-400 bg-zinc-950/40 border border-zinc-900 px-1.5 py-0.5 rounded">
-                            <Plus className="w-2.5 h-2.5 text-rose-500" /> Pedido de <span className="text-zinc-300 font-extrabold">{req.profileName}</span>
+                        <div className="flex items-center gap-2 text-[10px] text-zinc-400 font-mono pt-1 flex-wrap select-none">
+                          <span className="flex items-center gap-1.5 font-bold text-zinc-300 bg-zinc-950 border border-zinc-800 px-2 py-0.5 rounded">
+                            <Plus className="w-2.5 h-2.5 text-red-500 stroke-[3]" /> Pedido de <span className="text-white font-extrabold">{req.profileName}</span>
                           </span>
                           <span className="text-zinc-700 font-black">•</span>
                           <span>{new Date(req.createdAt).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
@@ -628,15 +621,15 @@ export default function RequestsPanel({
                           <div className="flex items-center gap-1.5">
                             <button
                               onClick={() => onFulfillRequest(req.id)}
-                              className="bg-emerald-600/10 hover:bg-emerald-600 border border-emerald-500/20 hover:border-emerald-500 text-emerald-400 hover:text-white px-2.5 py-1.5 rounded-lg text-[10px] font-mono font-bold uppercase tracking-wider flex items-center gap-1 transition-all cursor-pointer shadow-lg shadow-emerald-950/25 active:scale-95"
+                              className="bg-emerald-600/20 hover:bg-emerald-600 border border-emerald-500/40 hover:border-emerald-400 text-emerald-400 hover:text-white px-3 py-2 rounded-xl text-[10px] font-mono font-black uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shadow-lg shadow-emerald-950/40 active:scale-95"
                               title="Já adicionou esse filme? Clique para preencher o pedido, notificar o usuário e removê-lo."
                             >
-                              <Check className="w-3.5 h-3.5" />
+                              <Check className="w-3.5 h-3.5 stroke-[3]" />
                               <span>Atender fita</span>
                             </button>
                             <button
                               onClick={() => onDeleteRequest(req.id)}
-                              className="bg-zinc-950 hover:bg-rose-600/20 border border-zinc-800 hover:border-rose-600/40 text-zinc-500 hover:text-rose-450 p-2 rounded-lg transition-all cursor-pointer active:scale-95"
+                              className="bg-zinc-950 hover:bg-red-600/20 border border-zinc-800 hover:border-red-600/50 text-zinc-400 hover:text-red-400 p-2.5 rounded-xl transition-all cursor-pointer active:scale-95"
                               title="Excluir pedido da pilha"
                             >
                               <Trash className="w-3.5 h-3.5" />
@@ -647,14 +640,14 @@ export default function RequestsPanel({
                             {req.profileName === activeProfile.name && (
                               <button
                                 onClick={() => onDeleteRequest(req.id)}
-                                className="bg-zinc-950 hover:bg-rose-600/20 border border-zinc-850 hover:border-rose-600/30 text-zinc-500 hover:text-rose-400 p-2 rounded-lg transition-all cursor-pointer active:scale-95"
+                                className="bg-zinc-950 hover:bg-red-600/20 border border-zinc-800 hover:border-red-600/40 text-zinc-400 hover:text-red-400 p-2.5 rounded-xl transition-all cursor-pointer active:scale-95"
                                 title="Excluir meu pedido"
                               >
                                 <Trash className="w-3.5 h-3.5" />
                               </button>
                             )}
-                            <span className="flex items-center gap-1.5 bg-amber-500/10 text-amber-500 px-2.5 py-1 rounded-full text-[9px] font-mono font-black uppercase tracking-widest border border-amber-500/20 select-none">
-                              <Clock className="w-3 h-3 animate-pulse text-amber-500" />
+                            <span className="flex items-center gap-1.5 bg-amber-500/15 text-amber-400 px-3 py-1.5 rounded-full text-[10px] font-mono font-black uppercase tracking-widest border border-amber-500/30 select-none shadow-sm">
+                              <Clock className="w-3.5 h-3.5 animate-pulse text-amber-400" />
                               <span>Aguardando Fita</span>
                             </span>
                           </div>

@@ -5,12 +5,13 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Movie, WatchProgress, MovieComment } from '../types';
-import { X, Play, Pause, Plus, Check, Star, RefreshCw, Tv, Clock, HelpCircle, Film, Sparkles, AlertCircle, ExternalLink, Maximize, Shield, Sliders, ThumbsUp, ThumbsDown, ChevronDown, ArrowLeft, Settings, Volume2, VolumeX, User, Users, Send, MessageSquare, Trash2, Zap, Server, Clapperboard } from 'lucide-react';
+import { X, Play, Pause, Plus, Check, Star, RefreshCw, Tv, Clock, HelpCircle, Film, Sparkles, AlertCircle, ExternalLink, Maximize, Minimize, RotateCw, Smartphone, Shield, Sliders, ThumbsUp, ThumbsDown, ChevronDown, ArrowLeft, Settings, Volume2, VolumeX, User, Users, Send, MessageSquare, Trash2, Zap, Server, Clapperboard } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { INITIAL_MOVIES } from '../data';
 import { handlePosterError, handleBackdropError, getCleanPosterUrl, getCleanBackdropUrl } from '../lib/imageUtils';
 import { AbyssService } from '../services/abyssService';
 import { fetchApi } from '../lib/apiClient';
+import { RecommendationBadge } from './RecommendationBadge';
 
 export interface CastMember {
   id: number;
@@ -762,6 +763,89 @@ export default function MovieDetailModal({
     }
   }, [isOpen]);
 
+  // SISTEMA FIXADOR DE PERMANÊNCIA NO SITE (Anti-Redirect / Mantém Usuário Fixo no VHSFLIX)
+  // Ativo no desktop, tablet e smartphone sempre que o modal estiver aberto ou em reprodução
+  useEffect(() => {
+    if (!isOpen) return;
+
+    // 1. Manter foco permanente no VHSFLIX:
+    // Se o player (Servidor 1, 2 ou 3) abrir uma nova aba/popup externa,
+    // o foco é imediatamente recuperado para a janela do VHSFLIX,
+    // permitindo que o anúncio abra externamente no background sem tirar o usuário do site
+    let refocusTimer: ReturnType<typeof setTimeout> | null = null;
+    const handleWindowBlur = () => {
+      if (isPlaying) {
+        if (refocusTimer) clearTimeout(refocusTimer);
+        refocusTimer = setTimeout(() => {
+          try {
+            window.focus();
+          } catch (e) {}
+        }, 50);
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (isPlaying && document.hidden) {
+        if (refocusTimer) clearTimeout(refocusTimer);
+        refocusTimer = setTimeout(() => {
+          try {
+            window.focus();
+          } catch (e) {}
+        }, 50);
+      }
+    };
+
+    // 2. Anulação rigorosa de window.opener para impedir tabnapping
+    try {
+      if (window.opener) {
+        window.opener = null;
+      }
+    } catch (e) {}
+
+    // 3. Fixador de Histórico (Impede que scripts forcem navegação de histórico para fora do site)
+    const currentHref = window.location.href;
+    try {
+      window.history.pushState({ vhsflix_stay: true }, '', currentHref);
+    } catch (e) {}
+
+    const handlePopState = () => {
+      if (isOpen) {
+        try {
+          window.history.pushState({ vhsflix_stay: true }, '', currentHref);
+        } catch (e) {}
+      }
+    };
+
+    // 4. Interceptador de links que tentem forçar navegação da janela principal (_top ou _parent)
+    const handleDocumentClick = (e: MouseEvent) => {
+      const anchor = (e.target as HTMLElement)?.closest('a');
+      if (anchor) {
+        const target = anchor.getAttribute('target');
+        const href = anchor.getAttribute('href');
+        if (target === '_top' || target === '_parent') {
+          e.preventDefault();
+          e.stopPropagation();
+          if (href && !href.startsWith('javascript:')) {
+            window.open(href, '_blank', 'noopener,noreferrer');
+          }
+        }
+      }
+    };
+
+    window.addEventListener('blur', handleWindowBlur);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('popstate', handlePopState);
+    document.addEventListener('click', handleDocumentClick, true);
+
+    return () => {
+      if (refocusTimer) clearTimeout(refocusTimer);
+      window.removeEventListener('blur', handleWindowBlur);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('popstate', handlePopState);
+      document.removeEventListener('click', handleDocumentClick, true);
+    };
+  }, [isOpen, isPlaying]);
+
   // Reiniciar estados de reprodução e abas ativos quando altera o filme em exibição
   useEffect(() => {
     if (!movie) return;
@@ -1354,8 +1438,13 @@ export default function MovieDetailModal({
                     </h2>
                   </div>
 
-                  {/* Direita: Elemento de equilíbrio visual invisível para garantir centralização perfeita do título sem botões secundários */}
-                  <div className="w-[140px] sm:w-[220px] hidden sm:block pointer-events-none" aria-hidden="true" />
+                  {/* Direita: Status da Fita / Indicador de Sinal */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <div className="hidden sm:flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-zinc-900/90 border border-red-500/30 text-zinc-300 font-mono text-[11px] shadow-sm">
+                      <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+                      <span className="font-bold tracking-wider uppercase text-zinc-200">SINAL ATIVO</span>
+                    </div>
+                  </div>
                 </div>
 
                 {/* 2. Área do Reprodutor Inteligente (Ocupa 100% da área útil do player) */}
@@ -1535,26 +1624,32 @@ export default function MovieDetailModal({
                       </div>
                     </div>
                   ) : parsedVideo.url ? (
-                    <iframe
-                      src={(() => {
-                        const raw = parsedVideo.url;
-                        if (!raw) return '';
-                        // Se contiver hash (#color:39ff14), precisamos manter o fragmento ao final
-                        if (raw.includes('#')) {
-                          const [base, hash] = raw.split('#');
-                          const sep = base.includes('?') ? '&' : '?';
-                          return `${base}${sep}autoplay=1${getQualityParams(preferredQuality)}#${hash}`;
-                        }
-                        const sep = raw.includes('?') ? '&' : '?';
-                        return `${raw}${sep}autoplay=1${getQualityParams(preferredQuality)}`;
-                      })()}
-                      title={`Reproduzindo ${movie.title}`}
-                      className="w-full h-full border-0 absolute inset-0 video-player-iframe"
-                      width="100%"
-                      height="100%"
-                      allowFullScreen
-                      allow="autoplay; fullscreen; encrypted-media; picture-in-picture; accelerometer; gyroscope; display-capture; clipboard-write; web-share"
-                    />
+                    <div className="w-full h-full relative overflow-hidden bg-black flex items-center justify-center">
+                      <iframe
+                        src={(() => {
+                          const raw = parsedVideo.url;
+                          if (!raw) return '';
+                          // Se contiver hash (#color:39ff14), precisamos manter o fragmento ao final
+                          if (raw.includes('#')) {
+                            const [base, hash] = raw.split('#');
+                            const sep = base.includes('?') ? '&' : '?';
+                            return `${base}${sep}autoplay=1${getQualityParams(preferredQuality)}#${hash}`;
+                          }
+                          const sep = raw.includes('?') ? '&' : '?';
+                          return `${raw}${sep}autoplay=1${getQualityParams(preferredQuality)}`;
+                        })()}
+                        title={`Reproduzindo ${movie.title}`}
+                        className="w-full h-full border-0 absolute inset-0 video-player-iframe"
+                        width="100%"
+                        height="100%"
+                        allowFullScreen={true}
+                        // Permissões ampliadas para todos os servidores poderem abrir toda a tela e orientar display
+                        allow="autoplay *; fullscreen *; encrypted-media *; picture-in-picture *; accelerometer; gyroscope; display-capture; clipboard-write; web-share; orientation-lock; screen-wake-lock"
+                        // Sandbox estrito sem allow-top-navigation e sem escape-sandbox:
+                        // Garante que popups de anúncio não possam redirecionar o VHSFLIX via window.opener
+                        sandbox="allow-forms allow-modals allow-orientation-lock allow-pointer-lock allow-popups allow-presentation allow-same-origin allow-scripts"
+                      />
+                    </div>
                   ) : (
                     <div className="w-full max-w-md p-6 bg-zinc-950/95 border border-zinc-800 rounded-2xl flex flex-col items-center justify-center text-center shadow-2xl backdrop-blur-md z-50 my-auto">
                       <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mb-3.5 text-amber-400 shadow-md shadow-amber-500/20">
@@ -1990,6 +2085,9 @@ export default function MovieDetailModal({
                     
                     {/* Linha de Badges / Tags Modernas em Vermelho Vibrante */}
                     <div className="flex items-center flex-wrap gap-2.5 mb-2 sm:mb-4">
+                      {movie.isRecommended && (
+                        <RecommendationBadge variant="detail" />
+                      )}
                       <span className="bg-red-600 text-white font-sans text-xs font-black px-3 py-1 rounded-full tracking-wider uppercase shadow-[0_0_15px_rgba(239,68,68,0.5)] border border-red-500">
                         {movie.category}
                       </span>

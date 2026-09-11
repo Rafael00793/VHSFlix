@@ -11,12 +11,13 @@ import Navbar from './components/Navbar';
 import ProfileSelector from './components/ProfileSelector';
 import MovieRow from './components/MovieRow';
 import MovieDetailModal from './components/MovieDetailModal';
+import RecommendationBadge from './components/RecommendationBadge';
 import AdminPanel from './components/AdminPanel';
 import RequestsPanel from './components/RequestsPanel';
 import SupportPanel from './components/SupportPanel';
 import { Play, Info, Sparkles, Star, Plus, Check, Shield, HelpCircle, AlertCircle, Heart, HeartOff, Volume1, Volume2, VolumeX, Bell, X, Flame, LayoutGrid, List, Trash2, ChevronLeft, ChevronRight, Film, Tv, Clock, Award, Bookmark } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { db, saveUsersToFirestore, deleteUserFromFirestore, saveProfilesToFirestore, saveMoviesToFirestore, saveSingleMovieToFirestore, deleteMovieFromFirestore, saveSettingsToFirestore, saveRequestsToFirestore, deleteRequestFromFirestore, handleFirestoreError, OperationType, saveSingleNotificationToFirestore, deleteNotificationFromFirestore, saveSingleCommentToFirestore, deleteCommentFromFirestore } from './lib/firebase';
+import { db, saveUsersToFirestore, deleteUserFromFirestore, saveProfilesToFirestore, saveMoviesToFirestore, saveSingleMovieToFirestore, deleteMovieFromFirestore, saveSettingsToFirestore, saveRequestsToFirestore, saveSingleRequestToFirestore, deleteRequestFromFirestore, handleFirestoreError, OperationType, saveSingleNotificationToFirestore, deleteNotificationFromFirestore, saveSingleCommentToFirestore, deleteCommentFromFirestore } from './lib/firebase';
 import { onSnapshot, collection, doc, setDoc, getDoc } from 'firebase/firestore';
 import { fetchApi } from './lib/apiClient';
 
@@ -262,6 +263,7 @@ export default function App() {
   // Abas de navegação do usuário na plataforma
   const [activeTab, setActiveTab] = useState<'all' | 'movies' | 'series' | 'mylist' | 'requests' | 'support'>('all');
   const [myListViewMode, setMyListViewMode] = useState<'grid' | 'vertical_list' | 'carousel'>(() => (localStorage.getItem('vhsflix_mylist_view') as any) || 'vertical_list');
+  const [myListTypeFilter, setMyListTypeFilter] = useState<'all' | 'movies' | 'series'>('all');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [isAdminView, setIsAdminView] = useState(false);
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
@@ -930,6 +932,11 @@ export default function App() {
   // 10 VHS Recém Adicionados (Ordenado estritamente por ordem de adição no admin)
   const recentlyAddedMoviesTop10 = useMemo(() => {
     return [...movies].sort((a, b) => getMovieAdditionWeight(b) - getMovieAdditionWeight(a)).slice(0, 10);
+  }, [movies]);
+
+  // Títulos com Selo Oficial de Recomendação concedido pelo Administrador Rafael
+  const recommendedMovies = useMemo(() => {
+    return movies.filter(m => Boolean(m.isRecommended)).sort(sortByReleaseYear);
   }, [movies]);
 
   // Transição automática das fitas de destaque rotativas a cada 10 segundos
@@ -1671,8 +1678,8 @@ export default function App() {
     };
     setRequests(prev => [newRequest, ...prev]);
 
-    // Salva o pedido diretamente no Firestore
-    saveRequestsToFirestore([newRequest]);
+    // Salva o pedido diretamente no Firestore em tempo real
+    saveSingleRequestToFirestore(newRequest);
 
     // Notificar todos os usuários sobre o novo pedido realizado em tempo real
     triggerNotification(
@@ -2257,6 +2264,25 @@ export default function App() {
                     if (activeTab === 'all') {
                       return (
                         <div className="space-y-4">
+                          {/* 0. Recomendados pelo Rafael (Selo Oficial VHSFLIX) */}
+                          {recommendedMovies.length > 0 && (
+                            <MovieRow
+                              title="Recomendados pelo Rafael"
+                              subtitle="Seleção Oficial com Selo de Ouro VHSFLIX"
+                              icon={
+                                <div className="w-8 h-8 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.4)]">
+                                  <Award className="w-4 h-4 fill-current" />
+                                </div>
+                              }
+                              movies={recommendedMovies}
+                              watchHistory={activeProfile.watchHistory}
+                              myList={activeProfile.myList}
+                              onMovieClick={handleSelectMovie}
+                              onToggleMyList={handleToggleMyList}
+                              onPlayClick={handleFeaturedPlay}
+                            />
+                          )}
+
                           {/* 1. Lançamentos Filmes (Top 10) */}
                           <MovieRow
                             title="Lançamentos Filmes"
@@ -2310,6 +2336,9 @@ export default function App() {
                       // activeTab === 'mylist'
                       const savedMyList = Array.isArray(activeProfile?.myList) ? activeProfile.myList : [];
                       const listMovies = movies.filter(m => savedMyList.some(id => String(id) === String(m.id) || (m.tmdbId && String(id) === `tmdb_${m.tmdbId}`)));
+                      const mySavedMovies = listMovies.filter(m => m.type === 'movie');
+                      const mySavedSeries = listMovies.filter(m => m.type === 'series');
+
                       if (listMovies.length === 0) {
                         return (
                           <div className="text-center py-24 px-4 font-sans max-w-md mx-auto flex flex-col items-center">
@@ -2320,257 +2349,464 @@ export default function App() {
                             </p>
                             <button
                               onClick={() => setActiveTab('all')}
-                              className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-4 py-2 mt-6 rounded"
+                              className="bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs px-4 py-2 mt-6 rounded cursor-pointer"
                             >
                               Explorar Filmes & Séries
                             </button>
                           </div>
                         );
                       }
-                      
-                      return (
-                        <div className="animate-fade-in">
-                          {/* Cabeçalho Refinado com Seleção de Layout */}
-                          <div className="px-4 sm:px-8 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                            <div>
-                              <span className="text-zinc-500 font-mono text-[9px] sm:text-[10px] uppercase font-bold tracking-widest block mb-1">Coleção de Fitas Clássicas</span>
-                              <h2 className="text-xl sm:text-2xl font-black font-display text-white uppercase tracking-tight">
-                                Minha Lista <span className="text-rose-500 font-extrabold">({listMovies.length} {listMovies.length === 1 ? 'item' : 'itens'})</span>
-                              </h2>
+
+                      // Componentes de Renderização para cada item da lista (Vertical e Grade)
+                      const renderVerticalItem = (movie: Movie) => {
+                        const progress = activeProfile.watchHistory[movie.id];
+                        const hasProgress = progress && progress.progress > 0 && !progress.isFinished;
+                        const isSeries = movie.type === 'series';
+
+                        return (
+                          <div
+                            key={movie.id}
+                            className="group relative bg-zinc-950/40 hover:bg-[#08080c] border border-zinc-900 hover:border-rose-500/40 rounded-xl p-3 sm:p-4.5 transition-all duration-300 flex flex-col sm:flex-row gap-5 items-start sm:items-center overflow-hidden shadow-lg hover:shadow-2xl hover:shadow-rose-950/15"
+                            id={`mylist-vertical-${movie.id}`}
+                          >
+                            <div className="absolute top-0 left-0 w-[3px] h-full bg-gradient-to-b from-rose-500 to-amber-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                            
+                            {/* Capa/Poster da Fita com Selo e Tipo */}
+                            <div 
+                              onClick={() => handleSelectMovie(movie)}
+                              className="relative w-20 sm:w-26 aspect-[2/3] shrink-0 rounded-lg overflow-hidden border border-zinc-850 group-hover:border-rose-500/60 shadow-md cursor-pointer transform group-hover:scale-[1.02] transition-all duration-300 bg-zinc-950"
+                            >
+                              <img 
+                                src={getCleanPosterUrl(movie.posterUrl)} 
+                                alt={movie.title} 
+                                className="w-full h-full object-cover"
+                                loading="lazy"
+                                decoding="async"
+                                referrerPolicy="no-referrer"
+                                onError={handlePosterError}
+                              />
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60 pointer-events-none" />
+                              
+                              {/* Badge de tipo de mídia */}
+                              <div className={`absolute top-1.5 left-1.5 border text-[8px] font-mono font-black px-1.5 py-0.5 rounded leading-none uppercase z-20 ${
+                                isSeries 
+                                  ? 'bg-emerald-950/90 border-emerald-500/50 text-emerald-300' 
+                                  : 'bg-rose-950/90 border-rose-500/50 text-rose-300'
+                              }`}>
+                                {isSeries ? 'Série' : 'Filme'}
+                              </div>
+
+                              {/* Selo Oficial de Recomendação se indicado */}
+                              {movie.isRecommended && (
+                                <div className="absolute top-1.5 right-1.5 z-20">
+                                  <RecommendationBadge variant="card" showText={false} />
+                                </div>
+                              )}
                             </div>
                             
-                            {/* Seletor de visualização moderna */}
-                            <div className="flex items-center gap-1.5 self-end sm:self-auto bg-zinc-950/40 p-1 rounded-xl border border-zinc-900/80">
-                              <span className="text-zinc-500 font-mono font-bold mx-2 uppercase tracking-wider text-[8px] sm:text-[9px]">Sintonia:</span>
+                            {/* Miolo Informativo */}
+                            <div className="flex-1 w-full min-w-0 flex flex-col justify-between">
+                              <div>
+                                <div className="flex flex-wrap items-center gap-2 mb-2 text-[10px] font-mono text-zinc-500">
+                                  <span className={`font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider text-[9px] border ${
+                                    isSeries 
+                                      ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' 
+                                      : 'text-rose-400 bg-rose-500/10 border-rose-500/20'
+                                  }`}>
+                                    {movie.category}
+                                  </span>
+                                  <span>•</span>
+                                  <span className="bg-zinc-900 border border-zinc-800 px-1.5 py-0.5 rounded text-zinc-300 font-bold">
+                                    {movie.year}
+                                  </span>
+                                  <span>•</span>
+                                  <span className="text-zinc-400">
+                                    Duração: <strong className="text-zinc-300">{movie.duration}</strong>
+                                  </span>
+
+                                  {movie.isRecommended && (
+                                    <div className="ml-auto hidden sm:inline-block">
+                                      <RecommendationBadge variant="compact" />
+                                    </div>
+                                  )}
+                                </div>
+                                
+                                <h3 
+                                  onClick={() => handleSelectMovie(movie)}
+                                  className="text-base sm:text-lg font-black text-white hover:text-rose-500 transition-colors uppercase tracking-tight truncate cursor-pointer font-sans flex items-center gap-2"
+                                >
+                                  <span>{movie.title}</span>
+                                </h3>
+                                
+                                <p className="text-xs text-zinc-400 mt-1.5 leading-relaxed line-clamp-2 pr-2 font-sans text-justify sm:text-left">
+                                  {movie.description}
+                                </p>
+                              </div>
                               
-                              {/* Modo Vertical */}
+                              <div className="flex flex-wrap items-center gap-4 mt-4 pt-3 border-t border-zinc-900/60 text-[10px] font-mono text-zinc-500">
+                                <span className="flex items-center gap-1 text-yellow-500 font-bold">
+                                  <Star className="w-3.5 h-3.5 fill-current text-yellow-500" />
+                                  <strong className="text-zinc-300 text-xs">{movie.rating}</strong>/10
+                                </span>
+                                
+                                {hasProgress && (
+                                  <div className="flex items-center gap-3 max-w-sm flex-1">
+                                    <span className="text-rose-400 shrink-0 font-bold uppercase text-[9px]">Ponto: {Math.floor((progress?.currentTime || 0) / 60)} min</span>
+                                    <div className="h-1.5 bg-zinc-900 border border-zinc-800 rounded-full flex-1 overflow-hidden relative">
+                                      <div className="h-full bg-rose-500" style={{ width: `${progress.progress}%` }} />
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            
+                            {/* Ações na lateral */}
+                            <div className="flex sm:flex-col items-center gap-2 w-full sm:w-auto shrink-0 mt-4 sm:mt-0 pt-3 sm:pt-0 border-t sm:border-t-0 border-zinc-900/60">
                               <button
-                                onClick={() => setMyListViewMode('vertical_list')}
-                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-mono font-black uppercase tracking-widest transition-all cursor-pointer text-[9px] ${
-                                  myListViewMode === 'vertical_list'
-                                    ? 'bg-rose-500/15 border-rose-500/30 text-rose-400'
-                                    : 'border-transparent text-zinc-500 hover:text-zinc-300'
-                                }`}
-                                title="Visualização Vertical Detalhada"
+                                onClick={() => handleFeaturedPlay(movie)}
+                                className="flex-1 sm:flex-none w-full bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-mono text-[10px] font-black uppercase tracking-wider py-2.5 px-4.5 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-md active:bg-rose-800"
                               >
-                                <List className="w-3.5 h-3.5" />
-                                <span className="hidden xs:inline">Vertical</span>
+                                <Play className="w-3.5 h-3.5 fill-current" />
+                                <span>Assistir</span>
                               </button>
-
-                              {/* Modo Grade */}
+                              
                               <button
-                                onClick={() => setMyListViewMode('grid')}
-                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-mono font-black uppercase tracking-widest transition-all cursor-pointer text-[9px] ${
-                                  myListViewMode === 'grid'
-                                    ? 'bg-rose-500/15 border-rose-500/30 text-rose-400'
-                                    : 'border-transparent text-zinc-500 hover:text-zinc-300'
-                                }`}
-                                title="Visualização em Grade Compacta"
+                                onClick={() => handleToggleMyList(movie.id)}
+                                className="bg-zinc-950 hover:bg-rose-600/10 border border-zinc-850 hover:border-rose-600/30 text-zinc-400 hover:text-rose-400 p-2.5 rounded-lg transition-all cursor-pointer active:scale-95 flex items-center justify-center"
+                                title="Remover da minha lista"
                               >
-                                <LayoutGrid className="w-3.5 h-3.5" />
-                                <span className="hidden xs:inline">Grade</span>
-                              </button>
-
-                              {/* Modo Carousel */}
-                              <button
-                                onClick={() => setMyListViewMode('carousel')}
-                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-mono font-black uppercase tracking-widest transition-all cursor-pointer text-[9px] ${
-                                  myListViewMode === 'carousel'
-                                    ? 'bg-rose-500/15 border-rose-500/30 text-rose-400'
-                                    : 'border-transparent text-zinc-500 hover:text-zinc-300'
-                                }`}
-                                title="Carrossel clássico horizontal"
-                              >
-                                <svg className="w-3.5 h-3.5 text-current" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                                </svg>
-                                <span className="hidden xs:inline">Carrossel</span>
+                                <Trash2 className="w-4 h-4 text-zinc-500 hover:text-rose-400 transition-colors" />
                               </button>
                             </div>
                           </div>
+                        );
+                      };
 
-                          {/* 1. MODO LISTA DETALHADA VERTICAL (PROFISSIONAL & MODERNO) */}
-                          {myListViewMode === 'vertical_list' && (
-                            <div className="px-4 sm:px-8 space-y-4 max-w-5xl">
-                              {listMovies.map((movie) => {
-                                const progress = activeProfile.watchHistory[movie.id];
-                                const hasProgress = progress && progress.progress > 0 && !progress.isFinished;
-                                
-                                return (
-                                  <div
-                                    key={movie.id}
-                                    className="group relative bg-zinc-950/30 hover:bg-[#070709]/80 border border-zinc-900 hover:border-rose-500/30 rounded-xl p-3 sm:p-4.5 transition-all duration-300 flex flex-col sm:flex-row gap-5 items-start sm:items-center overflow-hidden shadow-lg hover:shadow-2xl hover:shadow-rose-950/10"
-                                    id={`mylist-vertical-${movie.id}`}
-                                  >
-                                    {/* Enfeite neon de borda lateral no hover */}
-                                    <div className="absolute top-0 left-0 w-[3px] h-full bg-rose-500/80 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                                    
-                                    {/* Capa/Poster da Fita */}
-                                    <div 
-                                      onClick={() => handleSelectMovie(movie)}
-                                      className="relative w-20 sm:w-26 aspect-[2/3] shrink-0 rounded-lg overflow-hidden border border-zinc-850 group-hover:border-rose-500/60 shadow-md cursor-pointer transform group-hover:scale-[1.02] transition-all duration-300 bg-zinc-950"
-                                    >
-                                      <img 
-                                        src={getCleanPosterUrl(movie.posterUrl)} 
-                                        alt={movie.title} 
-                                        className="w-full h-full object-cover"
-                                        loading="lazy"
-                                        decoding="async"
-                                        referrerPolicy="no-referrer"
-                                        onError={handlePosterError}
-                                      />
-                                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60 pointer-events-none" />
-                                      
-                                      {/* Badge superior na imagem */}
-                                      <div className="absolute top-1.5 left-1.5 bg-zinc-950/80 border border-zinc-800/80 text-[8px] font-mono font-bold text-zinc-300 px-1.5 py-0.5 rounded leading-none uppercase z-20">
-                                        {movie.type === 'series' ? 'Série' : 'Movie'}
-                                      </div>
+                      const renderGridItem = (movie: Movie) => {
+                        const isSeries = movie.type === 'series';
+
+                        return (
+                          <div
+                            key={movie.id}
+                            className="group relative bg-[#09090b]/40 border border-zinc-900 hover:border-rose-500 rounded-xl overflow-hidden hover:shadow-xl hover:shadow-rose-600/10 transition-all cursor-pointer flex flex-col h-full"
+                            id={`mylist-grid-${movie.id}`}
+                          >
+                            <div 
+                              onClick={() => handleSelectMovie(movie)}
+                              className="aspect-[2/3] overflow-hidden bg-zinc-900 relative shrink-0"
+                            >
+                              <img 
+                                src={getCleanPosterUrl(movie.posterUrl)} 
+                                alt={movie.title} 
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                loading="lazy"
+                                decoding="async"
+                                referrerPolicy="no-referrer"
+                                onError={handlePosterError}
+                              />
+
+                              {/* Badge de tipo de mídia */}
+                              <div className={`absolute top-2 left-2 border text-[8px] font-mono font-black px-1.5 py-0.5 rounded leading-none uppercase z-20 ${
+                                isSeries 
+                                  ? 'bg-emerald-950/90 border-emerald-500/50 text-emerald-300' 
+                                  : 'bg-rose-950/90 border-rose-500/50 text-rose-300'
+                              }`}>
+                                {isSeries ? 'Série' : 'Filme'}
+                              </div>
+
+                              {/* Selo Oficial de Recomendação se indicado */}
+                              {movie.isRecommended && (
+                                <div className="absolute top-2 right-9 z-20">
+                                  <RecommendationBadge variant="card" showText={false} />
+                                </div>
+                              )}
+
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2.5 z-20">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleFeaturedPlay(movie);
+                                  }}
+                                  className="w-full bg-rose-600 hover:bg-rose-700 text-white py-1.5 rounded text-[9px] font-mono font-bold uppercase tracking-wider flex items-center justify-center gap-1 shadow-md cursor-pointer"
+                                >
+                                  <Play className="w-2.5 h-2.5 fill-current" />
+                                  <span>Assistir</span>
+                                </button>
+                              </div>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleToggleMyList(movie.id);
+                                }}
+                                className="absolute top-2 right-2 bg-zinc-950/90 hover:bg-rose-950/90 border border-zinc-800 text-zinc-400 hover:text-rose-400 p-1.5 rounded-full transition-all cursor-pointer z-20"
+                                title="Remover da lista"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                            <div 
+                              onClick={() => handleSelectMovie(movie)}
+                              className="p-2 sm:p-3 bg-[#09090b]/40 border-t border-zinc-900 flex-1 flex flex-col justify-between"
+                            >
+                              <span className="font-semibold text-xs text-zinc-200 truncate group-hover:text-rose-500 block uppercase font-mono tracking-tight">{movie.title}</span>
+                              <div className="flex justify-between items-center text-[9px] text-zinc-500 font-mono leading-none mt-1">
+                                <span className="text-yellow-400 font-bold flex items-center gap-0.5">
+                                  <Star className="w-2.5 h-2.5 fill-yellow-400 text-yellow-400" /> {movie.rating}
+                                </span>
+                                <span>{movie.year}</span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      };
+
+                      return (
+                        <div className="animate-fade-in space-y-8">
+                          {/* Cabeçalho Refinado com Seleção de Galeria e Layout */}
+                          <div className="px-4 sm:px-8 flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-zinc-900/80">
+                            <div>
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-zinc-500 font-mono text-[9px] sm:text-[10px] uppercase font-bold tracking-widest block">Estante de Títulos Salvos</span>
+                                <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                                <span className="text-rose-400 font-mono text-[9px] uppercase font-bold">Classificação Separada</span>
+                              </div>
+                              <h2 className="text-xl sm:text-2xl font-black font-display text-white uppercase tracking-tight flex items-center gap-3">
+                                <span>Minha Lista</span>
+                                <span className="text-xs sm:text-sm font-mono px-2.5 py-0.5 rounded-full bg-zinc-900 border border-zinc-800 text-zinc-300 font-bold">
+                                  {listMovies.length} {listMovies.length === 1 ? 'título' : 'títulos'}
+                                </span>
+                              </h2>
+                            </div>
+
+                            {/* Controles: Filtro de Galeria (Filmes vs Séries) + Seletor de Modo de Visualização */}
+                            <div className="flex flex-wrap items-center gap-3">
+                              {/* Seletor de Galeria: Filmes / Séries / Todos */}
+                              <div className="flex items-center gap-1 bg-zinc-950/60 p-1 rounded-xl border border-zinc-900/80 shadow-inner">
+                                <button
+                                  onClick={() => setMyListTypeFilter('all')}
+                                  className={`px-3 py-1.5 rounded-lg font-mono text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
+                                    myListTypeFilter === 'all'
+                                      ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30'
+                                      : 'text-zinc-400 hover:text-zinc-200'
+                                  }`}
+                                >
+                                  <span>Todos</span>
+                                  <span className="text-[9px] opacity-80">({listMovies.length})</span>
+                                </button>
+
+                                <button
+                                  onClick={() => setMyListTypeFilter('movies')}
+                                  className={`px-3 py-1.5 rounded-lg font-mono text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
+                                    myListTypeFilter === 'movies'
+                                      ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30'
+                                      : 'text-zinc-400 hover:text-zinc-200'
+                                  }`}
+                                >
+                                  <Film className="w-3 h-3 text-rose-400" />
+                                  <span>Filmes</span>
+                                  <span className="text-[9px] opacity-80">({mySavedMovies.length})</span>
+                                </button>
+
+                                <button
+                                  onClick={() => setMyListTypeFilter('series')}
+                                  className={`px-3 py-1.5 rounded-lg font-mono text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
+                                    myListTypeFilter === 'series'
+                                      ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30'
+                                      : 'text-zinc-400 hover:text-zinc-200'
+                                  }`}
+                                >
+                                  <Tv className="w-3 h-3 text-emerald-400" />
+                                  <span>Séries</span>
+                                  <span className="text-[9px] opacity-80">({mySavedSeries.length})</span>
+                                </button>
+                              </div>
+
+                              {/* Seletor de Sintonia/Visualização */}
+                              <div className="flex items-center gap-1 bg-zinc-950/60 p-1 rounded-xl border border-zinc-900/80 shadow-inner">
+                                <button
+                                  onClick={() => setMyListViewMode('vertical_list')}
+                                  className={`p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg font-mono text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1 ${
+                                    myListViewMode === 'vertical_list'
+                                      ? 'bg-zinc-800 text-white border border-zinc-700'
+                                      : 'text-zinc-500 hover:text-zinc-300'
+                                  }`}
+                                  title="Visualização Vertical Detalhada"
+                                >
+                                  <List className="w-3.5 h-3.5" />
+                                  <span className="hidden md:inline">Vertical</span>
+                                </button>
+
+                                <button
+                                  onClick={() => setMyListViewMode('grid')}
+                                  className={`p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg font-mono text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1 ${
+                                    myListViewMode === 'grid'
+                                      ? 'bg-zinc-800 text-white border border-zinc-700'
+                                      : 'text-zinc-500 hover:text-zinc-300'
+                                  }`}
+                                  title="Visualização em Grade"
+                                >
+                                  <LayoutGrid className="w-3.5 h-3.5" />
+                                  <span className="hidden md:inline">Grade</span>
+                                </button>
+
+                                <button
+                                  onClick={() => setMyListViewMode('carousel')}
+                                  className={`p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg font-mono text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1 ${
+                                    myListViewMode === 'carousel'
+                                      ? 'bg-zinc-800 text-white border border-zinc-700'
+                                      : 'text-zinc-500 hover:text-zinc-300'
+                                  }`}
+                                  title="Carrossel Horizontal"
+                                >
+                                  <ChevronRight className="w-3.5 h-3.5" />
+                                  <span className="hidden md:inline">Carrossel</span>
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* --- MODO CARROSSEL --- */}
+                          {myListViewMode === 'carousel' && (
+                            <div className="space-y-6">
+                              {(myListTypeFilter === 'all' || myListTypeFilter === 'movies') && (
+                                <MovieRow
+                                  title="Galeria de Filmes Salvos"
+                                  subtitle="Seus longas-metragens salvos na estante"
+                                  icon={
+                                    <div className="w-8 h-8 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-500 shadow-[0_0_12px_rgba(244,63,94,0.35)]">
+                                      <Film className="w-4 h-4" />
                                     </div>
-                                    
-                                    {/* Miolo Informativo */}
-                                    <div className="flex-1 w-full min-w-0 flex flex-col justify-between">
-                                      <div>
-                                        <div className="flex flex-wrap items-center gap-2 mb-2 text-[10px] font-mono text-zinc-500">
-                                          <span className="text-rose-500 font-extrabold bg-rose-500/10 border border-rose-500/20 px-2 py-0.5 rounded-full uppercase tracking-wider text-[9px]">
-                                            {movie.category}
-                                          </span>
-                                          <span>•</span>
-                                          <span className="bg-zinc-900 border border-zinc-800 px-1.5 py-0.5 rounded text-zinc-300 font-bold">
-                                            {movie.year}
-                                          </span>
-                                          <span>•</span>
-                                          <span className="text-zinc-400">
-                                            Duração: <strong className="text-zinc-300">{movie.duration}</strong>
-                                          </span>
-                                        </div>
-                                        
-                                        <h3 
-                                          onClick={() => handleSelectMovie(movie)}
-                                          className="text-base sm:text-lg font-black text-white hover:text-rose-500 transition-colors uppercase tracking-tight truncate cursor-pointer font-sans"
-                                        >
-                                          {movie.title}
-                                        </h3>
-                                        
-                                        <p className="text-xs text-zinc-400 mt-1.5 leading-relaxed line-clamp-2 pr-2 font-sans text-justify sm:text-left">
-                                          {movie.description}
-                                        </p>
-                                      </div>
-                                      
-                                      {/* Rodapé Interno com Estrelas & Progresso se houver */}
-                                      <div className="flex flex-wrap items-center gap-4 mt-4 pt-3 border-t border-zinc-900/60 text-[10px] font-mono text-zinc-500">
-                                        <span className="flex items-center gap-1 text-yellow-500 font-bold">
-                                          <Star className="w-3.5 h-3.5 fill-current text-yellow-500" />
-                                          <strong className="text-zinc-300 text-xs">{movie.rating}</strong>/10
-                                        </span>
-                                        
-                                        {hasProgress && (
-                                          <div className="flex items-center gap-3 max-w-sm flex-1">
-                                            <span className="text-rose-400 shrink-0 font-bold uppercase text-[9px]">Ponto: {Math.floor((progress?.currentTime || 0) / 60)} min</span>
-                                            <div className="h-1.5 bg-zinc-900 border border-zinc-800 rounded-full flex-1 overflow-hidden relative">
-                                              <div className="h-full bg-rose-500" style={{ width: `${progress.progress}%` }} />
-                                            </div>
-                                          </div>
-                                        )}
-                                      </div>
+                                  }
+                                  movies={mySavedMovies}
+                                  watchHistory={activeProfile.watchHistory}
+                                  myList={activeProfile.myList}
+                                  onMovieClick={handleSelectMovie}
+                                  onToggleMyList={handleToggleMyList}
+                                  onPlayClick={handleFeaturedPlay}
+                                />
+                              )}
+
+                              {(myListTypeFilter === 'all' || myListTypeFilter === 'series') && (
+                                <MovieRow
+                                  title="Galeria de Séries Salvas"
+                                  subtitle="Suas temporadas e seriados salvos na estante"
+                                  icon={
+                                    <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.35)]">
+                                      <Tv className="w-4 h-4" />
                                     </div>
-                                    
-                                    {/* Ações na lateral */}
-                                    <div className="flex sm:flex-col items-center gap-2 w-full sm:w-auto shrink-0 mt-4 sm:mt-0 pt-3 sm:pt-0 border-t sm:border-t-0 border-zinc-900/60">
-                                      <button
-                                        onClick={() => handleFeaturedPlay(movie)}
-                                        className="flex-1 sm:flex-none w-full bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-mono text-[10px] font-black uppercase tracking-wider py-2.5 px-4.5 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-md active:bg-rose-800"
-                                      >
-                                        <Play className="w-3.5 h-3.5 fill-current" />
-                                        <span>Assistir</span>
-                                      </button>
-                                      
-                                      <button
-                                        onClick={() => handleToggleMyList(movie.id)}
-                                        className="bg-zinc-950 hover:bg-rose-600/10 border border-zinc-850 hover:border-rose-600/30 text-zinc-400 hover:text-rose-400 p-2.5 rounded-lg transition-all cursor-pointer active:scale-95 flex items-center justify-center"
-                                        title="Remover da lista de favoritos"
-                                      >
-                                        <Trash2 className="w-4 h-4 text-zinc-500 hover:text-rose-400 transition-colors" />
-                                      </button>
-                                    </div>
-                                  </div>
-                                );
-                              })}
+                                  }
+                                  movies={mySavedSeries}
+                                  watchHistory={activeProfile.watchHistory}
+                                  myList={activeProfile.myList}
+                                  onMovieClick={handleSelectMovie}
+                                  onToggleMyList={handleToggleMyList}
+                                  onPlayClick={handleFeaturedPlay}
+                                />
+                              )}
                             </div>
                           )}
 
-                          {/* 2. MODO GRADE ESPAÇOSA MODERNA (GRID) */}
-                          {myListViewMode === 'grid' && (
-                            <div className="px-4 sm:px-8 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-y-6 gap-x-4 sm:gap-x-5">
-                              {listMovies.map((movie) => (
-                                <div
-                                  key={movie.id}
-                                  className="group relative bg-[#09090b]/40 border border-zinc-900 hover:border-rose-500 rounded-xl overflow-hidden hover:shadow-xl hover:shadow-rose-600/10 transition-all cursor-pointer flex flex-col h-full"
-                                  id={`mylist-grid-${movie.id}`}
-                                >
-                                  <div 
-                                    onClick={() => handleSelectMovie(movie)}
-                                    className="aspect-[2/3] overflow-hidden bg-zinc-900 relative shrink-0"
-                                  >
-                                    <img 
-                                      src={getCleanPosterUrl(movie.posterUrl)} 
-                                      alt={movie.title} 
-                                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                                      loading="lazy"
-                                      decoding="async"
-                                      referrerPolicy="no-referrer"
-                                      onError={handlePosterError}
-                                    />
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2.5 z-20">
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleFeaturedPlay(movie);
-                                        }}
-                                        className="w-full bg-rose-600 hover:bg-rose-700 text-white py-1.5 rounded text-[9px] font-mono font-bold uppercase tracking-wider flex items-center justify-center gap-1 shadow-md cursor-pointer"
-                                      >
-                                        <Play className="w-2.5 h-2.5 fill-current" />
-                                        <span>Tocar</span>
-                                      </button>
+                          {/* --- MODO VERTICAL OU GRADE --- */}
+                          {myListViewMode !== 'carousel' && (
+                            <div className="space-y-10">
+                              {/* 1. GALERIA DE FILMES */}
+                              {(myListTypeFilter === 'all' || myListTypeFilter === 'movies') && (
+                                <div className="space-y-4">
+                                  <div className="px-4 sm:px-8 flex items-center justify-between">
+                                    <div className="flex items-center gap-2.5">
+                                      <div className="w-7 h-7 rounded-lg bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400">
+                                        <Film className="w-3.5 h-3.5" />
+                                      </div>
+                                      <div>
+                                        <h3 className="text-base sm:text-lg font-black text-white uppercase tracking-tight font-display">
+                                          Galeria de Filmes
+                                        </h3>
+                                        <span className="text-[10px] font-mono text-zinc-400">
+                                          {mySavedMovies.length} {mySavedMovies.length === 1 ? 'filme guardado' : 'filmes guardados'}
+                                        </span>
+                                      </div>
                                     </div>
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleToggleMyList(movie.id);
-                                      }}
-                                      className="absolute top-2 right-2 bg-zinc-950/90 hover:bg-rose-950/90 border border-zinc-800 text-zinc-400 hover:text-rose-400 p-1.5 rounded-full transition-all cursor-pointer z-20"
-                                      title="Remover"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
-                                  </div>
-                                  <div 
-                                    onClick={() => handleSelectMovie(movie)}
-                                    className="p-2 sm:p-3 bg-[#09090b]/40 border-t border-zinc-900 flex-1 flex flex-col justify-between"
-                                  >
-                                    <span className="font-semibold text-xs text-zinc-200 truncate group-hover:text-rose-500 block uppercase font-mono tracking-tight">{movie.title}</span>
-                                    <div className="flex justify-between items-center text-[9px] text-zinc-500 font-mono leading-none mt-1">
-                                      <span className="text-yellow-400 font-bold flex items-center gap-0.5">
-                                        <Star className="w-2.5 h-2.5 fill-yellow-400 text-yellow-400" /> {movie.rating}
+
+                                    {mySavedMovies.length > 0 && (
+                                      <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-rose-400 bg-rose-500/10 border border-rose-500/20 px-2 py-0.5 rounded-full">
+                                        Acervo de Longas
                                       </span>
-                                      <span>{movie.year}</span>
+                                    )}
+                                  </div>
+
+                                  {mySavedMovies.length === 0 ? (
+                                    <div className="mx-4 sm:mx-8 p-6 rounded-xl border border-dashed border-zinc-900 bg-zinc-950/30 text-center flex flex-col items-center">
+                                      <Film className="w-8 h-8 text-zinc-700 mb-2" />
+                                      <p className="text-xs text-zinc-400 font-sans">Nenhum filme salvo na sua estante ainda.</p>
+                                      <p className="text-[10px] font-mono text-zinc-600 mt-1">Navegue pelas prateleiras e clique no botão "+" dos filmes que mais gosta.</p>
                                     </div>
+                                  ) : myListViewMode === 'vertical_list' ? (
+                                    <div className="px-4 sm:px-8 space-y-4 max-w-5xl">
+                                      {mySavedMovies.map(renderVerticalItem)}
+                                    </div>
+                                  ) : (
+                                    <div className="px-4 sm:px-8 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-y-6 gap-x-4 sm:gap-x-5">
+                                      {mySavedMovies.map(renderGridItem)}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Divisor sutil quando ambas as galerias estão visíveis */}
+                              {myListTypeFilter === 'all' && mySavedMovies.length > 0 && mySavedSeries.length > 0 && (
+                                <div className="px-4 sm:px-8 py-2">
+                                  <div className="relative flex items-center justify-center">
+                                    <div className="w-full border-t border-zinc-900" />
+                                    <span className="absolute bg-[#050507] px-3 font-mono text-[9px] font-bold uppercase tracking-widest text-zinc-600">
+                                      Divisão de Mídias Salvas
+                                    </span>
                                   </div>
                                 </div>
-                              ))}
-                            </div>
-                          )}
+                              )}
 
-                          {/* 3. MODO CARROSSEL CLÁSSICO */}
-                          {myListViewMode === 'carousel' && (
-                            <MovieRow
-                              title="Prateleira Particular"
-                              movies={listMovies}
-                              watchHistory={activeProfile.watchHistory}
-                              myList={activeProfile.myList}
-                              onMovieClick={handleSelectMovie}
-                              onToggleMyList={handleToggleMyList}
-                              onPlayClick={handleFeaturedPlay}
-                            />
+                              {/* 2. GALERIA DE SÉRIES */}
+                              {(myListTypeFilter === 'all' || myListTypeFilter === 'series') && (
+                                <div className="space-y-4">
+                                  <div className="px-4 sm:px-8 flex items-center justify-between">
+                                    <div className="flex items-center gap-2.5">
+                                      <div className="w-7 h-7 rounded-lg bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                                        <Tv className="w-3.5 h-3.5" />
+                                      </div>
+                                      <div>
+                                        <h3 className="text-base sm:text-lg font-black text-white uppercase tracking-tight font-display">
+                                          Galeria de Séries
+                                        </h3>
+                                        <span className="text-[10px] font-mono text-zinc-400">
+                                          {mySavedSeries.length} {mySavedSeries.length === 1 ? 'série guardada' : 'séries guardadas'}
+                                        </span>
+                                      </div>
+                                    </div>
+
+                                    {mySavedSeries.length > 0 && (
+                                      <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+                                        Acervo de Temporadas
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {mySavedSeries.length === 0 ? (
+                                    <div className="mx-4 sm:mx-8 p-6 rounded-xl border border-dashed border-zinc-900 bg-zinc-950/30 text-center flex flex-col items-center">
+                                      <Tv className="w-8 h-8 text-zinc-700 mb-2" />
+                                      <p className="text-xs text-zinc-400 font-sans">Nenhuma série salva na sua estante ainda.</p>
+                                      <p className="text-[10px] font-mono text-zinc-600 mt-1">Marque séries para acompanhar seus episódios e temporadas aqui.</p>
+                                    </div>
+                                  ) : myListViewMode === 'vertical_list' ? (
+                                    <div className="px-4 sm:px-8 space-y-4 max-w-5xl">
+                                      {mySavedSeries.map(renderVerticalItem)}
+                                    </div>
+                                  ) : (
+                                    <div className="px-4 sm:px-8 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-y-6 gap-x-4 sm:gap-x-5">
+                                      {mySavedSeries.map(renderGridItem)}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
                           )}
                         </div>
                       );

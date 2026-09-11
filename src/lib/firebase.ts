@@ -204,6 +204,15 @@ export async function saveRequestsToFirestore(requests: any[]) {
   }
 }
 
+export async function saveSingleRequestToFirestore(req: any) {
+  try {
+    if (!req.id) return;
+    await setDoc(doc(db, 'requests', req.id), sanitizeForFirestore(req), { merge: true });
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, `requests/${req.id}`);
+  }
+}
+
 export async function deleteRequestFromFirestore(requestId: string) {
   try {
     await deleteDoc(doc(db, 'requests', requestId));

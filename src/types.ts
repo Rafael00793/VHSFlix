@@ -17,6 +17,7 @@ export interface Movie {
   rating: number; // e.g., 8.5
   trailerUrl: string; // URL do trailer (Ex: YouTube Embed ou vídeo direto)
   isFeatured?: boolean;
+  isRecommended?: boolean; // Selo oficial de recomendação e garantia do Rafael / Admin VHSFLIX
   vhsTapeColor?: string; // Cor estética do cartucho VHS (para o visual retro)
   tmdbId?: number;
   imdbId?: string;

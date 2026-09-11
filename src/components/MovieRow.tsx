@@ -8,6 +8,7 @@ import { Movie, WatchProgress } from '../types';
 import { ChevronLeft, ChevronRight, Play, Plus, Check, Star, Info } from 'lucide-react';
 import { motion } from 'motion/react';
 import { handlePosterError, getCleanPosterUrl } from '../lib/imageUtils';
+import { RecommendationBadge } from './RecommendationBadge';
 
 interface MovieRowProps {
   key?: string;
@@ -145,6 +146,13 @@ export const MovieRow = React.memo(function MovieRow({
                 }}
                 id={`movie-card-${movie.id}`}
               >
+                {/* Badge de Selo de Recomendação Oficial do Administrador Rafael */}
+                {movie.isRecommended && (
+                  <div className={`absolute z-30 ${showRankingBadge ? 'top-8 left-2' : 'top-2 left-2'}`}>
+                    <RecommendationBadge variant="card" />
+                  </div>
+                )}
+
                 {/* Badge de Ranking */}
                 {showRankingBadge && (
                   <div 
