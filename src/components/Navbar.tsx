@@ -122,107 +122,152 @@ export default function Navbar({
             <div className="absolute -inset-1.5 bg-gradient-to-r from-rose-600/30 via-red-600/20 to-rose-500/10 rounded-2xl blur-md opacity-50 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
             
             <div className="relative z-10 flex items-center leading-none">
-              <span className="text-2xl xs:text-3xl md:text-4xl font-black font-display tracking-wider text-rose-500 group-hover:text-rose-400 transition-colors drop-shadow-[0_0_15px_rgba(244,63,94,0.7)]">
+              <span className="text-2xl xs:text-3xl md:text-4xl font-black font-display tracking-wider text-red-600 group-hover:text-red-500 transition-colors drop-shadow-[0_0_15px_rgba(239,68,68,0.7)]">
                 VHS
               </span>
-              <span className="text-white italic text-lg xs:text-xl md:text-2xl font-mono font-extrabold ml-0.5 tracking-tight group-hover:text-rose-100 transition-colors drop-shadow-[0_0_10px_rgba(255,255,255,0.4)]">
+              <span className="text-white italic text-lg xs:text-xl md:text-2xl font-mono font-extrabold ml-0.5 tracking-tight group-hover:text-red-100 transition-colors drop-shadow-[0_0_10px_rgba(255,255,255,0.4)]">
                 FLIX
-              </span>
-              <span className="relative flex h-2 w-2 ml-1 self-start mt-0.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500 shadow-[0_0_6px_#f43f5e]" />
               </span>
             </div>
           </motion.button>
 
-          {/* Abas Estilo Netflix (Oculta se estiver no Admin) */}
+          {/* Abas Estilo Moderno Vermelho Vibrante (Oculta se estiver no Admin) */}
           {!isAdminView && (
             <ul className="hidden md:flex items-center gap-5 text-sm font-medium text-zinc-300">
-              {/* Aba "Apoiar o Canal" em primeiro lugar conforme solicitado */}
+              {/* Aba "Apoiar o Canal" em primeiro lugar */}
               <li>
-                <button
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
                   onClick={() => {
                     onSelectCategory(null);
                     onTabChange('support');
                   }}
-                  className={`transition-all py-1 flex items-center gap-1.5 focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none rounded-xl px-3 font-bold cursor-pointer text-xs shadow-sm ${
+                  className={`transition-all py-1 flex items-center gap-1.5 focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:outline-none rounded-xl px-3 font-bold cursor-pointer text-xs shadow-sm ${
                     activeTab === 'support'
-                      ? 'bg-rose-600 text-white font-black shadow-md shadow-rose-600/30 ring-1 ring-rose-400'
-                      : 'text-rose-300 hover:text-white bg-rose-950/40 border border-rose-500/30 hover:bg-rose-900/60 hover:border-rose-400 shadow-rose-950/20'
+                      ? 'bg-red-600 text-white font-black shadow-[0_0_15px_rgba(239,68,68,0.4)] ring-1 ring-red-500'
+                      : 'text-zinc-300 hover:text-red-400 bg-zinc-900/80 border border-zinc-700/60 hover:bg-zinc-850 hover:border-red-500/50'
                   }`}
                   id="navbar-apoiar-canal-btn"
                 >
-                  <Heart className={`w-3.5 h-3.5 ${activeTab === 'support' ? 'fill-white text-white' : 'fill-rose-500 text-rose-500 animate-pulse'}`} />
+                  <Heart className={`w-3.5 h-3.5 ${activeTab === 'support' ? 'fill-white text-white' : 'fill-red-500 text-red-500'}`} />
                   <span>Apoiar o Canal</span>
-                </button>
+                </motion.button>
               </li>
 
               <li>
-                <button
+                <motion.button
+                  whileHover={{ scale: 1.06 }}
+                  whileTap={{ scale: 0.94 }}
                   onClick={() => {
                     onSelectCategory(null);
                     onTabChange('all');
                   }}
-                  className={`transition-colors py-1 focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none rounded px-1.5 ${activeTab === 'all' && !selectedCategory ? 'text-white font-bold border-b-2 border-rose-600' : 'hover:text-zinc-400'}`}
+                  className={`transition-all py-1.5 focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:outline-none rounded-lg px-2 cursor-pointer relative ${
+                    activeTab === 'all' && !selectedCategory 
+                      ? 'text-red-400 font-black drop-shadow-[0_0_10px_rgba(239,68,68,0.6)]' 
+                      : 'text-zinc-300 hover:text-white hover:bg-zinc-900/60'
+                  }`}
                 >
-                  Início
-                </button>
+                  <span>Início</span>
+                  {activeTab === 'all' && !selectedCategory && (
+                    <motion.div layoutId="navbarActiveIndicator" className="absolute bottom-0 left-1 right-1 h-0.5 bg-red-600 shadow-[0_0_8px_#ef4444] rounded-full" />
+                  )}
+                </motion.button>
               </li>
               <li>
-                <button
+                <motion.button
+                  whileHover={{ scale: 1.06 }}
+                  whileTap={{ scale: 0.94 }}
                   onClick={() => {
                     onSelectCategory(null);
                     onTabChange('movies');
                   }}
-                  className={`transition-colors py-1 flex items-center gap-1 focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none rounded px-1.5 ${activeTab === 'movies' ? 'text-white font-bold border-b-2 border-rose-600' : 'hover:text-zinc-400'}`}
+                  className={`transition-all py-1.5 flex items-center gap-1.5 focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:outline-none rounded-lg px-2 cursor-pointer relative ${
+                    activeTab === 'movies' 
+                      ? 'text-red-400 font-black drop-shadow-[0_0_10px_rgba(239,68,68,0.6)]' 
+                      : 'text-zinc-300 hover:text-white hover:bg-zinc-900/60'
+                  }`}
                 >
-                  <Film className="w-3.5 h-3.5" /> Filmes
-                </button>
+                  <Film className="w-3.5 h-3.5" /> <span>Filmes</span>
+                  {activeTab === 'movies' && (
+                    <motion.div layoutId="navbarActiveIndicator" className="absolute bottom-0 left-1 right-1 h-0.5 bg-red-600 shadow-[0_0_8px_#ef4444] rounded-full" />
+                  )}
+                </motion.button>
               </li>
               <li>
-                <button
+                <motion.button
+                  whileHover={{ scale: 1.06 }}
+                  whileTap={{ scale: 0.94 }}
                   onClick={() => {
                     onSelectCategory(null);
                     onTabChange('series');
                   }}
-                  className={`transition-colors py-1 flex items-center gap-1 focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none rounded px-1.5 ${activeTab === 'series' ? 'text-white font-bold border-b-2 border-rose-600' : 'hover:text-zinc-400'}`}
+                  className={`transition-all py-1.5 flex items-center gap-1.5 focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:outline-none rounded-lg px-2 cursor-pointer relative ${
+                    activeTab === 'series' 
+                      ? 'text-red-400 font-black drop-shadow-[0_0_10px_rgba(239,68,68,0.6)]' 
+                      : 'text-zinc-300 hover:text-white hover:bg-zinc-900/60'
+                  }`}
                 >
-                  <Tv className="w-3.5 h-3.5" /> Séries
-                </button>
+                  <Tv className="w-3.5 h-3.5" /> <span>Séries</span>
+                  {activeTab === 'series' && (
+                    <motion.div layoutId="navbarActiveIndicator" className="absolute bottom-0 left-1 right-1 h-0.5 bg-red-600 shadow-[0_0_8px_#ef4444] rounded-full" />
+                  )}
+                </motion.button>
               </li>
               <li>
-                <button
+                <motion.button
+                  whileHover={{ scale: 1.06 }}
+                  whileTap={{ scale: 0.94 }}
                   onClick={() => {
                     onSelectCategory(null);
                     onTabChange('mylist');
                   }}
-                  className={`transition-colors py-1 flex items-center gap-1 focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none rounded px-1.5 ${activeTab === 'mylist' ? 'text-white font-bold border-b-2 border-rose-600' : 'hover:text-zinc-400'}`}
+                  className={`transition-all py-1.5 flex items-center gap-1.5 focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:outline-none rounded-lg px-2 cursor-pointer relative ${
+                    activeTab === 'mylist' 
+                      ? 'text-red-400 font-black drop-shadow-[0_0_10px_rgba(239,68,68,0.6)]' 
+                      : 'text-zinc-300 hover:text-white hover:bg-zinc-900/60'
+                  }`}
                 >
-                  <List className="w-3.5 h-3.5" /> Minha Lista
-                </button>
+                  <List className="w-3.5 h-3.5" /> <span>Minha Lista</span>
+                  {activeTab === 'mylist' && (
+                    <motion.div layoutId="navbarActiveIndicator" className="absolute bottom-0 left-1 right-1 h-0.5 bg-red-600 shadow-[0_0_8px_#ef4444] rounded-full" />
+                  )}
+                </motion.button>
               </li>
               <li>
-                <button
+                <motion.button
+                  whileHover={{ scale: 1.06 }}
+                  whileTap={{ scale: 0.94 }}
                   onClick={() => {
                     onSelectCategory(null);
                     onTabChange('requests');
                   }}
-                  className={`transition-colors py-1 flex items-center gap-1 focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none rounded px-1.5 ${activeTab === 'requests' ? 'text-white font-bold border-b-2 border-rose-600' : 'hover:text-zinc-400'}`}
+                  className={`transition-all py-1.5 flex items-center gap-1.5 focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:outline-none rounded-lg px-2 cursor-pointer relative ${
+                    activeTab === 'requests' 
+                      ? 'text-red-400 font-black drop-shadow-[0_0_10px_rgba(239,68,68,0.6)]' 
+                      : 'text-zinc-300 hover:text-white hover:bg-zinc-900/60'
+                  }`}
                 >
-                  <MessageSquare className="w-3.5 h-3.5" /> Pedidos
-                </button>
+                  <MessageSquare className="w-3.5 h-3.5" /> <span>Pedidos</span>
+                  {activeTab === 'requests' && (
+                    <motion.div layoutId="navbarActiveIndicator" className="absolute bottom-0 left-1 right-1 h-0.5 bg-red-600 shadow-[0_0_8px_#ef4444] rounded-full" />
+                  )}
+                </motion.button>
               </li>
               <li className="relative" ref={genresRef}>
-                <button
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
                   onClick={() => setShowGenresDropdown(!showGenresDropdown)}
-                  className={`transition-colors py-1 flex items-center gap-1 focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:outline-none rounded px-1.5 cursor-pointer ${
-                    selectedCategory ? 'text-rose-500 font-bold border-b-2 border-rose-600' : 'text-zinc-300 hover:text-white'
+                  className={`transition-all py-1.5 flex items-center gap-1 focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:outline-none rounded-lg px-2 cursor-pointer ${
+                    selectedCategory ? 'text-red-400 font-black drop-shadow-[0_0_10px_rgba(239,68,68,0.6)]' : 'text-zinc-300 hover:text-white hover:bg-zinc-900/60'
                   }`}
                   id="navbar-categories-trigger"
                 >
                   <span>Categorias</span>
-                  <ChevronDown className={`w-3.5 h-3.5 text-zinc-500 transition-transform ${showGenresDropdown ? 'rotate-180' : ''}`} />
-                </button>
+                  <ChevronDown className={`w-3.5 h-3.5 transition-transform text-zinc-400 ${showGenresDropdown ? 'rotate-180 text-red-500' : ''}`} />
+                </motion.button>
 
                 {/* Dropdown com grid de todas as categorias */}
                 <AnimatePresence>
@@ -231,25 +276,27 @@ export default function Navbar({
                       initial={{ opacity: 0, y: 10, scale: 0.95 }}
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                      className="absolute left-0 mt-2 w-[420px] bg-zinc-950 border border-zinc-800 rounded-lg shadow-2xl p-4 grid grid-cols-3 gap-2 z-50 backdrop-blur-lg animate-fade-in font-sans"
+                      className="absolute left-0 mt-2 w-[420px] bg-zinc-950 border border-zinc-800 rounded-xl shadow-[0_0_30px_rgba(0,0,0,0.8)] p-4 grid grid-cols-3 gap-2 z-50 backdrop-blur-xl animate-fade-in font-sans"
                     >
                       {GENRE_CATEGORIES.map((category) => {
                         const isSelected = (category === 'Todos' && selectedCategory === null) || selectedCategory === category;
                         return (
-                          <button
+                          <motion.button
                             key={category}
+                            whileHover={{ scale: 1.03 }}
+                            whileTap={{ scale: 0.97 }}
                             onClick={() => {
                               onSelectCategory(category === 'Todos' ? null : category);
                               setShowGenresDropdown(false);
                             }}
-                            className={`text-[10px] px-3 py-2.5 text-left rounded transition-all font-bold uppercase tracking-wider cursor-pointer border ${
+                            className={`text-[10px] px-3 py-2.5 text-left rounded-lg transition-all font-bold uppercase tracking-wider cursor-pointer border ${
                               isSelected
-                                ? 'bg-rose-600 border-rose-500 text-white font-black shadow-md shadow-rose-600/20'
-                                : 'text-zinc-400 bg-zinc-950/20 hover:bg-zinc-900 border-zinc-900 hover:border-rose-500 hover:text-white'
+                                ? 'bg-red-600 border-red-500 text-white font-black shadow-[0_0_12px_rgba(239,68,68,0.4)]'
+                                : 'text-zinc-400 bg-zinc-950/20 hover:bg-zinc-900 border-zinc-900 hover:border-red-500/50 hover:text-white'
                             }`}
                           >
                             {category}
-                          </button>
+                          </motion.button>
                         );
                       })}
                     </motion.div>
@@ -455,114 +502,128 @@ export default function Navbar({
         </div>
       </div>
 
-      {/* Abas mobile estilo Netflix com Pílulas e Scroll Horizontal Fluído */}
+      {/* Abas mobile estilo moderno neon com Pílulas e Scroll Horizontal Fluído */}
       {!isAdminView && (
         <div className="md:hidden border-t border-zinc-900/80 bg-zinc-950/95 backdrop-blur-md py-2.5 px-3 overflow-x-auto no-scrollbar scroll-smooth">
           <div className="flex items-center gap-2 min-w-max text-xs font-medium">
-            {/* 1º BOTÃO: APOIAR O CANAL (EM DESTAQUE PRIMEIRO LUGAR) */}
-            <button
+            {/* 1º BOTÃO: APOIAR O CANAL */}
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
               onClick={() => {
                 onSelectCategory(null);
                 onTabChange('support');
               }}
               className={`px-3 py-1.5 rounded-full font-black transition-all text-xs flex-shrink-0 flex items-center gap-1.5 cursor-pointer whitespace-nowrap shadow-md ${
                 activeTab === 'support'
-                  ? 'bg-rose-600 text-white ring-2 ring-rose-400 shadow-rose-600/40'
-                  : 'bg-rose-950/70 text-rose-300 border border-rose-500/50 hover:bg-rose-900/80 hover:text-white shadow-rose-950/30'
+                  ? 'bg-red-600 text-white ring-2 ring-red-500 shadow-[0_0_15px_rgba(239,68,68,0.5)]'
+                  : 'bg-zinc-900/90 text-zinc-300 border border-zinc-700/60 hover:border-red-500/50 hover:text-red-400'
               }`}
               id="mobile-nav-apoiar-btn"
             >
-              <Heart className="w-3.5 h-3.5 fill-rose-500 text-rose-500 animate-pulse" />
+              <Heart className={`w-3.5 h-3.5 ${activeTab === 'support' ? 'fill-white text-white' : 'fill-red-500 text-red-500'}`} />
               <span>Apoiar Canal</span>
-            </button>
+            </motion.button>
 
             {/* 2º BOTÃO: INÍCIO */}
-            <button
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
               onClick={() => {
                 onSelectCategory(null);
                 onTabChange('all');
               }}
               className={`px-3.5 py-1.5 rounded-full font-bold transition-all text-xs flex-shrink-0 cursor-pointer whitespace-nowrap ${
                 activeTab === 'all' && !selectedCategory
-                  ? 'bg-zinc-100 text-black font-extrabold shadow-md'
+                  ? 'bg-red-600 text-white font-extrabold shadow-[0_0_15px_rgba(239,68,68,0.5)] border border-red-500'
                   : 'bg-zinc-900/90 text-zinc-300 hover:text-white hover:bg-zinc-800 border border-zinc-800'
               }`}
             >
               Início
-            </button>
+            </motion.button>
 
             {/* 3º BOTÃO: FILMES */}
-            <button
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
               onClick={() => {
                 onSelectCategory(null);
                 onTabChange('movies');
               }}
               className={`px-3.5 py-1.5 rounded-full font-bold transition-all text-xs flex-shrink-0 cursor-pointer whitespace-nowrap ${
                 activeTab === 'movies'
-                  ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30 border border-rose-500'
+                  ? 'bg-red-600 text-white font-extrabold shadow-[0_0_15px_rgba(239,68,68,0.5)] border border-red-500'
                   : 'bg-zinc-900/90 text-zinc-300 hover:text-white hover:bg-zinc-800 border border-zinc-800'
               }`}
             >
               Filmes
-            </button>
+            </motion.button>
 
             {/* 4º BOTÃO: SÉRIES */}
-            <button
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
               onClick={() => {
                 onSelectCategory(null);
                 onTabChange('series');
               }}
               className={`px-3.5 py-1.5 rounded-full font-bold transition-all text-xs flex-shrink-0 cursor-pointer whitespace-nowrap ${
                 activeTab === 'series'
-                  ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30 border border-rose-500'
+                  ? 'bg-red-600 text-white font-extrabold shadow-[0_0_15px_rgba(239,68,68,0.5)] border border-red-500'
                   : 'bg-zinc-900/90 text-zinc-300 hover:text-white hover:bg-zinc-800 border border-zinc-800'
               }`}
             >
               Séries
-            </button>
+            </motion.button>
 
             {/* 5º BOTÃO: MINHA LISTA */}
-            <button
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
               onClick={() => {
                 onSelectCategory(null);
                 onTabChange('mylist');
               }}
               className={`px-3.5 py-1.5 rounded-full font-bold transition-all text-xs flex-shrink-0 cursor-pointer whitespace-nowrap ${
                 activeTab === 'mylist'
-                  ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30 border border-rose-500'
+                  ? 'bg-red-600 text-white font-extrabold shadow-[0_0_15px_rgba(239,68,68,0.5)] border border-red-500'
                   : 'bg-zinc-900/90 text-zinc-300 hover:text-white hover:bg-zinc-800 border border-zinc-800'
               }`}
             >
               Minha Lista
-            </button>
+            </motion.button>
 
             {/* 6º BOTÃO: PEDIDOS */}
-            <button
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
               onClick={() => {
                 onSelectCategory(null);
                 onTabChange('requests');
               }}
               className={`px-3.5 py-1.5 rounded-full font-bold transition-all text-xs flex-shrink-0 cursor-pointer whitespace-nowrap ${
                 activeTab === 'requests'
-                  ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30 border border-rose-500'
+                  ? 'bg-red-600 text-white font-extrabold shadow-[0_0_15px_rgba(239,68,68,0.5)] border border-red-500'
                   : 'bg-zinc-900/90 text-zinc-300 hover:text-white hover:bg-zinc-800 border border-zinc-800'
               }`}
             >
               Pedidos
-            </button>
+            </motion.button>
 
             {/* 7º BOTÃO: GÊNEROS */}
-            <button
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
               onClick={() => setShowGenresDropdown(!showGenresDropdown)}
               className={`px-3.5 py-1.5 rounded-full font-bold transition-all text-xs flex-shrink-0 flex items-center gap-1 cursor-pointer whitespace-nowrap ${
                 selectedCategory
-                  ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30 border border-rose-500'
+                  ? 'bg-red-600 text-white font-extrabold shadow-[0_0_15px_rgba(239,68,68,0.5)] border border-red-500'
                   : 'bg-zinc-900/90 text-zinc-300 hover:text-white hover:bg-zinc-800 border border-zinc-800'
               }`}
             >
               <span>{selectedCategory ? selectedCategory : 'Gêneros'}</span>
-              <ChevronDown className="w-3 h-3 text-zinc-400" />
-            </button>
+              <ChevronDown className={`w-3 h-3 transition-transform ${showGenresDropdown ? 'rotate-180 text-white' : 'text-zinc-400'}`} />
+            </motion.button>
           </div>
         </div>
       )}
@@ -583,7 +644,7 @@ export default function Navbar({
               style={{ maxHeight: "75vh" }}
             >
               <div className="flex items-center justify-between mb-4 pb-2 border-b border-zinc-900">
-                <span className="text-xs font-mono uppercase tracking-widest text-rose-500 font-bold">Navegar por Gêneros</span>
+                <span className="text-xs font-mono uppercase tracking-widest text-red-500 font-bold">Navegar por Gêneros</span>
                 <button
                   onClick={() => setShowGenresDropdown(false)}
                   className="text-zinc-500 hover:text-zinc-300 font-bold font-mono text-xs cursor-pointer p-1"
@@ -602,10 +663,10 @@ export default function Navbar({
                         onSelectCategory(category === 'Todos' ? null : category);
                         setShowGenresDropdown(false);
                       }}
-                      className={`text-xs px-3 py-3 text-center rounded transition-all font-bold uppercase tracking-wider cursor-pointer border ${
+                      className={`text-xs px-3 py-3 text-center rounded-xl transition-all font-bold uppercase tracking-wider cursor-pointer border ${
                         isSelected
-                          ? 'bg-rose-600 border-rose-500 text-white font-black shadow-md'
-                          : 'text-zinc-400 bg-zinc-900/55 border-zinc-850 hover:bg-zinc-800 hover:text-white'
+                          ? 'bg-red-600 border-red-500 text-white font-black shadow-[0_0_12px_rgba(239,68,68,0.4)]'
+                          : 'text-zinc-400 bg-zinc-900/55 border-zinc-850 hover:bg-zinc-800 hover:text-white hover:border-red-500/50'
                       }`}
                     >
                       {category}

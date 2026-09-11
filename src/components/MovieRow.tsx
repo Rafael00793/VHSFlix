@@ -80,7 +80,7 @@ export const MovieRow = React.memo(function MovieRow({
               {icon}
             </div>
           )}
-          <h2 className="text-base sm:text-xl font-black tracking-tight text-white font-display group-hover/row:text-rose-400 transition-colors flex items-center gap-2 uppercase">
+          <h2 className="text-base sm:text-xl font-black tracking-tight text-white font-display group-hover/row:text-red-500 transition-colors flex items-center gap-2 uppercase">
             {title}
           </h2>
         </div>
@@ -97,58 +97,45 @@ export const MovieRow = React.memo(function MovieRow({
         
         {/* Seta Esquerda */}
         {showLeftArrow && (
-          <button
+          <motion.button
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
             onClick={() => handleScroll('left')}
-            className="absolute left-0 top-0 bottom-0 w-12 sm:w-14 bg-gradient-to-r from-zinc-950 to-transparent text-white hover:text-rose-500 flex items-center justify-center z-30 transition-all opacity-0 group-hover/row:opacity-100 hover:scale-105 active:scale-95 cursor-pointer"
+            className="absolute left-0 top-0 bottom-0 w-12 sm:w-14 bg-gradient-to-r from-zinc-950 to-transparent text-white hover:text-red-500 flex items-center justify-center z-30 transition-all opacity-0 group-hover/row:opacity-100 cursor-pointer"
             id={`btn-scroll-left-${titleString.replace(/\s+/g, '-').toLowerCase()}`}
           >
             <ChevronLeft className="w-8 h-8 sm:w-10 sm:h-10 text-white hover:scale-110 drop-shadow-lg" />
-          </button>
+          </motion.button>
         )}
 
         {/* Seta Direita */}
-        <button
+        <motion.button
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
           onClick={() => handleScroll('right')}
-          className="absolute right-0 top-0 bottom-0 w-12 sm:w-14 bg-gradient-to-l from-zinc-950 to-transparent text-white hover:text-rose-500 flex items-center justify-center z-30 transition-all opacity-0 group-hover/row:opacity-100 hover:scale-105 active:scale-95 cursor-pointer"
+          className="absolute right-0 top-0 bottom-0 w-12 sm:w-14 bg-gradient-to-l from-zinc-950 to-transparent text-white hover:text-red-500 flex items-center justify-center z-30 transition-all opacity-0 group-hover/row:opacity-100 cursor-pointer"
           id={`btn-scroll-right-${titleString.replace(/\s+/g, '-').toLowerCase()}`}
         >
           <ChevronRight className="w-8 h-8 sm:w-10 sm:h-10 text-white hover:scale-110 drop-shadow-lg" />
-        </button>
+        </motion.button>
 
-        {/* Linha de Cards com Scroll Horizontal Oculto */}
+        {/* Linha de Cards com Scroll Horizontal Oculto e Touch Snap Otimizado */}
         <div
           ref={rowRef}
           onScroll={onScrollContainer}
-          className="flex gap-4 md:gap-5 xl:gap-6 px-4 sm:px-8 overflow-x-auto no-scrollbar scroll-smooth py-2 sm:py-4"
+          className="flex gap-3 sm:gap-4 md:gap-5 xl:gap-6 px-3 sm:px-8 overflow-x-auto no-scrollbar scroll-smooth py-2 sm:py-4 snap-x snap-mandatory"
         >
           {movies.map((movie, idx) => {
             const hasProgressState = watchHistory && watchHistory[movie.id];
             const isAddedToList = Array.isArray(myList) && myList.some(id => String(id) === String(movie.id) || (movie.tmdbId && String(id) === `tmdb_${movie.tmdbId}`));
             const progress = hasProgressState ? watchHistory[movie.id] : null;
 
-            const cardBorderHoverClass = accentColor === 'neon' 
-              ? 'hover:border-emerald-400 hover:shadow-xl hover:shadow-emerald-500/20 focus-visible:ring-emerald-400'
-              : accentColor === 'amber'
-              ? 'hover:border-amber-400 hover:shadow-xl hover:shadow-amber-500/20 focus-visible:ring-amber-400'
-              : 'hover:border-rose-500 hover:shadow-xl hover:shadow-rose-600/10 focus-visible:ring-rose-500';
-
-            const titleHoverClass = accentColor === 'neon'
-              ? 'group-hover/card:text-emerald-400'
-              : accentColor === 'amber'
-              ? 'group-hover/card:text-amber-400'
-              : 'group-hover/card:text-rose-500';
-
-            const playBtnClass = accentColor === 'neon'
-              ? 'bg-emerald-500 hover:bg-emerald-400 text-zinc-950 shadow-[0_0_12px_rgba(16,185,129,0.5)]'
-              : accentColor === 'amber'
-              ? 'bg-amber-400 hover:bg-amber-300 text-zinc-950 shadow-[0_0_12px_rgba(245,158,11,0.5)]'
-              : 'bg-rose-600 hover:bg-rose-700 text-white';
-
             return (
-              <div
+              <motion.div
                 key={movie.id}
+                whileHover={{ y: -6, transition: { duration: 0.2 } }}
                 tabIndex={0}
-                className={`relative flex-none w-[145px] xs:w-[165px] sm:w-[195px] md:w-[220px] xl:w-[250px] group/card rounded-lg overflow-hidden bg-zinc-900 border border-zinc-800 ${cardBorderHoverClass} focus-visible:scale-105 focus-visible:outline-none transition-all duration-300 cursor-pointer animate-fade-in`}
+                className="relative flex-none w-[125px] xs:w-[145px] sm:w-[185px] md:w-[215px] xl:w-[245px] snap-start group/card rounded-xl overflow-hidden bg-zinc-900 border border-zinc-800/80 hover:border-red-500 hover:shadow-[0_0_22px_rgba(239,68,68,0.35)] focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:outline-none transition-all duration-300 cursor-pointer animate-fade-in"
                 onClick={() => onMovieClick(movie)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
@@ -158,57 +145,22 @@ export const MovieRow = React.memo(function MovieRow({
                 }}
                 id={`movie-card-${movie.id}`}
               >
-                {/* Badge de Ranking (Top 10 Melhores Avaliações / Tendências) */}
+                {/* Badge de Ranking */}
                 {showRankingBadge && (
                   <div 
-                    className={`absolute top-2 left-2 z-30 px-2 py-0.5 rounded-md font-mono font-black text-[11px] select-none flex items-center gap-1 ${
-                      accentColor === 'neon'
-                        ? 'bg-emerald-500 text-zinc-950 border border-emerald-300 shadow-[0_0_12px_rgba(16,185,129,0.6)]'
-                        : accentColor === 'amber'
-                        ? 'bg-amber-400 text-zinc-950 border border-amber-200 shadow-[0_0_12px_rgba(245,158,11,0.6)]'
-                        : 'bg-rose-600 text-white border border-rose-400 shadow-md'
-                    }`}
+                    className="absolute top-2 left-2 z-30 px-2 py-0.5 rounded-md font-mono font-black text-[10px] sm:text-[11px] select-none flex items-center gap-1 bg-red-600 text-white border border-red-400 shadow-[0_0_12px_rgba(239,68,68,0.7)]"
                   >
                     <span>#{idx + 1}</span>
                   </div>
                 )}
 
-                {/* Visual VHS estético: adesivo no poster */}
-                {(() => {
-                  const COLOR_MAP: { [key: string]: string } = {
-                    'Ação': '#dc2626',
-                    'Aventura': '#059669',
-                    'Terror': '#7c3aed',
-                    'Suspense': '#ea580c',
-                    'Drama': '#db2777',
-                    'Comédia': '#eab308',
-                    'Ficção Científica': '#06b6d4',
-                    'Cristão': '#0ea5e9',
-                    'Séries': '#10b981',
-                    'Reality': '#f43f5e',
-                    'Documentário': '#71717a',
-                    'Animação': '#fbbf24',
-                    'Família': '#22c55e',
-                    'Fantasia': '#a855f7',
-                    'Crime': '#334155',
-                    'Musical': '#ec4899',
-                    'Guerra': '#78350f',
-                    'Faroeste': '#b45309',
-                    'Romance': '#e11d48',
-                    'História': '#854d0e',
-                    'Biografia': '#0d9488'
-                  };
-                  const finalTapeColor = COLOR_MAP[movie.category] || movie.vhsTapeColor || '#dc2626';
-                  return (
-                    <div 
-                      className="absolute top-1.5 right-1.5 px-1 py-0.5 rounded text-[8px] font-mono font-black uppercase text-zinc-950 z-20 flex items-center gap-0.5 select-none"
-                      style={{ backgroundColor: finalTapeColor }}
-                      title={`Etiqueta VHS: ${movie.category}`}
-                    >
-                      VHS
-                    </div>
-                  );
-                })()}
+                {/* Badge Categoria */}
+                <div 
+                  className="absolute top-1.5 right-1.5 px-2 py-0.5 rounded-md text-[8px] sm:text-[9px] font-sans font-black uppercase text-white z-20 flex items-center gap-0.5 select-none bg-red-600 border border-red-500/50 shadow-[0_0_10px_rgba(239,68,68,0.4)]"
+                  title={`Gênero: ${movie.category}`}
+                >
+                  {movie.type === 'series' ? 'Série' : 'Filme'}
+                </div>
 
                 {/* Imagem do Poster */}
                 <div className="relative aspect-[2/3] w-full overflow-hidden bg-zinc-950">
@@ -223,85 +175,85 @@ export const MovieRow = React.memo(function MovieRow({
                   />
                   
                   {/* Overlay Escurecido Rápido de Hover */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black via-black/10 to-transparent opacity-0 group-hover/card:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-3 sm:p-4 z-20">
+                  <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-transparent opacity-0 group-hover/card:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-2.5 sm:p-4 z-20">
                     
-                    {/* Botões rápidos de controle */}
-                    <div className="flex items-center gap-1.5 sm:gap-2 mb-2 sm:mb-3">
-                      <button
+                    {/* Botões rápidos de controle com animações modernas */}
+                    <div className="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-3">
+                      <motion.button
+                        whileHover={{ scale: 1.15 }}
+                        whileTap={{ scale: 0.9 }}
                         onClick={(e) => onPlayClick(movie, e)}
-                        className={`p-1.5 sm:p-2 rounded-full transition-all active:scale-90 ${playBtnClass}`}
-                        title="Assistir agora"
+                        className="p-1.5 sm:p-2.5 rounded-full transition-all bg-red-600 hover:bg-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.7)] cursor-pointer"
+                        title={movie.type === 'series' ? 'Assistir Série' : 'Assistir Filme'}
                       >
-                        <Play className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-current" />
-                      </button>
-                      <button
+                        <Play className="w-3 h-3 sm:w-4 sm:h-4 fill-white text-white" />
+                      </motion.button>
+                      <motion.button
+                        whileHover={{ scale: 1.15 }}
+                        whileTap={{ scale: 0.9 }}
                         onClick={(e) => onToggleMyList(movie.id, e)}
-                        className={`p-1.5 sm:p-2 border rounded-full transition-all active:scale-90 ${
+                        className={`p-1.5 sm:p-2.5 border rounded-full transition-all cursor-pointer ${
                           isAddedToList 
-                            ? accentColor === 'neon' ? 'bg-emerald-500/20 border-emerald-400 text-emerald-300' : 'bg-rose-500/10 border-rose-500 text-rose-400' 
-                            : 'border-zinc-500 text-zinc-300 hover:text-white hover:border-white bg-zinc-900/80'
+                            ? 'bg-red-600/20 border-red-500 text-red-400 shadow-[0_0_10px_rgba(239,68,68,0.4)]' 
+                            : 'border-zinc-500 text-zinc-300 hover:text-white hover:border-red-500 bg-zinc-900/80'
                         }`}
                         title={isAddedToList ? "Remover da lista" : "Adicionar à lista"}
                       >
-                        {isAddedToList ? <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
-                      </button>
+                        {isAddedToList ? <Check className="w-3 h-3 sm:w-4 sm:h-4" /> : <Plus className="w-3 h-3 sm:w-4 sm:h-4" />}
+                      </motion.button>
                       
                       <div className="ml-auto">
-                        <button className="p-1.5 sm:p-2 border border-zinc-500 text-zinc-300 hover:text-white hover:border-white bg-zinc-900/80 rounded-full transition-all">
-                          <Info className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                        </button>
+                        <motion.button 
+                          whileHover={{ scale: 1.15 }}
+                          whileTap={{ scale: 0.9 }}
+                          className="p-1.5 sm:p-2.5 border border-zinc-600 text-zinc-300 hover:text-red-400 hover:border-red-500 bg-zinc-900/80 rounded-full transition-all cursor-pointer"
+                        >
+                          <Info className="w-3 h-3 sm:w-4 sm:h-4" />
+                        </motion.button>
                       </div>
                     </div>
 
                     {/* Stats rápidos */}
-                    <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[9px] sm:text-[10px] text-zinc-300 font-mono mt-1 select-none">
+                    <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[9px] sm:text-[10px] text-zinc-300 font-sans mt-0.5 select-none">
                       <span className="text-yellow-400 font-bold flex items-center gap-0.5">
                         <Star className="w-2.5 h-2.5 fill-yellow-400" /> {movie.rating}
                       </span>
                       <span>•</span>
                       <span className="text-zinc-400">{movie.year}</span>
-                      <span>•</span>
-                      <span className="text-emerald-400 font-bold" title={`${movie.votesLikes || 0} gostaram`}>
-                        👍 {movie.votesLikes || 0}
-                      </span>
-                      <span>•</span>
-                      <span className="text-rose-500 font-bold" title={`${movie.clicksCount || 0} visualizações`}>
-                        🔥 {movie.clicksCount || 0}v
-                      </span>
                     </div>
                   </div>
                 </div>
 
-                {/* Bloco de Texto Inferior (Fita VHS label look) */}
-                <div className="p-2 sm:p-3 bg-zinc-950 border-t border-zinc-900 flex flex-col justify-between h-14 sm:h-18">
-                  <p className={`text-xs sm:text-sm font-semibold text-zinc-200 ${titleHoverClass} transition-colors truncate`}>
+                {/* Bloco de Texto Inferior Compacto */}
+                <div className="p-2 sm:p-3 bg-zinc-950 border-t border-zinc-900 flex flex-col justify-between h-13 sm:h-18">
+                  <p className="text-[11px] sm:text-sm font-semibold text-zinc-200 group-hover/card:text-red-400 transition-colors truncate">
                     {movie.title}
                   </p>
                   
                   {/* Progress bar para Continuar Assistindo */}
                   {progress ? (
                     <div className="mt-1 sm:mt-2">
-                      <div className="flex justify-between items-center text-[9px] sm:text-[10px] text-zinc-500 font-mono mb-1 leading-none">
-                        <span>{Math.floor(progress.currentTime / 60)}m assistido</span>
-                        <span>{Math.round(progress.progress)}%</span>
+                      <div className="flex justify-between items-center text-[8px] sm:text-[10px] text-zinc-500 font-mono mb-1 leading-none">
+                        <span>{Math.floor(progress.currentTime / 60)}m</span>
+                        <span className="text-red-400 font-bold">{Math.round(progress.progress)}%</span>
                       </div>
                       <div className="w-full bg-zinc-800 h-1 sm:h-1.5 rounded-full overflow-hidden">
                         <div 
-                          className="bg-rose-600 h-full rounded-full" 
+                          className="bg-red-600 h-full rounded-full shadow-[0_0_8px_#ef4444]" 
                           style={{ width: `${progress.progress}%` }}
                         />
                       </div>
                     </div>
                   ) : (
-                    <div className="flex items-center justify-between text-[10px] text-zinc-500 font-mono leading-none">
-                      <span className="bg-zinc-900 px-1 py-0.5 rounded border border-zinc-800 text-[8px] sm:text-[9px] uppercase">
-                        {movie.type === 'movie' ? 'Filme' : 'Série'}
+                    <div className="flex items-center justify-between text-[9px] sm:text-[10px] text-zinc-500 font-sans leading-none">
+                      <span className="bg-zinc-900 px-1.5 py-0.5 rounded border border-zinc-800 text-[8px] sm:text-[9px] uppercase font-bold text-zinc-400">
+                        {movie.category}
                       </span>
-                      <span>{movie.duration}</span>
+                      <span className="font-mono text-[9px] sm:text-[10px]">{movie.duration}</span>
                     </div>
                   )}
                 </div>
-              </div>
+              </motion.div>
             );
           })}
         </div>

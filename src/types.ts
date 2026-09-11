@@ -19,6 +19,7 @@ export interface Movie {
   isFeatured?: boolean;
   vhsTapeColor?: string; // Cor estética do cartucho VHS (para o visual retro)
   tmdbId?: number;
+  imdbId?: string;
   youtubeVideoId?: string; // ID do vídeo do YouTube armazenado para o trailer inteligente
   clicksCount?: number;
   votesLikes?: number;
