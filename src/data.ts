@@ -515,13 +515,11 @@ export async function searchMoviesTMDB(query: string, apiKey: string): Promise<a
   try {
     const url = `https://api.themoviedb.org/3/search/multi?api_key=${encodeURIComponent(apiKey)}&query=${encodeURIComponent(query)}&language=pt-BR&include_adult=false`;
     const res = await fetchApi(url);
-    if (!res.ok || !res.data) {
-      throw new Error('Chave TMDB inválida ou limite excedido, usando fallback embutido.');
+    if (res.ok && res.data && Array.isArray(res.data.results)) {
+      return res.data.results.filter((item: any) => item.media_type === 'movie' || item.media_type === 'tv');
     }
-    const data = res.data;
-    return (data.results || []).filter((item: any) => item.media_type === 'movie' || item.media_type === 'tv');
+    return fallbackTMDBSearch(query);
   } catch (err) {
-    console.warn('Erro ao conectar com a API do TMDB. Usando banco simulado.', err);
     return fallbackTMDBSearch(query);
   }
 }
@@ -793,32 +791,31 @@ export async function getTMDBTrendingContent(apiKey: string, type: 'all' | 'movi
     const endpoint = type === 'movie' ? 'trending/movie/day' : type === 'tv' ? 'trending/tv/day' : 'trending/all/day';
     const url = `https://api.themoviedb.org/3/${endpoint}?api_key=${encodeURIComponent(apiKey)}&language=pt-BR`;
     const res = await fetchApi(url);
-    if (!res.ok || !res.data) {
-      throw new Error('Falha ao obter tendências do TMDB');
+    if (res.ok && res.data && Array.isArray(res.data.results) && res.data.results.length > 0) {
+      return res.data.results.map((item: any) => ({
+        ...item,
+        media_type: item.media_type || (type === 'tv' ? 'tv' : 'movie')
+      }));
     }
-    const results = (res.data.results || []).map((item: any) => ({
-      ...item,
-      media_type: item.media_type || (type === 'tv' ? 'tv' : 'movie')
-    }));
-    return results;
   } catch (err) {
-    console.warn('Erro ao obter tendências do TMDB, usando banco simulado:', err);
-    const mockDb = await fallbackTMDBSearch('');
-    const filtered = type === 'all' ? mockDb : mockDb.filter(m => m.media_type === type);
-    return filtered.map(item => ({
-      id: item.id,
-      title: item.title,
-      name: item.title,
-      popularity: item.vote_average * 10,
-      vote_average: item.vote_average,
-      media_type: item.media_type || 'movie',
-      poster_path: item.poster_path,
-      backdrop_path: item.backdrop_path,
-      overview: item.overview,
-      release_date: item.release_date,
-      first_air_date: item.release_date
-    }));
+    // Silencioso com fallback gracioso
   }
+
+  const mockDb = await fallbackTMDBSearch('');
+  const filtered = type === 'all' ? mockDb : mockDb.filter(m => m.media_type === type);
+  return filtered.map(item => ({
+    id: item.id,
+    title: item.title,
+    name: item.title,
+    popularity: item.vote_average * 10,
+    vote_average: item.vote_average,
+    media_type: item.media_type || 'movie',
+    poster_path: item.poster_path,
+    backdrop_path: item.backdrop_path,
+    overview: item.overview,
+    release_date: item.release_date,
+    first_air_date: item.release_date
+  }));
 }
 
 export async function getTMDBTrendingMovies(apiKey: string): Promise<any[]> {

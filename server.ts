@@ -144,6 +144,96 @@ app.get('/api/tmdb-image-proxy', async (req, res) => {
   }
 });
 
+// 3.0.1. PROXY SEGURO DE DADOS DA API DO TMDB (Elimina bloqueios de CORS, iframe e conexões diretas do navegador)
+const tmdbDataCache = new Map<string, { data: any; timestamp: number }>();
+
+app.get('/api/tmdb-proxy', async (req, res) => {
+  try {
+    let endpoint = String(req.query.endpoint || '').trim().replace(/^\/+/, '');
+    const rawUrl = String(req.query.url || '').trim();
+
+    if (rawUrl) {
+      try {
+        const parsed = new URL(rawUrl);
+        if (parsed.hostname === 'api.themoviedb.org' && parsed.pathname.startsWith('/3/')) {
+          endpoint = parsed.pathname.replace(/^\/3\//, '');
+          parsed.searchParams.forEach((v, k) => {
+            if (!req.query[k]) {
+              (req.query as any)[k] = v;
+            }
+          });
+        }
+      } catch (e) {}
+    }
+
+    if (!endpoint) {
+      return res.status(400).json({ error: 'Endpoint is required', results: [] });
+    }
+
+    const apiKey = String(
+      req.query.api_key || 
+      req.query.apiKey || 
+      process.env.TMDB_API_KEY || 
+      '9ba478ffe785bbc34fa2b10c46296580'
+    ).trim();
+
+    if (!apiKey || apiKey === 'MY_GEMINI_API_KEY') {
+      return res.status(400).json({ error: 'Valid TMDB API key required', results: [] });
+    }
+
+    const urlParams = new URLSearchParams();
+    for (const [k, v] of Object.entries(req.query)) {
+      if (k !== 'endpoint' && k !== 'url' && k !== 'api_key' && k !== 'apiKey' && v !== undefined) {
+        urlParams.set(k, String(v));
+      }
+    }
+    urlParams.set('api_key', apiKey);
+    if (!urlParams.has('language')) {
+      urlParams.set('language', 'pt-BR');
+    }
+
+    const targetUrl = `https://api.themoviedb.org/3/${endpoint}?${urlParams.toString()}`;
+
+    // Cache em memória de 5 minutos
+    const cached = tmdbDataCache.get(targetUrl);
+    if (cached && (Date.now() - cached.timestamp < 300000)) {
+      res.setHeader('Cache-Control', 'public, max-age=300');
+      return res.json(cached.data);
+    }
+
+    const tmdbRes = await fetch(targetUrl, {
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'VHSFLIX/1.0'
+      },
+      signal: AbortSignal.timeout(2000)
+    });
+
+    if (!tmdbRes.ok) {
+      return res.status(tmdbRes.status).json({
+        error: `TMDB responded with ${tmdbRes.status}`,
+        results: []
+      });
+    }
+
+    const json = await tmdbRes.json();
+    if (tmdbDataCache.size > 300) {
+      const oldest = tmdbDataCache.keys().next().value;
+      if (oldest) tmdbDataCache.delete(oldest);
+    }
+    tmdbDataCache.set(targetUrl, { data: json, timestamp: Date.now() });
+
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    return res.json(json);
+  } catch (err: any) {
+    return res.status(200).json({
+      error: 'Proxy fallback',
+      message: err.message || String(err),
+      results: []
+    });
+  }
+});
+
 // 3.1. SISTEMA INTELIGENTE DE TRAILERS (TMDB + YOUTUBE DATA API V3 + SCRAPER)
 const inMemoryTrailerCache = new Map<string, { videoId: string; trailerUrl: string; source: string; channelTitle?: string }>();
 

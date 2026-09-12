@@ -33,12 +33,7 @@ export function logApiTransaction(details: RequestLogDetails) {
   }
 
   if (details.error) {
-    console.error('❌ Erro Completo:', details.error);
-    if (details.error instanceof Error && details.error.stack) {
-      console.error('📜 Stack Trace:', details.error.stack);
-    } else {
-      console.trace('📜 Stack Trace:');
-    }
+    console.warn('⚠️ [API Info/Fallback]:', details.error?.message || details.error);
   }
   console.groupEnd();
 }
@@ -74,7 +69,11 @@ export async function fetchApi<T = any>(endpoint: string, options: RequestInit =
   const method = (options.method || 'GET').toUpperCase();
   let fullUrl = endpoint;
 
-  if (!endpoint.startsWith('http://') && !endpoint.startsWith('https://')) {
+  // Redireciona chamadas diretas ao TMDB pelo proxy local para evitar bloqueios de CORS e browser
+  if (endpoint.includes('api.themoviedb.org/3/')) {
+    const baseUrl = getApiBaseUrl();
+    fullUrl = `${baseUrl}/api/tmdb-proxy?url=${encodeURIComponent(endpoint)}`;
+  } else if (!endpoint.startsWith('http://') && !endpoint.startsWith('https://')) {
     const baseUrl = getApiBaseUrl();
     fullUrl = `${baseUrl}${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;
   }

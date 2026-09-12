@@ -857,16 +857,48 @@ export default function App() {
   // Lista de Filmes & Séries em Tendência no TMDB convertidos para objetos Movie
   const tmdbTrendingContentList = useMemo<Movie[]>(() => {
     if (!tmdbTrendingList || tmdbTrendingList.length === 0) return [];
+
+    const normalizeText = (t?: string) => {
+      if (!t) return '';
+      return t.toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]/g, "")
+        .trim();
+    };
+
     return tmdbTrendingList.map((item, idx) => {
       const isTv = item.media_type === 'tv' || Boolean(item.name);
       const title = item.title || item.name || `Tendência #${idx + 1}`;
       const releaseDate = item.release_date || item.first_air_date || '2026';
       const year = parseInt(releaseDate.substring(0, 4)) || new Date().getFullYear();
 
-      const inCatalog = movies.find(m => (item.id && m.tmdbId === item.id) || m.title.toLowerCase().trim() === title.toLowerCase().trim());
+      const normTitle = normalizeText(title);
+      const normOrigTitle = normalizeText(item.original_title || item.original_name);
+
+      const inCatalog = movies.find(m => {
+        if (item.id && (m.tmdbId === item.id || m.id === `tmdb_${item.id}` || m.id === String(item.id))) {
+          return true;
+        }
+        const normM = normalizeText(m.title);
+        if (normM && normTitle && (normM === normTitle || normM.includes(normTitle) || normTitle.includes(normM))) {
+          return true;
+        }
+        if (normM && normOrigTitle && (normM === normOrigTitle || normM.includes(normOrigTitle) || normOrigTitle.includes(normM))) {
+          return true;
+        }
+        return false;
+      });
+
       if (inCatalog) {
         return inCatalog;
       }
+
+      // Se não estiver integralmente cadastrado, propaga a indicação oficial caso o Administrador Rafael tenha indicado esse título
+      const isRecommended = movies.some(m => Boolean(m.isRecommended) && (
+        (item.id && (m.tmdbId === item.id || m.id === `tmdb_${item.id}`)) ||
+        (normalizeText(m.title) && normTitle && (normalizeText(m.title) === normTitle || normTitle.includes(normalizeText(m.title))))
+      ));
 
       return {
         id: `tmdb_trend_${item.id || idx}`,
@@ -882,6 +914,7 @@ export default function App() {
         description: item.overview || 'Título em alta global no TMDB com grande audiência hoje.',
         trailerUrl: 'https://www.youtube.com/embed/CRRlbK5w8AE',
         isFeatured: idx === 0,
+        isRecommended: isRecommended,
         clicksCount: item.vote_count || (2500 - idx * 100),
         votesLikes: Math.round((item.vote_average || 8) * 140),
         votesDislikes: 12,
@@ -1895,6 +1928,11 @@ export default function App() {
                       >
                         {/* 1. Gênero • 2. Nota (sem estrela, /10) • 3. Ano • 4. Tipo de Produção (Filme, Série de TV, Reality Show, Novela) */}
                         <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 mb-3 sm:mb-4">
+                          {/* Selo Oficial de Indicação do Administrador Rafael */}
+                          {featuredMovie.isRecommended && (
+                            <RecommendationBadge variant="banner" />
+                          )}
+
                           {/* 1. Gênero */}
                           <span className="bg-zinc-900/90 border border-zinc-700/70 text-zinc-100 font-sans text-[11px] sm:text-xs font-black px-3.5 py-1 rounded-full uppercase tracking-wider shadow-sm flex items-center gap-1.5">
                             <span>{featuredMovie.category}</span>
@@ -2152,6 +2190,13 @@ export default function App() {
                           onError={handlePosterError}
                         />
 
+                        {/* Selo Oficial de Indicação do Administrador Rafael na Capa */}
+                        {mostDesejadaMovie.isRecommended && (
+                          <div className="absolute top-2 right-2 z-20">
+                            <RecommendationBadge variant="card" />
+                          </div>
+                        )}
+
                         {/* Hover Overlay Verde Neon para Sintonizar */}
                         <div className="absolute inset-0 bg-emerald-950/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                           <div className="bg-emerald-500 text-black p-3 rounded-full shadow-[0_0_20px_rgba(16,185,129,0.9)] transform scale-90 group-hover:scale-100 transition-transform flex items-center gap-1 font-mono text-xs font-bold uppercase">
@@ -2164,6 +2209,11 @@ export default function App() {
                       <div className="flex-1 text-center md:text-left flex flex-col items-center md:items-start z-10">
                         {/* Badges do Spotlight */}
                         <div className="flex flex-wrap items-center justify-center md:justify-start gap-2.5">
+                          {/* Selo de Indicação Oficial se o título em destaque foi indicado */}
+                          {mostDesejadaMovie.isRecommended && (
+                            <RecommendationBadge variant="banner" />
+                          )}
+
                           {isMostDesiredPinnedByAdmin ? (
                             <span className="text-[11px] sm:text-xs font-mono font-black text-emerald-300 uppercase tracking-widest bg-emerald-950/70 border-2 border-emerald-400 px-3.5 py-1.5 rounded-full flex items-center gap-1.5 shadow-[0_0_15px_rgba(16,185,129,0.4)]">
                               <Sparkles className="w-4 h-4 text-emerald-400" />
@@ -2264,25 +2314,6 @@ export default function App() {
                     if (activeTab === 'all') {
                       return (
                         <div className="space-y-4">
-                          {/* 0. Recomendados pelo Rafael (Selo Oficial VHSFLIX) */}
-                          {recommendedMovies.length > 0 && (
-                            <MovieRow
-                              title="Recomendados pelo Rafael"
-                              subtitle="Seleção Oficial com Selo de Ouro VHSFLIX"
-                              icon={
-                                <div className="w-8 h-8 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 shadow-[0_0_15px_rgba(245,158,11,0.4)]">
-                                  <Award className="w-4 h-4 fill-current" />
-                                </div>
-                              }
-                              movies={recommendedMovies}
-                              watchHistory={activeProfile.watchHistory}
-                              myList={activeProfile.myList}
-                              onMovieClick={handleSelectMovie}
-                              onToggleMyList={handleToggleMyList}
-                              onPlayClick={handleFeaturedPlay}
-                            />
-                          )}
-
                           {/* 1. Lançamentos Filmes (Top 10) */}
                           <MovieRow
                             title="Lançamentos Filmes"
@@ -2882,7 +2913,11 @@ export default function App() {
                             <div
                               key={movie.id}
                               onClick={() => handleSelectMovie(movie)}
-                              className="relative bg-zinc-950 border border-zinc-900 rounded-lg overflow-hidden hover:border-rose-500 hover:shadow-xl hover:shadow-rose-600/10 transition-all cursor-pointer group"
+                              className={`relative bg-zinc-950 border rounded-lg overflow-hidden transition-all cursor-pointer group ${
+                                movie.isRecommended
+                                  ? 'border-amber-500/50 hover:border-amber-400 hover:shadow-xl hover:shadow-amber-500/20'
+                                  : 'border-zinc-900 hover:border-rose-500 hover:shadow-xl hover:shadow-rose-600/10'
+                              }`}
                               id={`search-grid-card-${movie.id}`}
                             >
                               <div className="aspect-[2/3] overflow-hidden bg-zinc-900 relative">
@@ -2898,6 +2933,13 @@ export default function App() {
                                 <div className="absolute top-2 left-2 bg-black/85 border border-zinc-800/80 text-[9px] font-mono font-bold text-zinc-200 px-1.5 py-0.5 rounded shadow z-20">
                                   {movie.year}
                                 </div>
+
+                                {/* Selo Oficial de Recomendação do Administrador Rafael na Capa */}
+                                {movie.isRecommended && (
+                                  <div className="absolute top-2 right-2 z-20">
+                                    <RecommendationBadge variant="card" />
+                                  </div>
+                                )}
                               </div>
                               <div className="p-2 sm:p-3 bg-zinc-950 border-t border-zinc-900 h-14 sm:h-16 flex flex-col justify-between">
                                 <span className="font-semibold text-xs sm:text-sm text-zinc-200 truncate group-hover:text-rose-500 block">{movie.title}</span>
