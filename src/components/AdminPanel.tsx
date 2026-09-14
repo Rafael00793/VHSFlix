@@ -260,18 +260,8 @@ export default function AdminPanel({
     e.preventDefault();
     if (!formTitle.trim() || !formDescription.trim()) return;
 
-    // Verificação preventiva de duplicidade ao cadastrar novo título
-    if (!editingMovie) {
-      const existingDuplicate = findDuplicateMovie(formTitle, formTmdbId);
-      if (existingDuplicate) {
-        const confirmDuplicate = window.confirm(
-          `⚠️ AVISO DE DUPLICIDADE NO ACERVO:\n\nO título "${existingDuplicate.title}" (${existingDuplicate.year} • ${existingDuplicate.category}) já consta cadastrado no catálogo do VHSFLIX.\n\nDeseja realmente cadastrar este item novamente em duplicidade?`
-        );
-        if (!confirmDuplicate) {
-          return;
-        }
-      }
-    }
+    // Permite cadastrar qualquer título livremente no acervo, sem bloquear ou impedir o cadastro manual
+    // Se for edição, mantém o ID original. Se for novo título, adiciona diretamente.
 
     // Regra: Desenhos e Animações (Disney, Pixar, etc.) entram sempre como "Animação"
     let finalCategory = formCategory;
@@ -1938,24 +1928,24 @@ export default function AdminPanel({
                     </button>
                   </div>
 
-                  {/* ALERTA DE RECONHECIMENTO DE DUPLICIDADE EM TEMPO REAL */}
+                  {/* RECONHECIMENTO INFORMATIVO DO TÍTULO NO ACERVO */}
                   {(() => {
                     const existingDup = findDuplicateMovie(formTitle, formTmdbId, editingMovie?.id);
                     if (!existingDup || !formTitle.trim()) return null;
                     return (
-                      <div className="mb-5 p-4 bg-amber-950/40 border border-amber-500/50 rounded-2xl text-amber-300 text-xs flex items-start gap-3.5 shadow-xl animate-fade-in backdrop-blur-md">
-                        <div className="p-2 rounded-xl bg-amber-500/20 text-amber-400 shrink-0 mt-0.5 border border-amber-500/30">
-                          <AlertTriangle className="w-4.5 h-4.5" />
+                      <div className="mb-5 p-3.5 bg-blue-950/30 border border-blue-500/40 rounded-2xl text-blue-300 text-xs flex items-start gap-3 shadow-lg animate-fade-in backdrop-blur-md">
+                        <div className="p-1.5 rounded-xl bg-blue-500/20 text-blue-400 shrink-0 mt-0.5 border border-blue-500/30">
+                          <Check className="w-4 h-4" />
                         </div>
-                        <div className="flex-1 space-y-1">
+                        <div className="flex-1 space-y-0.5">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-bold uppercase tracking-wider text-amber-200 text-xs">Aviso de Mídia já Cadastrada no Acervo</span>
-                            <span className="text-[9px] font-mono bg-amber-500/25 px-2 py-0.5 rounded-full text-amber-200 font-bold border border-amber-500/40">
+                            <span className="font-bold text-blue-200 text-xs">Identificado no Catálogo</span>
+                            <span className="text-[9px] font-mono bg-blue-500/20 px-2 py-0.2 rounded-full text-blue-300 font-bold border border-blue-500/30">
                               {existingDup.type === 'series' ? 'SÉRIE' : 'FILME'}
                             </span>
                           </div>
-                          <p className="text-zinc-200 text-xs leading-relaxed">
-                            O título <strong className="text-amber-200 font-bold">"{existingDup.title}"</strong> ({existingDup.year} • {existingDup.category}) já consta cadastrado no acervo do VHSFLIX. Não é necessário duplicá-lo, a não ser que deseje criar uma versão alternativa.
+                          <p className="text-zinc-300 text-[11px] leading-relaxed">
+                            "{existingDup.title}" ({existingDup.year}). Você pode salvar para atualizar episódios/links ou gravar uma nova versão normalmente.
                           </p>
                         </div>
                       </div>

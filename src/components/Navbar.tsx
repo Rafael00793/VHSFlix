@@ -8,6 +8,7 @@ import { Search, Bell, Shield, LogOut, RefreshCw, UserCheck, Film, Tv, List, Sli
 import { User, Profile, AppNotification, Movie, getSubscriptionDaysLeft } from '../types';
 import { GENRE_CATEGORIES } from '../data';
 import { motion, AnimatePresence } from 'motion/react';
+import { RecommendationBadge } from './RecommendationBadge';
 
 interface NavbarProps {
   user: User;
@@ -190,6 +191,7 @@ export default function Navbar({
                   }`}
                 >
                   <Film className="w-3.5 h-3.5" /> <span>Filmes</span>
+                  <RecommendationBadge variant="compact" showText={false} className="ml-0.5 scale-90" />
                   {activeTab === 'movies' && (
                     <motion.div layoutId="navbarActiveIndicator" className="absolute bottom-0 left-1 right-1 h-0.5 bg-red-600 shadow-[0_0_8px_#ef4444] rounded-full" />
                   )}
@@ -210,6 +212,7 @@ export default function Navbar({
                   }`}
                 >
                   <Tv className="w-3.5 h-3.5" /> <span>Séries</span>
+                  <RecommendationBadge variant="compact" showText={false} className="ml-0.5 scale-90" />
                   {activeTab === 'series' && (
                     <motion.div layoutId="navbarActiveIndicator" className="absolute bottom-0 left-1 right-1 h-0.5 bg-red-600 shadow-[0_0_8px_#ef4444] rounded-full" />
                   )}
@@ -550,13 +553,14 @@ export default function Navbar({
                 onSelectCategory(null);
                 onTabChange('movies');
               }}
-              className={`px-3.5 py-1.5 rounded-full font-bold transition-all text-xs flex-shrink-0 cursor-pointer whitespace-nowrap ${
+              className={`px-3.5 py-1.5 rounded-full font-bold transition-all text-xs flex-shrink-0 cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
                 activeTab === 'movies'
                   ? 'bg-red-600 text-white font-extrabold shadow-[0_0_15px_rgba(239,68,68,0.5)] border border-red-500'
                   : 'bg-zinc-900/90 text-zinc-300 hover:text-white hover:bg-zinc-800 border border-zinc-800'
               }`}
             >
-              Filmes
+              <span>Filmes</span>
+              <RecommendationBadge variant="compact" showText={false} className="scale-75 -mr-1" />
             </motion.button>
 
             {/* 4º BOTÃO: SÉRIES */}
@@ -567,13 +571,14 @@ export default function Navbar({
                 onSelectCategory(null);
                 onTabChange('series');
               }}
-              className={`px-3.5 py-1.5 rounded-full font-bold transition-all text-xs flex-shrink-0 cursor-pointer whitespace-nowrap ${
+              className={`px-3.5 py-1.5 rounded-full font-bold transition-all text-xs flex-shrink-0 cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
                 activeTab === 'series'
                   ? 'bg-red-600 text-white font-extrabold shadow-[0_0_15px_rgba(239,68,68,0.5)] border border-red-500'
                   : 'bg-zinc-900/90 text-zinc-300 hover:text-white hover:bg-zinc-800 border border-zinc-800'
               }`}
             >
-              Séries
+              <span>Séries</span>
+              <RecommendationBadge variant="compact" showText={false} className="scale-75 -mr-1" />
             </motion.button>
 
             {/* 5º BOTÃO: MINHA LISTA */}

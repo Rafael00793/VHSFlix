@@ -335,6 +335,36 @@ export default function App() {
     localStorage.setItem('vhsflix_system_version', String(newVersion));
   };
 
+  // Limpeza global de restrições CSP no DOM para garantir compatibilidade com provedores de streaming externos (ex: myembed.biz)
+  useEffect(() => {
+    const removeCspMetaTags = () => {
+      const cspMetas = document.querySelectorAll('meta[http-equiv="Content-Security-Policy" i], meta[http-equiv="content-security-policy" i]');
+      cspMetas.forEach((meta) => {
+        try {
+          meta.parentNode?.removeChild(meta);
+        } catch (e) {
+          console.warn('[CSP Cleanup] Erro ao remover meta tag CSP:', e);
+        }
+      });
+    };
+
+    // Executa imediatamente no carregamento
+    removeCspMetaTags();
+
+    // Observador para interceptar e remover dinamicamente qualquer meta tag CSP injetada no DOM
+    const observer = new MutationObserver(() => {
+      removeCspMetaTags();
+    });
+
+    if (document.head) {
+      observer.observe(document.head, { childList: true, subtree: true });
+    }
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
   // Timer para sumir com o toast de notificação da tela automaticamente após alguns segundos
   useEffect(() => {
     if (!toast) return;
@@ -874,27 +904,9 @@ export default function App() {
       const year = parseInt(releaseDate.substring(0, 4)) || new Date().getFullYear();
 
       const normTitle = normalizeText(title);
-      const normOrigTitle = normalizeText(item.original_title || item.original_name);
 
-      const inCatalog = movies.find(m => {
-        if (item.id && (m.tmdbId === item.id || m.id === `tmdb_${item.id}` || m.id === String(item.id))) {
-          return true;
-        }
-        const normM = normalizeText(m.title);
-        if (normM && normTitle && (normM === normTitle || normM.includes(normTitle) || normTitle.includes(normM))) {
-          return true;
-        }
-        if (normM && normOrigTitle && (normM === normOrigTitle || normM.includes(normOrigTitle) || normOrigTitle.includes(normM))) {
-          return true;
-        }
-        return false;
-      });
-
-      if (inCatalog) {
-        return inCatalog;
-      }
-
-      // Se não estiver integralmente cadastrado, propaga a indicação oficial caso o Administrador Rafael tenha indicado esse título
+      // Sempre exibe as tendências globais do TMDB no catálogo inicial livremente
+      // Se houver indicação no acervo com mesmo título ou tmdbId, propaga a indicação oficial
       const isRecommended = movies.some(m => Boolean(m.isRecommended) && (
         (item.id && (m.tmdbId === item.id || m.id === `tmdb_${item.id}`)) ||
         (normalizeText(m.title) && normTitle && (normalizeText(m.title) === normTitle || normTitle.includes(normalizeText(m.title))))
@@ -1349,83 +1361,7 @@ export default function App() {
 
   // --- TRATADORES DO PAINEL ADMIN CORADOS GERAIS ---
   const handleAddMovie = (newMovieData: Omit<Movie, 'id'>) => {
-    // Verificar se já existe um filme ou série com o mesmo título ou mesmo tmdbId e mesmo tipo
-    const isDuplicate = movies.some(m => {
-      // Se forem de tipos diferentes (filme vs série), não é duplicado
-      if (m.type !== newMovieData.type) {
-        return false;
-      }
-      // Se ambos tiverem tmdbId e forem IDs diferentes, não é duplicado
-      if (newMovieData.tmdbId && m.tmdbId && newMovieData.tmdbId !== m.tmdbId) {
-        return false;
-      }
-      
-      const existingTitle = (m.title || '').trim().toLowerCase();
-      const incomingTitle = (newMovieData.title || '').trim().toLowerCase();
-      
-      if (existingTitle === incomingTitle) {
-        // Mesmo título e tipo. Verificar se o ano de lançamento é diferente!
-        const y1 = m.year ? String(m.year).trim() : '';
-        const y2 = newMovieData.year ? String(newMovieData.year).trim() : '';
-        if (y1 && y2 && y1 !== y2) {
-          return false; // Anos diferentes! Permitir duplicata saudável (ex: A Múmia de 1999 e 2017)
-        }
-        return true; // Sem distinção de ano ou mesmo ano, é duplicado!
-      }
-      
-      // Se tem exatamente o mesmo tmdbId
-      if (newMovieData.tmdbId && m.tmdbId && m.tmdbId === newMovieData.tmdbId) {
-        return true;
-      }
-      
-      return false;
-    });
-
-    const existingMovie = movies.find(m => {
-      if (m.type !== newMovieData.type) return false;
-      if (newMovieData.tmdbId && m.tmdbId && m.tmdbId === newMovieData.tmdbId) return true;
-      const existingTitle = (m.title || '').trim().toLowerCase();
-      const incomingTitle = (newMovieData.title || '').trim().toLowerCase();
-      if (existingTitle === incomingTitle) {
-        const y1 = m.year ? String(m.year).trim() : '';
-        const y2 = newMovieData.year ? String(newMovieData.year).trim() : '';
-        if (y1 && y2 && y1 !== y2) return false;
-        return true;
-      }
-      return false;
-    });
-
-    if (existingMovie) {
-      // Atualizar o título existente no acervo mesclando as novas informações de temporadas/episódios
-      const updatedMovie: Movie = {
-        ...existingMovie,
-        ...newMovieData,
-        id: existingMovie.id,
-        episodeEmbeds: {
-          ...(existingMovie.episodeEmbeds || {}),
-          ...(newMovieData.episodeEmbeds || {})
-        },
-        seasonsConfig: {
-          ...(existingMovie.seasonsConfig || {}),
-          ...(newMovieData.seasonsConfig || {})
-        }
-      };
-
-      setMovies(prev => prev.map(m => m.id === existingMovie.id ? updatedMovie : m));
-      saveSingleMovieToFirestore(updatedMovie);
-
-      const tipo = updatedMovie.type === 'series' ? 'Série' : 'Filme';
-      triggerNotification(
-        '🔄 Item Atualizado!',
-        `${tipo} "${updatedMovie.title}" foi atualizado(a) com sucesso com as novas temporadas e episódios!`,
-        updatedMovie.id,
-        updatedMovie.type === 'series' ? 'series' : 'movie',
-        updatedMovie.posterUrl
-      );
-
-      return true; // Sucesso ao atualizar
-    }
-
+    // Permite adicionar qualquer título livremente ao acervo
     const newMovieId = 'm_' + Date.now();
     const newMovie: Movie = {
       ...newMovieData,
@@ -2898,12 +2834,15 @@ export default function App() {
                     return (
                       <div className="px-4 sm:px-8 py-2">
                         {/* Cabeçalho do Filtro / Categoria com Estilo Neon e Layout Limpo */}
-                        <div className="mb-6 flex items-center gap-3 border-b border-zinc-900/80 pb-4">
+                        <div className="mb-6 flex items-center justify-between gap-3 border-b border-zinc-900/80 pb-4">
                           <div className="flex items-center gap-3">
                             {getGridIcon()}
                             <h2 className="text-xl sm:text-2xl font-black font-display text-white uppercase tracking-tight">
                               {getGridTitle()}
                             </h2>
+                            {(activeTab === 'movies' || activeTab === 'series') && (
+                              <RecommendationBadge variant="compact" showText={true} className="ml-1" />
+                            )}
                           </div>
                           <span className="h-px flex-1 bg-gradient-to-r from-zinc-800 via-zinc-800/40 to-transparent"></span>
                         </div>
