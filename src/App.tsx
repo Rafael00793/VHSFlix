@@ -54,6 +54,32 @@ function getMovieAdditionWeight(m: Movie): number {
   return 50000;
 }
 
+// Identifica produções que pertencem à aba Lançamentos (Ano 2026+, estreias de 2025/2026 no Brasil, novas dublagens e novidades do catálogo)
+function isReleaseMedia(m: Movie): boolean {
+  if (!m) return false;
+  const year = Number(m.year) || 0;
+
+  // 1. Títulos de 2026 ou anos posteriores (2027+)
+  if (year >= 2026) return true;
+
+  // 2. Data de lançamento registrada pelo TMDB em 2026 ou posterior
+  if (m.releaseDate) {
+    const relYear = parseInt(m.releaseDate.split('-')[0]) || 0;
+    if (relYear >= 2026) return true;
+    if (m.releaseDate.includes('2026')) return true;
+  }
+
+  // 3. Títulos de 2025 (safra recente em circulação no streaming e cinema)
+  if (year === 2025) return true;
+
+  // 4. Filmes de 2024 que tiveram dublagem/estreia nacional recente em 2025 ou 2026
+  if (year === 2024 && m.releaseDate && (m.releaseDate.includes('2025') || m.releaseDate.includes('2026'))) {
+    return true;
+  }
+
+  return false;
+}
+
 // Ordenação oficial por Ano de Lançamento / Data de Lançamento (mais recentes primeiro: 2026, 2025, 2024...)
 function sortByReleaseYear(a: Movie, b: Movie): number {
   const yearA = Number(a.year) || 1990;
@@ -261,7 +287,7 @@ export default function App() {
   });
 
   // Abas de navegação do usuário na plataforma
-  const [activeTab, setActiveTab] = useState<'all' | 'movies' | 'series' | 'mylist' | 'requests' | 'support'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'releases' | 'movies' | 'series' | 'mylist' | 'requests' | 'support'>('all');
   const [myListViewMode, setMyListViewMode] = useState<'grid' | 'vertical_list' | 'carousel'>(() => (localStorage.getItem('vhsflix_mylist_view') as any) || 'vertical_list');
   const [myListTypeFilter, setMyListTypeFilter] = useState<'all' | 'movies' | 'series'>('all');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -1014,7 +1040,9 @@ export default function App() {
     }
 
     // Filtros por abas
-    if (activeTab === 'movies') {
+    if (activeTab === 'releases') {
+      list = list.filter(isReleaseMedia);
+    } else if (activeTab === 'movies') {
       list = list.filter(m => m.type === 'movie');
     } else if (activeTab === 'series') {
       list = list.filter(m => m.type === 'series');
@@ -1051,6 +1079,44 @@ export default function App() {
 
     return list;
   }, [movies, activeTab, activeProfile, searchVal, selectedCategory]);
+
+  // Paginação moderna de 50 em 50 títulos (Lançamentos, Filmes, Séries, Início, Busca e Categorias)
+  const ITEMS_PER_CATALOG_PAGE = 50;
+  const [catalogPage, setCatalogPage] = useState(1);
+  const catalogGridTopRef = useRef<HTMLDivElement>(null);
+
+  // Sincronização automática: reseta para a página 1 ao trocar de aba, realizar buscas ou selecionar categorias
+  useEffect(() => {
+    setCatalogPage(1);
+  }, [activeTab, searchVal, selectedCategory]);
+
+  const totalCatalogPages = useMemo(() => {
+    return Math.max(1, Math.ceil(filteredMovies.length / ITEMS_PER_CATALOG_PAGE));
+  }, [filteredMovies.length]);
+
+  // Garante integridade se a página atual ultrapassar o total de páginas existentes
+  useEffect(() => {
+    if (catalogPage > totalCatalogPages && totalCatalogPages > 0) {
+      setCatalogPage(1);
+    }
+  }, [catalogPage, totalCatalogPages]);
+
+  // Fatiamento dos filmes para renderizar de 50 em 50 itens
+  const paginatedCatalogMovies = useMemo(() => {
+    const start = (catalogPage - 1) * ITEMS_PER_CATALOG_PAGE;
+    return filteredMovies.slice(start, start + ITEMS_PER_CATALOG_PAGE);
+  }, [filteredMovies, catalogPage]);
+
+  // Navegação suave com transição ao topo do catálogo
+  const handleCatalogPageChange = (newPage: number) => {
+    if (newPage < 1 || newPage > totalCatalogPages) return;
+    setCatalogPage(newPage);
+    if (catalogGridTopRef.current) {
+      const yOffset = -90;
+      const y = catalogGridTopRef.current.getBoundingClientRect().top + window.pageYOffset + yOffset;
+      window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
+    }
+  };
 
   const handleSelectCategory = (category: string | null) => {
     setSelectedCategory(category);
@@ -2781,15 +2847,15 @@ export default function App() {
                   })()
                 )}
 
-                {/* --- 2.B.III: GRID DE FILMES/SÉRIES, BUSCA OU CATEGORIAS SELECIONADAS --- */}
-                {activeTab !== 'mylist' && (searchVal || activeTab === 'movies' || activeTab === 'series' || selectedCategory) && (
+                {/* --- 2.B.III: GRID DE FILMES/SÉRIES/LANÇAMENTOS, BUSCA OU CATEGORIAS SELECIONADAS --- */}
+                {activeTab !== 'mylist' && (searchVal || activeTab === 'releases' || activeTab === 'movies' || activeTab === 'series' || selectedCategory || activeTab === 'all') && (
                   (() => {
                     if (filteredMovies.length === 0) {
                       return (
                         <div className="text-center py-28 px-4 flex flex-col items-center max-w-sm mx-auto">
                           <AlertCircle className="w-10 h-10 text-rose-500 mb-3" />
                           <h3 className="font-bold text-sm text-zinc-200">Nenhum título localizado</h3>
-                          <p className="text-[11px] text-zinc-400 mt-1 lines-clamp-3">Infelizmente não encontramos nenhum filme compatível nas prateleiras locais com esse termo pesquisado 🤔</p>
+                          <p className="text-[11px] text-zinc-400 mt-1 lines-clamp-3">Infelizmente não encontramos nenhum filme ou série correspondente nas prateleiras locais 🤔</p>
                         </div>
                       );
                     }
@@ -2797,12 +2863,20 @@ export default function App() {
                     const getGridTitle = () => {
                       if (searchVal) return `Resultados para "${searchVal}"`;
                       if (selectedCategory) return selectedCategory;
+                      if (activeTab === 'releases') return 'Lançamentos (2026 & Recentes)';
                       if (activeTab === 'movies') return 'Filmes';
                       if (activeTab === 'series') return 'Séries';
-                      return 'Catálogo';
+                      return 'Catálogo Completo';
                     };
 
                     const getGridIcon = () => {
+                      if (activeTab === 'releases') {
+                        return (
+                          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-br from-rose-500/20 via-amber-500/20 to-red-500/20 border border-rose-500/40 flex items-center justify-center text-amber-400 shadow-[0_0_14px_rgba(244,63,94,0.35)] shrink-0">
+                            <Sparkles className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-amber-400 fill-amber-400/20" />
+                          </div>
+                        );
+                      }
                       if (activeTab === 'movies') {
                         return (
                           <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-500 shadow-[0_0_14px_rgba(244,63,94,0.35)] shrink-0">
@@ -2825,30 +2899,61 @@ export default function App() {
                         );
                       }
                       return (
-                        <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shadow-[0_0_14px_rgba(6,182,212,0.35)] shrink-0">
-                          <Sparkles className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+                        <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-red-500/15 border border-red-500/30 flex items-center justify-center text-red-500 shadow-[0_0_14px_rgba(239,68,68,0.35)] shrink-0">
+                          <Film className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
                         </div>
                       );
                     };
 
                     return (
-                      <div className="px-4 sm:px-8 py-2">
+                      <div ref={catalogGridTopRef} id="catalog-grid-top" className="px-4 sm:px-8 py-4 scroll-mt-24">
                         {/* Cabeçalho do Filtro / Categoria com Estilo Neon e Layout Limpo */}
                         <div className="mb-6 flex items-center justify-between gap-3 border-b border-zinc-900/80 pb-4">
-                          <div className="flex items-center gap-3">
-                            {getGridIcon()}
-                            <h2 className="text-xl sm:text-2xl font-black font-display text-white uppercase tracking-tight">
-                              {getGridTitle()}
-                            </h2>
-                            {(activeTab === 'movies' || activeTab === 'series') && (
-                              <RecommendationBadge variant="compact" showText={true} className="ml-1" />
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-3">
+                              {getGridIcon()}
+                              <h2 className="text-xl sm:text-2xl font-black font-display text-white uppercase tracking-tight">
+                                {getGridTitle()}
+                              </h2>
+                            </div>
+                            {activeTab === 'releases' && (
+                              <p className="text-xs text-zinc-400 mt-1 pl-11">
+                                Estreias do ano de 2026, novas temporadas, produções recentes e títulos com dublagem nacional recém-lançada.
+                              </p>
                             )}
                           </div>
-                          <span className="h-px flex-1 bg-gradient-to-r from-zinc-800 via-zinc-800/40 to-transparent"></span>
+
+                          {/* Indicador de Páginas Rápido no Topo */}
+                          {totalCatalogPages > 1 && (
+                            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                              <span className="text-[11px] sm:text-xs font-mono font-bold text-zinc-400 hidden sm:inline">
+                                Pág. <strong className="text-white font-black">{catalogPage}</strong>/{totalCatalogPages}
+                              </span>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={() => handleCatalogPageChange(catalogPage - 1)}
+                                  disabled={catalogPage === 1}
+                                  className="p-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer"
+                                  title="Página anterior"
+                                >
+                                  <ChevronLeft className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => handleCatalogPageChange(catalogPage + 1)}
+                                  disabled={catalogPage === totalCatalogPages}
+                                  className="p-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:pointer-events-none transition-all cursor-pointer"
+                                  title="Próxima página"
+                                >
+                                  <ChevronRight className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </div>
 
+                        {/* Grade de Cards Paginada em 50 por 50 Itens */}
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-y-6 gap-x-4 sm:gap-x-5">
-                          {filteredMovies.map(movie => (
+                          {paginatedCatalogMovies.map(movie => (
                             <div
                               key={movie.id}
                               onClick={() => handleSelectMovie(movie)}
@@ -2890,6 +2995,82 @@ export default function App() {
                             </div>
                           ))}
                         </div>
+
+                        {/* Paginação Completa de 50 em 50 Itens ao Final da Grade */}
+                        {totalCatalogPages > 1 && (
+                          <div className="mt-10 pt-6 border-t border-zinc-900 flex flex-col sm:flex-row items-center justify-between gap-4">
+                            <div className="text-xs text-zinc-400 font-sans text-center sm:text-left">
+                              Exibindo <strong className="text-zinc-200 font-mono">{(catalogPage - 1) * ITEMS_PER_CATALOG_PAGE + 1}–{Math.min(catalogPage * ITEMS_PER_CATALOG_PAGE, filteredMovies.length)}</strong> de <strong className="text-zinc-200 font-mono">{filteredMovies.length}</strong> títulos • Página <strong className="text-white font-mono font-bold">{catalogPage}</strong> de <strong className="text-zinc-200 font-mono">{totalCatalogPages}</strong> <span className="text-zinc-500 text-[11px] font-mono">(50 títulos por página)</span>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 flex-wrap justify-center">
+                              {/* Botão Anterior */}
+                              <button
+                                onClick={() => handleCatalogPageChange(catalogPage - 1)}
+                                disabled={catalogPage === 1}
+                                className="px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-xs font-bold text-zinc-300 hover:text-white hover:bg-zinc-800 hover:border-zinc-700 disabled:opacity-30 disabled:pointer-events-none transition-all flex items-center gap-1 cursor-pointer"
+                              >
+                                <ChevronLeft className="w-4 h-4" />
+                                <span className="hidden xs:inline">Anterior</span>
+                              </button>
+
+                              {/* Números das páginas */}
+                              {(() => {
+                                const pages: (number | string)[] = [];
+                                const maxButtons = 7;
+                                if (totalCatalogPages <= maxButtons) {
+                                  for (let i = 1; i <= totalCatalogPages; i++) pages.push(i);
+                                } else {
+                                  pages.push(1);
+                                  if (catalogPage > 3) pages.push('ellipsis-prev');
+                                  
+                                  const start = Math.max(2, catalogPage - 1);
+                                  const end = Math.min(totalCatalogPages - 1, catalogPage + 1);
+                                  for (let i = start; i <= end; i++) {
+                                    if (!pages.includes(i)) pages.push(i);
+                                  }
+                                  
+                                  if (catalogPage < totalCatalogPages - 2) pages.push('ellipsis-next');
+                                  if (!pages.includes(totalCatalogPages)) pages.push(totalCatalogPages);
+                                }
+
+                                return pages.map((p, idx) => {
+                                  if (typeof p === 'string') {
+                                    return (
+                                      <span key={`ellipsis-${idx}`} className="px-2 text-zinc-600 font-mono text-xs select-none">
+                                        •••
+                                      </span>
+                                    );
+                                  }
+                                  const isActive = p === catalogPage;
+                                  return (
+                                    <button
+                                      key={p}
+                                      onClick={() => handleCatalogPageChange(p)}
+                                      className={`min-w-[34px] h-[34px] px-2 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer flex items-center justify-center ${
+                                        isActive
+                                          ? 'bg-red-600 text-white border border-red-500 shadow-md shadow-red-600/40 font-black'
+                                          : 'bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-850 hover:border-zinc-700'
+                                      }`}
+                                    >
+                                      {p}
+                                    </button>
+                                  );
+                                });
+                              })()}
+
+                              {/* Botão Próxima */}
+                              <button
+                                onClick={() => handleCatalogPageChange(catalogPage + 1)}
+                                disabled={catalogPage === totalCatalogPages}
+                                className="px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 text-xs font-bold text-zinc-300 hover:text-white hover:bg-zinc-800 hover:border-zinc-700 disabled:opacity-30 disabled:pointer-events-none transition-all flex items-center gap-1 cursor-pointer"
+                              >
+                                <span className="hidden xs:inline">Próxima</span>
+                                <ChevronRight className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     );
                   })()

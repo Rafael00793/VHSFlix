@@ -4,11 +4,10 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Bell, Shield, LogOut, RefreshCw, UserCheck, Film, Tv, List, Sliders, ChevronDown, MessageSquare, Heart } from 'lucide-react';
+import { Search, Bell, Shield, LogOut, RefreshCw, UserCheck, Film, Tv, List, Sliders, ChevronDown, MessageSquare, Heart, Sparkles } from 'lucide-react';
 import { User, Profile, AppNotification, Movie, getSubscriptionDaysLeft } from '../types';
 import { GENRE_CATEGORIES } from '../data';
 import { motion, AnimatePresence } from 'motion/react';
-import { RecommendationBadge } from './RecommendationBadge';
 
 interface NavbarProps {
   user: User;
@@ -19,8 +18,8 @@ interface NavbarProps {
   onSwitchUser: () => void;
   searchVal: string;
   onSearchChange: (val: string) => void;
-  activeTab: 'all' | 'movies' | 'series' | 'mylist' | 'requests' | 'support';
-  onTabChange: (tab: 'all' | 'movies' | 'series' | 'mylist' | 'requests' | 'support') => void;
+  activeTab: 'all' | 'releases' | 'movies' | 'series' | 'mylist' | 'requests' | 'support';
+  onTabChange: (tab: 'all' | 'releases' | 'movies' | 'series' | 'mylist' | 'requests' | 'support') => void;
   isAdminView: boolean;
   onToggleAdminView: (val: boolean) => void;
   notifications: AppNotification[];
@@ -182,6 +181,28 @@ export default function Navbar({
                   whileTap={{ scale: 0.94 }}
                   onClick={() => {
                     onSelectCategory(null);
+                    onTabChange('releases');
+                  }}
+                  className={`transition-all py-1.5 flex items-center gap-1.5 focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:outline-none rounded-lg px-2 cursor-pointer relative ${
+                    activeTab === 'releases' 
+                      ? 'text-red-400 font-black drop-shadow-[0_0_10px_rgba(239,68,68,0.6)]' 
+                      : 'text-zinc-300 hover:text-white hover:bg-zinc-900/60'
+                  }`}
+                  id="navbar-tab-releases"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-400 fill-amber-400/20" />
+                  <span>Lançamentos</span>
+                  {activeTab === 'releases' && (
+                    <motion.div layoutId="navbarActiveIndicator" className="absolute bottom-0 left-1 right-1 h-0.5 bg-red-600 shadow-[0_0_8px_#ef4444] rounded-full" />
+                  )}
+                </motion.button>
+              </li>
+              <li>
+                <motion.button
+                  whileHover={{ scale: 1.06 }}
+                  whileTap={{ scale: 0.94 }}
+                  onClick={() => {
+                    onSelectCategory(null);
                     onTabChange('movies');
                   }}
                   className={`transition-all py-1.5 flex items-center gap-1.5 focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:outline-none rounded-lg px-2 cursor-pointer relative ${
@@ -191,7 +212,6 @@ export default function Navbar({
                   }`}
                 >
                   <Film className="w-3.5 h-3.5" /> <span>Filmes</span>
-                  <RecommendationBadge variant="compact" showText={false} className="ml-0.5 scale-90" />
                   {activeTab === 'movies' && (
                     <motion.div layoutId="navbarActiveIndicator" className="absolute bottom-0 left-1 right-1 h-0.5 bg-red-600 shadow-[0_0_8px_#ef4444] rounded-full" />
                   )}
@@ -212,7 +232,6 @@ export default function Navbar({
                   }`}
                 >
                   <Tv className="w-3.5 h-3.5" /> <span>Séries</span>
-                  <RecommendationBadge variant="compact" showText={false} className="ml-0.5 scale-90" />
                   {activeTab === 'series' && (
                     <motion.div layoutId="navbarActiveIndicator" className="absolute bottom-0 left-1 right-1 h-0.5 bg-red-600 shadow-[0_0_8px_#ef4444] rounded-full" />
                   )}
@@ -545,6 +564,25 @@ export default function Navbar({
               Início
             </motion.button>
 
+            {/* BOTÃO: LANÇAMENTOS (Ao lado de Início) */}
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => {
+                onSelectCategory(null);
+                onTabChange('releases');
+              }}
+              className={`px-3.5 py-1.5 rounded-full font-bold transition-all text-xs flex-shrink-0 cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                activeTab === 'releases'
+                  ? 'bg-red-600 text-white font-extrabold shadow-[0_0_15px_rgba(239,68,68,0.5)] border border-red-500'
+                  : 'bg-zinc-900/90 text-zinc-300 hover:text-white hover:bg-zinc-800 border border-zinc-800'
+              }`}
+              id="mobile-nav-releases-btn"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-400 fill-amber-400/20" />
+              <span>Lançamentos</span>
+            </motion.button>
+
             {/* 3º BOTÃO: FILMES */}
             <motion.button
               whileHover={{ scale: 1.05 }}
@@ -560,7 +598,6 @@ export default function Navbar({
               }`}
             >
               <span>Filmes</span>
-              <RecommendationBadge variant="compact" showText={false} className="scale-75 -mr-1" />
             </motion.button>
 
             {/* 4º BOTÃO: SÉRIES */}
@@ -578,7 +615,6 @@ export default function Navbar({
               }`}
             >
               <span>Séries</span>
-              <RecommendationBadge variant="compact" showText={false} className="scale-75 -mr-1" />
             </motion.button>
 
             {/* 5º BOTÃO: MINHA LISTA */}

@@ -10,6 +10,9 @@ import { motion, AnimatePresence } from 'motion/react';
 import { INITIAL_MOVIES } from '../data';
 import { handlePosterError, handleBackdropError, getCleanPosterUrl, getCleanBackdropUrl } from '../lib/imageUtils';
 import { AbyssService } from '../services/abyssService';
+import { EmbedPlayService } from '../services/embedPlayService';
+import { FembedService } from '../services/fembedService';
+import { SuperflixService } from '../services/superflixService';
 import { fetchApi } from '../lib/apiClient';
 import { RecommendationBadge } from './RecommendationBadge';
 
@@ -494,7 +497,7 @@ export default function MovieDetailModal({
   activeProfile
 }: MovieDetailModalProps) {
   const [isPlaying, setIsPlaying] = useState(false);
-  const [selectedServer, setSelectedServer] = useState<'play1' | 'play'>('play1');
+  const [selectedServer, setSelectedServer] = useState<'play1' | 'play2' | 'play3' | 'play4' | 'play'>('play1');
   const [isServerSelectorOpen, setIsServerSelectorOpen] = useState(false);
   const [manualEmbedInput, setManualEmbedInput] = useState('');
   const [isTapeLoading, setIsTapeLoading] = useState(false);
@@ -502,7 +505,7 @@ export default function MovieDetailModal({
   const [totalDuration, setTotalDuration] = useState(120 * 60); // Default 2 horas em segundos
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1); // Retro 1x, 2x, 4x rewind index
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [selectedPlayer] = useState<'play1' | 'play'>('play1');
+  const [selectedPlayer] = useState<'play1' | 'play2' | 'play3' | 'play4' | 'play'>('play1');
   const [isConfiguringPlayer, setIsConfiguringPlayer] = useState(false);
   const [season, setSeason] = useState<number>(1);
   const [episode, setEpisode] = useState<number>(1);
@@ -666,6 +669,45 @@ export default function MovieDetailModal({
       } else {
         const movieId = movie.tmdbId ? String(movie.tmdbId).replace(/^tmdb_/, '') : (movie.imdbId ? String(movie.imdbId) : cleanId);
         return `https://myembed.biz/filme/${movieId}`;
+      }
+    }
+
+    // Servidor Play 2: (embedplayapi.top)
+    if (selectedServer === 'play2') {
+      const targetTmdb = movie.tmdbId ? String(movie.tmdbId).replace(/^tmdb_/, '') : cleanId;
+      if (movie.type === 'series') {
+        if (season && episode) {
+          return `https://embedplayapi.top/embed/${targetTmdb}/${season}/${episode}`;
+        }
+        return `https://embedplayapi.top/embed/${targetTmdb}`;
+      } else {
+        return `https://embedplayapi.top/embed/${targetTmdb}`;
+      }
+    }
+
+    // Servidor Play 3: (fembed.lol - Suporta Filmes, Séries, Animes e Doramas)
+    if (selectedServer === 'play3') {
+      const targetId = movie.tmdbId ? String(movie.tmdbId).replace(/^tmdb_/, '') : (movie.imdbId ? String(movie.imdbId) : cleanId);
+      if (movie.type === 'series') {
+        return FembedService.getSeriesUrl(
+          targetId,
+          season,
+          episode,
+          movie.category,
+          movie.title
+        );
+      } else {
+        return FembedService.getMovieUrl(targetId);
+      }
+    }
+
+    // Servidor Play 4: (superflixapi.monster - Filmes, Séries, Animes e Doramas)
+    if (selectedServer === 'play4') {
+      const targetTmdb = movie.tmdbId ? String(movie.tmdbId).replace(/^tmdb_/, '') : cleanId;
+      if (movie.type === 'series') {
+        return SuperflixService.getSeriesUrl(targetTmdb, season, episode, movie.imdbId);
+      } else {
+        return SuperflixService.getMovieUrl(targetTmdb, movie.imdbId);
       }
     }
 
@@ -860,9 +902,62 @@ export default function MovieDetailModal({
   }, [movie?.id, season, episode, abyssApiKey]);
 
   const handleReSyncCurrentEpisode = async () => {
-    if (!movie || movie.type !== 'series') return;
+    if (!movie) return;
     setIsCheckingSync(true);
     setSyncFailedMessage(null);
+
+    // Verificação de disponibilidade para Play 2 via API oficial de status
+    if (selectedServer === 'play2') {
+      try {
+        const check = await EmbedPlayService.checkAvailability(
+          movie.tmdbId || movie.id,
+          movie.type,
+          season,
+          episode
+        );
+        setIsCheckingSync(false);
+        if (check.available) {
+          setSyncFailedMessage(null);
+          setIsPlaying(true);
+        } else {
+          setSyncFailedMessage(check.message || `O conteúdo não foi localizado ou está em processamento no Servidor Play 2.`);
+        }
+      } catch (e: any) {
+        setIsCheckingSync(false);
+        setIsPlaying(true);
+      }
+      return;
+    }
+
+    // Servidor Play 1
+    if (selectedServer === 'play1') {
+      setIsCheckingSync(false);
+      setSyncFailedMessage(null);
+      setIsPlaying(true);
+      return;
+    }
+
+    // Servidor Play 3
+    if (selectedServer === 'play3') {
+      setIsCheckingSync(false);
+      setSyncFailedMessage(null);
+      setIsPlaying(true);
+      return;
+    }
+
+    // Servidor Play 4
+    if (selectedServer === 'play4') {
+      setIsCheckingSync(false);
+      setSyncFailedMessage(null);
+      setIsPlaying(true);
+      return;
+    }
+
+    if (movie.type !== 'series') {
+      setIsCheckingSync(false);
+      setIsPlaying(true);
+      return;
+    }
 
     const effectiveApiKey = abyssApiKey || localStorage.getItem('vhsflix_abyss_key') || '';
 
@@ -1170,6 +1265,9 @@ export default function MovieDetailModal({
 
     // Lista de CDNs e domínios comuns dos players e provedores para pré-conexão imediata de DNS/Socket
     const streamingHosts = [
+      'https://superflixapi.monster',
+      'https://fembed.lol',
+      'https://embedplayapi.top',
       'https://myembed.biz',
       'https://abyssplayer.com',
       'https://api.hydrax.net',
@@ -1227,7 +1325,7 @@ export default function MovieDetailModal({
     }
   };
 
-  const handleSelectServerAndPlay = (server: 'play1' | 'play' = 'play1') => {
+  const handleSelectServerAndPlay = (server: 'play1' | 'play2' | 'play3' | 'play4' | 'play' = 'play1') => {
     setSelectedServer(server);
     setIsServerSelectorOpen(false);
     handleStartPlayback();
@@ -1327,7 +1425,7 @@ export default function MovieDetailModal({
                     <div className="inline-flex items-center gap-2 px-3 py-0.5 rounded-full bg-red-600/15 border border-red-500/40 shadow-[0_0_12px_rgba(239,68,68,0.25)] mb-1">
                       <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse"></span>
                       <span className="text-red-400 font-mono text-[9px] sm:text-[11px] font-black uppercase tracking-widest">
-                        REPRODUZINDO AGORA • {selectedServer === 'play1' ? 'PLAY 1' : 'PLAY'}
+                        REPRODUZINDO AGORA • {selectedServer === 'play1' ? 'PLAY 1' : selectedServer === 'play2' ? 'PLAY 2' : selectedServer === 'play3' ? 'PLAY 3' : selectedServer === 'play4' ? 'PLAY 4' : 'PLAY 5'}
                       </span>
                     </div>
                     <h2 className="text-white text-xs sm:text-base font-black font-sans truncate tracking-wider max-w-[180px] xs:max-w-[280px] sm:max-w-lg md:max-w-xl drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)]">
@@ -1398,7 +1496,7 @@ export default function MovieDetailModal({
                       <div className="absolute top-4 left-4 font-mono text-[10px] text-emerald-400 bg-black/80 px-3 py-1.5 rounded-lg border border-emerald-500/20 pointer-events-none select-none flex flex-col gap-0.5 z-20 shadow-lg shadow-black/80">
                         <div className="flex items-center gap-1.5 font-black uppercase tracking-widest">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                          VHS DIRECT • {selectedServer === 'play1' ? 'PLAY 1' : 'PLAY'}
+                          VHS DIRECT • {selectedServer === 'play1' ? 'PLAY 1' : selectedServer === 'play2' ? 'PLAY 2' : selectedServer === 'play3' ? 'PLAY 3' : selectedServer === 'play4' ? 'PLAY 4' : 'PLAY 5'}
                         </div>
                         <div className="text-[9px] opacity-80 uppercase">VELOCIDADE: {playbackSpeed}x</div>
                         <div className="text-[9px] opacity-80 uppercase">SINAL: {preferredQuality.toUpperCase()}</div>
@@ -1547,6 +1645,7 @@ export default function MovieDetailModal({
                         height="100%"
                         frameBorder="0"
                         scrolling="no"
+                        loading="lazy"
                         allow="autoplay *; encrypted-media *; picture-in-picture *; fullscreen *; clipboard-write *; accelerometer *; gyroscope *; web-share *"
                         allowFullScreen={true}
                       />
@@ -1557,12 +1656,12 @@ export default function MovieDetailModal({
                         <AlertCircle className="w-7 h-7" />
                       </div>
                       <h3 className="text-base sm:text-lg font-black text-white mb-1.5 font-sans">
-                        Transmissão Indisponível no {selectedServer === 'play1' ? 'Play 1' : 'Play'}
+                        Transmissão Indisponível no {selectedServer === 'play1' ? 'Play 1' : selectedServer === 'play2' ? 'Play 2' : selectedServer === 'play3' ? 'Play 3' : selectedServer === 'play4' ? 'Play 4' : 'Play 5'}
                       </h3>
                       <p className="text-zinc-400 text-xs leading-relaxed mb-4 font-sans max-w-xs">
                         {syncFailedMessage || (movie.type === 'series'
-                          ? `A Temporada ${season}, Episódio ${episode} de "${movie.title}" aguarda sintonização no ${selectedServer === 'play1' ? 'Play 1' : 'Play'}.`
-                          : `O filme "${movie.title}" aguarda sintonização no ${selectedServer === 'play1' ? 'Play 1' : 'Play'}.`
+                          ? `A Temporada ${season}, Episódio ${episode} de "${movie.title}" aguarda sintonização no ${selectedServer === 'play1' ? 'Play 1' : selectedServer === 'play2' ? 'Play 2' : selectedServer === 'play3' ? 'Play 3' : selectedServer === 'play4' ? 'Play 4' : 'Play 5'}.`
+                          : `O filme "${movie.title}" aguarda sintonização no ${selectedServer === 'play1' ? 'Play 1' : selectedServer === 'play2' ? 'Play 2' : selectedServer === 'play3' ? 'Play 3' : selectedServer === 'play4' ? 'Play 4' : 'Play 5'}.`
                         )}
                       </p>
 
@@ -1570,18 +1669,23 @@ export default function MovieDetailModal({
                         <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-rose-400 block mb-2">
                           💡 Experimente alternar de servidor:
                         </span>
-                        <motion.button
-                          whileHover={{ scale: 1.02 }}
-                          whileTap={{ scale: 0.98 }}
-                          onClick={() => {
-                            setSelectedServer(selectedServer === 'play1' ? 'play' : 'play1');
-                            setIsPlaying(true);
-                          }}
-                          className="w-full py-2 px-3 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg text-xs flex items-center justify-center gap-1.5 transition-all shadow-[0_0_12px_rgba(239,68,68,0.3)] cursor-pointer"
-                        >
-                          <Film className="w-3.5 h-3.5" />
-                          <span>Alternar para {selectedServer === 'play1' ? 'Play' : 'Play 1'}</span>
-                        </motion.button>
+                        <div className="grid grid-cols-2 gap-2">
+                          {(['play1', 'play2', 'play3', 'play4', 'play'] as const).filter(s => s !== selectedServer).map(srv => (
+                            <motion.button
+                              key={srv}
+                              whileHover={{ scale: 1.02 }}
+                              whileTap={{ scale: 0.98 }}
+                              onClick={() => {
+                                setSelectedServer(srv);
+                                setIsPlaying(true);
+                              }}
+                              className="py-2 px-2.5 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg text-xs flex items-center justify-center gap-1.5 transition-all shadow-[0_0_12px_rgba(239,68,68,0.3)] cursor-pointer"
+                            >
+                              <Film className="w-3.5 h-3.5 shrink-0" />
+                              <span className="truncate">{srv === 'play1' ? 'Play 1' : srv === 'play2' ? 'Play 2' : srv === 'play3' ? 'Play 3' : srv === 'play4' ? 'Play 4' : 'Play 5'}</span>
+                            </motion.button>
+                          ))}
+                        </div>
                       </div>
 
                       <button
@@ -1741,27 +1845,27 @@ export default function MovieDetailModal({
                       <Server className="w-3.5 h-3.5 text-rose-500" />
                       Servidor de Transmissão
                     </span>
-                    <div className="grid grid-cols-2 gap-2.5 font-mono">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-2.5 font-mono">
                       {[
-                        { id: 'play1', label: 'Play 1', desc: 'myembed.biz (Novo)' },
-                        { id: 'play', label: 'Play', desc: 'Player Oficial' }
+                        { id: 'play1', label: 'Play 1' },
+                        { id: 'play2', label: 'Play 2' },
+                        { id: 'play3', label: 'Play 3' },
+                        { id: 'play4', label: 'Play 4' },
+                        { id: 'play', label: 'Play 5' }
                       ].map(s => (
                         <button
                           key={s.id}
                           type="button"
-                          onClick={() => setSelectedServer(s.id as 'play1' | 'play')}
-                          className={`p-2.5 sm:p-3 rounded-lg border text-left cursor-pointer transition-all flex items-center justify-between select-none ${
+                          onClick={() => setSelectedServer(s.id as 'play1' | 'play2' | 'play3' | 'play4' | 'play')}
+                          className={`p-2.5 rounded-lg border text-left cursor-pointer transition-all flex items-center justify-between select-none ${
                             selectedServer === s.id
                               ? 'bg-rose-500/15 border-rose-500/50 text-rose-400 shadow-md shadow-rose-500/20'
                               : 'bg-zinc-900/40 border-zinc-800 hover:border-zinc-700 text-zinc-400 hover:text-zinc-200'
                           }`}
                         >
-                          <div className="flex items-center gap-2 sm:gap-2.5 overflow-hidden">
+                          <div className="flex items-center gap-2 overflow-hidden">
                             <Film className="w-4 h-4 text-rose-500 shrink-0" />
-                            <div className="flex flex-col truncate">
-                              <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wider">{s.label}</span>
-                              <span className="text-[8px] sm:text-[9px] opacity-70 tracking-normal font-sans font-medium truncate">{s.desc}</span>
-                            </div>
+                            <span className="text-[11px] font-bold uppercase tracking-wider">{s.label}</span>
                           </div>
                           {selectedServer === s.id && (
                             <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 text-[8px] font-bold uppercase shrink-0">
@@ -1850,7 +1954,7 @@ export default function MovieDetailModal({
                       Escolha um dos servidores para reproduzir:
                     </p>
 
-                    <div className="flex flex-col gap-3 font-sans">
+                    <div className="flex flex-col gap-2.5 font-sans">
                       {/* SERVIDOR PLAY 1 */}
                       <motion.button
                         whileHover={{ scale: 1.02 }}
@@ -1860,23 +1964,78 @@ export default function MovieDetailModal({
                           selectedServer === 'play1'
                             ? 'bg-gradient-to-r from-red-600 to-rose-600 text-white shadow-[0_0_25px_rgba(239,68,68,0.45)] border-red-500'
                             : 'bg-zinc-950/80 hover:bg-zinc-850 border-zinc-800 hover:border-zinc-700 text-zinc-200'
-                        } font-bold py-3.5 px-5 rounded-xl transition-all flex items-center justify-between border cursor-pointer group`}
+                        } font-bold py-3 px-4 rounded-xl transition-all flex items-center justify-between border cursor-pointer group`}
                       >
-                        <div className="flex items-center gap-3.5">
+                        <div className="flex items-center gap-3">
                           <Film className="w-5 h-5 text-red-400 group-hover:scale-110 transition-transform shrink-0" />
-                          <div className="flex flex-col text-left">
-                            <span className="text-sm sm:text-base font-bold tracking-wide text-white">
-                              Play 1
-                            </span>
-                            <span className="text-[10px] text-zinc-400 font-normal">
-                              myembed.biz (Novo)
-                            </span>
-                          </div>
+                          <span className="text-sm sm:text-base font-bold tracking-wide text-white">
+                            Play 1
+                          </span>
                         </div>
                         <Play className="w-4 h-4 fill-white text-white shrink-0" />
                       </motion.button>
 
-                      {/* SERVIDOR PLAY */}
+                      {/* SERVIDOR PLAY 2 */}
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => handleSelectServerAndPlay('play2')}
+                        className={`w-full ${
+                          selectedServer === 'play2'
+                            ? 'bg-gradient-to-r from-red-600 to-rose-600 text-white shadow-[0_0_25px_rgba(239,68,68,0.45)] border-red-500'
+                            : 'bg-zinc-950/80 hover:bg-zinc-850 border-zinc-800 hover:border-zinc-700 text-zinc-200'
+                        } font-bold py-3 px-4 rounded-xl transition-all flex items-center justify-between border cursor-pointer group`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <Film className="w-5 h-5 text-red-400 group-hover:scale-110 transition-transform shrink-0" />
+                          <span className="text-sm sm:text-base font-bold tracking-wide text-white">
+                            Play 2
+                          </span>
+                        </div>
+                        <Play className="w-4 h-4 fill-white text-white shrink-0" />
+                      </motion.button>
+
+                      {/* SERVIDOR PLAY 3 */}
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => handleSelectServerAndPlay('play3')}
+                        className={`w-full ${
+                          selectedServer === 'play3'
+                            ? 'bg-gradient-to-r from-red-600 to-rose-600 text-white shadow-[0_0_25px_rgba(239,68,68,0.45)] border-red-500'
+                            : 'bg-zinc-950/80 hover:bg-zinc-850 border-zinc-800 hover:border-zinc-700 text-zinc-200'
+                        } font-bold py-3 px-4 rounded-xl transition-all flex items-center justify-between border cursor-pointer group`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <Film className="w-5 h-5 text-red-400 group-hover:scale-110 transition-transform shrink-0" />
+                          <span className="text-sm sm:text-base font-bold tracking-wide text-white">
+                            Play 3
+                          </span>
+                        </div>
+                        <Play className="w-4 h-4 fill-white text-white shrink-0" />
+                      </motion.button>
+
+                      {/* SERVIDOR PLAY 4 */}
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => handleSelectServerAndPlay('play4')}
+                        className={`w-full ${
+                          selectedServer === 'play4'
+                            ? 'bg-gradient-to-r from-red-600 to-rose-600 text-white shadow-[0_0_25px_rgba(239,68,68,0.45)] border-red-500'
+                            : 'bg-zinc-950/80 hover:bg-zinc-850 border-zinc-800 hover:border-zinc-700 text-zinc-200'
+                        } font-bold py-3 px-4 rounded-xl transition-all flex items-center justify-between border cursor-pointer group`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <Film className="w-5 h-5 text-red-400 group-hover:scale-110 transition-transform shrink-0" />
+                          <span className="text-sm sm:text-base font-bold tracking-wide text-white">
+                            Play 4
+                          </span>
+                        </div>
+                        <Play className="w-4 h-4 fill-white text-white shrink-0" />
+                      </motion.button>
+
+                      {/* SERVIDOR PLAY 5 */}
                       <motion.button
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
@@ -1885,18 +2044,13 @@ export default function MovieDetailModal({
                           selectedServer === 'play'
                             ? 'bg-gradient-to-r from-red-600 to-rose-600 text-white shadow-[0_0_25px_rgba(239,68,68,0.45)] border-red-500'
                             : 'bg-zinc-950/80 hover:bg-zinc-850 border-zinc-800 hover:border-zinc-700 text-zinc-200'
-                        } font-bold py-3.5 px-5 rounded-xl transition-all flex items-center justify-between border cursor-pointer group`}
+                        } font-bold py-3 px-4 rounded-xl transition-all flex items-center justify-between border cursor-pointer group`}
                       >
-                        <div className="flex items-center gap-3.5">
+                        <div className="flex items-center gap-3">
                           <Film className="w-5 h-5 text-red-400 group-hover:scale-110 transition-transform shrink-0" />
-                          <div className="flex flex-col text-left">
-                            <span className="text-sm sm:text-base font-bold tracking-wide text-white">
-                              Play
-                            </span>
-                            <span className="text-[10px] text-zinc-400 font-normal">
-                              Player Oficial
-                            </span>
-                          </div>
+                          <span className="text-sm sm:text-base font-bold tracking-wide text-white">
+                            Play 5
+                          </span>
                         </div>
                         <Play className="w-4 h-4 fill-white text-white shrink-0" />
                       </motion.button>

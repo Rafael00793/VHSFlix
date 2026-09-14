@@ -3,10 +3,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Movie, User, Profile, getSubscriptionDaysLeft, renewSubscription } from '../types';
 import { GENRE_CATEGORIES, searchMoviesTMDB, getMovieDetailsTMDB, PROFILE_AVATARS } from '../data';
-import { Trash, Edit, Plus, Users, Library, Settings, Search, Import, Download, Star, Shield, Film, Tv, Play, AlertTriangle, ShieldAlert, RefreshCw, Check, LayoutDashboard, Activity, Clock, TrendingUp, User as UserIcon, Lock as LockIcon, Eye, EyeOff, Flame, Sparkles, Pin, X, Save, Award } from 'lucide-react';
+import { Trash, Edit, Plus, Users, Library, Settings, Search, Import, Download, Star, Shield, Film, Tv, Play, AlertTriangle, ShieldAlert, RefreshCw, Check, LayoutDashboard, Activity, Clock, TrendingUp, User as UserIcon, Lock as LockIcon, Eye, EyeOff, Flame, Sparkles, Pin, X, Save, Award, ChevronLeft, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { compressImage, saveMoviesToFirestore } from '../lib/firebase';
 import { DEFAULT_POSTER_FALLBACK, DEFAULT_BACKDROP_FALLBACK, handlePosterError, handleBackdropError, getCleanPosterUrl, getCleanBackdropUrl } from '../lib/imageUtils';
@@ -151,6 +151,7 @@ export default function AdminPanel({
   const [formBackdropUrl, setFormBackdropUrl] = useState('');
   const [formCategory, setFormCategory] = useState('Ação');
   const [formYear, setFormYear] = useState(1990);
+  const [formReleaseDate, setFormReleaseDate] = useState('');
   const [formDuration, setFormDuration] = useState('1h 50m');
   const [formType, setFormType] = useState<'movie' | 'series'>('movie');
   const [formRating, setFormRating] = useState(8.0);
@@ -189,6 +190,7 @@ export default function AdminPanel({
     setFormBackdropUrl('');
     setFormCategory('Ação');
     setFormYear(1990);
+    setFormReleaseDate('');
     setFormDuration('1h 50m');
     setFormType('movie');
     setFormRating(8.0);
@@ -221,6 +223,7 @@ export default function AdminPanel({
     setFormBackdropUrl(movie.backdropUrl);
     setFormCategory(movie.category);
     setFormYear(movie.year);
+    setFormReleaseDate(movie.releaseDate || '');
     setFormDuration(movie.duration);
     setFormType(movie.type);
     setFormRating(movie.rating);
@@ -292,6 +295,7 @@ export default function AdminPanel({
       backdropUrl: getCleanBackdropUrl(formBackdropUrl, formPosterUrl),
       category: finalCategory,
       year: formYear,
+      releaseDate: formReleaseDate.trim() || undefined,
       duration: formType === 'series' 
         ? `${Object.keys(formSeasonsConfig).length} Temporada${Object.keys(formSeasonsConfig).length > 1 ? 's' : ''}` 
         : formDuration,
@@ -500,6 +504,7 @@ export default function AdminPanel({
         setFormPosterUrl(imported.posterUrl || '');
         setFormBackdropUrl(imported.backdropUrl || '');
         setFormYear(imported.year || 1990);
+        setFormReleaseDate(imported.releaseDate || '');
         setFormDuration(imported.duration || '2h');
         setFormType(imported.type || 'movie');
         setFormCategory(imported.category || 'Ação');
@@ -772,6 +777,44 @@ export default function AdminPanel({
       return true;
     });
   }, [movies, catalogSearchQuery, catalogFilter, pinnedMostDesiredId]);
+
+  // Paginação de 50 em 50 para o Catálogo de Mídias no Painel Administrativo
+  const ITEMS_PER_ADMIN_PAGE = 50;
+  const [adminCatalogPage, setAdminCatalogPage] = useState(1);
+  const catalogListTopRef = useRef<HTMLDivElement>(null);
+
+  // Reseta para a página 1 ao pesquisar ou alterar filtros do catálogo
+  useEffect(() => {
+    setAdminCatalogPage(1);
+  }, [catalogSearchQuery, catalogFilter]);
+
+  const totalAdminPages = useMemo(() => {
+    return Math.max(1, Math.ceil(filteredAdminMovies.length / ITEMS_PER_ADMIN_PAGE));
+  }, [filteredAdminMovies.length]);
+
+  // Garante que a página atual não ultrapasse o total de páginas existentes
+  useEffect(() => {
+    if (adminCatalogPage > totalAdminPages && totalAdminPages > 0) {
+      setAdminCatalogPage(1);
+    }
+  }, [adminCatalogPage, totalAdminPages]);
+
+  // Fatiamento dos filmes para renderizar de 50 em 50 itens
+  const paginatedAdminMovies = useMemo(() => {
+    const start = (adminCatalogPage - 1) * ITEMS_PER_ADMIN_PAGE;
+    return filteredAdminMovies.slice(start, start + ITEMS_PER_ADMIN_PAGE);
+  }, [filteredAdminMovies, adminCatalogPage]);
+
+  // Função para transição de página com rolagem suave ao topo do catálogo
+  const handleAdminPageChange = (newPage: number) => {
+    if (newPage < 1 || newPage > totalAdminPages) return;
+    setAdminCatalogPage(newPage);
+    if (catalogListTopRef.current) {
+      const yOffset = -70;
+      const y = catalogListTopRef.current.getBoundingClientRect().top + window.pageYOffset + yOffset;
+      window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
+    }
+  };
 
   // Fita VHS Mais Popular (Que mais vezes aparece em myList)
   const myListCounts: { [movieId: string]: number } = {};
@@ -1500,7 +1543,7 @@ export default function AdminPanel({
                 </div>
 
                 {/* Barra de Seleção, Pesquisa e Ações em Lote */}
-                <div className="flex flex-col md:flex-row justify-between items-center bg-zinc-900/70 border border-zinc-800/80 px-5 py-3.5 rounded-2xl gap-3 shadow-md">
+                <div ref={catalogListTopRef} className="flex flex-col md:flex-row justify-between items-center bg-zinc-900/70 border border-zinc-800/80 px-5 py-3.5 rounded-2xl gap-3 shadow-md scroll-mt-20">
                   <div className="flex flex-col sm:flex-row items-center gap-3.5 w-full md:w-auto">
                     <label className="flex items-center gap-2 text-xs font-mono text-zinc-300 cursor-pointer select-none shrink-0 bg-zinc-950/60 px-3 py-1.5 rounded-lg border border-zinc-850">
                       <input
@@ -1547,42 +1590,79 @@ export default function AdminPanel({
                     </div>
                   </div>
 
-                  {selectedMovieIds.length > 0 && (
-                    <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-                      {isMasterAdmin && (
-                        <>
+                  <div className="flex items-center gap-2.5 flex-wrap w-full md:w-auto justify-end">
+                    {/* Indicador e Controle Rápido de Página Superior */}
+                    {totalAdminPages > 1 && (
+                      <div className="flex items-center gap-1.5 bg-zinc-950/80 border border-zinc-800 px-2.5 py-1 rounded-xl text-xs font-mono text-zinc-400">
+                        <span>Pág. <strong className="text-white">{adminCatalogPage}</strong>/<strong className="text-zinc-300">{totalAdminPages}</strong></span>
+                        <div className="flex items-center gap-0.5 ml-1">
                           <button
-                            onClick={() => handleBulkRecommend(true)}
-                            className="text-amber-300 hover:text-black bg-amber-500/20 hover:bg-amber-400 border border-amber-500/40 font-bold font-mono text-[11px] px-3 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
-                            title="Conceder Selo Oficial do Rafael a todos os selecionados"
+                            type="button"
+                            onClick={() => handleAdminPageChange(adminCatalogPage - 1)}
+                            disabled={adminCatalogPage === 1}
+                            className={`p-1 rounded transition-all ${
+                              adminCatalogPage === 1
+                                ? 'opacity-30 cursor-not-allowed text-zinc-600'
+                                : 'cursor-pointer hover:bg-zinc-800 text-zinc-300 hover:text-white'
+                            }`}
+                            title="Página Anterior"
                           >
-                            <Award className="w-3.5 h-3.5 fill-current" />
-                            <span>Indicar ({selectedMovieIds.length})</span>
+                            <ChevronLeft className="w-3.5 h-3.5" />
                           </button>
                           <button
-                            onClick={() => handleBulkRecommend(false)}
-                            className="text-zinc-400 hover:text-white bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 font-mono text-[11px] px-3 py-2 rounded-xl transition-all cursor-pointer"
-                            title="Remover indicação dos selecionados"
+                            type="button"
+                            onClick={() => handleAdminPageChange(adminCatalogPage + 1)}
+                            disabled={adminCatalogPage === totalAdminPages}
+                            className={`p-1 rounded transition-all ${
+                              adminCatalogPage === totalAdminPages
+                                ? 'opacity-30 cursor-not-allowed text-zinc-600'
+                                : 'cursor-pointer hover:bg-zinc-800 text-zinc-300 hover:text-white'
+                            }`}
+                            title="Próxima Página"
                           >
-                            Desmarcar Selo
+                            <ChevronRight className="w-3.5 h-3.5" />
                           </button>
-                        </>
-                      )}
-                      <button
-                        onClick={() => setSelectedMovieIds([])}
-                        className="text-zinc-400 hover:text-white bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 font-semibold font-mono text-[11px] px-3 py-2 rounded-xl transition-all cursor-pointer shadow-sm"
-                      >
-                        Limpar
-                      </button>
-                      <button
-                        onClick={() => setShowBulkDeleteConfirm(true)}
-                        className="text-white bg-rose-600 hover:bg-rose-500 font-bold font-mono text-[11px] px-3.5 py-2 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-lg shadow-rose-600/20"
-                        id="btn-bulk-delete-movies"
-                      >
-                        <Trash className="w-3.5 h-3.5" /> Excluir ({selectedMovieIds.length})
-                      </button>
-                    </div>
-                  )}
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedMovieIds.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-2">
+                        {isMasterAdmin && (
+                          <>
+                            <button
+                              onClick={() => handleBulkRecommend(true)}
+                              className="text-amber-300 hover:text-black bg-amber-500/20 hover:bg-amber-400 border border-amber-500/40 font-bold font-mono text-[11px] px-3 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
+                              title="Conceder Selo Oficial do Rafael a todos os selecionados"
+                            >
+                              <Award className="w-3.5 h-3.5 fill-current" />
+                              <span>Indicar ({selectedMovieIds.length})</span>
+                            </button>
+                            <button
+                              onClick={() => handleBulkRecommend(false)}
+                              className="text-zinc-400 hover:text-white bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 font-mono text-[11px] px-3 py-2 rounded-xl transition-all cursor-pointer"
+                              title="Remover indicação dos selecionados"
+                            >
+                              Desmarcar Selo
+                            </button>
+                          </>
+                        )}
+                        <button
+                          onClick={() => setSelectedMovieIds([])}
+                          className="text-zinc-400 hover:text-white bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 font-semibold font-mono text-[11px] px-3 py-2 rounded-xl transition-all cursor-pointer shadow-sm"
+                        >
+                          Limpar
+                        </button>
+                        <button
+                          onClick={() => setShowBulkDeleteConfirm(true)}
+                          className="text-white bg-rose-600 hover:bg-rose-500 font-bold font-mono text-[11px] px-3.5 py-2 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-lg shadow-rose-600/20"
+                          id="btn-bulk-delete-movies"
+                        >
+                          <Trash className="w-3.5 h-3.5" /> Excluir ({selectedMovieIds.length})
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {filteredAdminMovies.length === 0 && (
@@ -1597,9 +1677,9 @@ export default function AdminPanel({
                   </div>
                 )}
 
-                {/* Grid Moderno, Animado e Amplo de Mídias Cadastradas */}
+                {/* Grid Moderno, Animado e Amplo de Mídias Cadastradas (Paginado de 50 em 50) */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                  {filteredAdminMovies.map(movie => {
+                  {paginatedAdminMovies.map(movie => {
                     const isSelected = selectedMovieIds.includes(movie.id);
                     const isPinned = pinnedMostDesiredId === movie.id;
                     const isRec = Boolean(movie.isRecommended);
@@ -1771,6 +1851,106 @@ export default function AdminPanel({
                     );
                   })}
                 </div>
+
+                {/* Controles de Paginação Moderna de 50 em 50 para o Catálogo de Mídias */}
+                {totalAdminPages > 1 && (
+                  <div className="mt-8 pt-6 border-t border-zinc-800/80 flex flex-col sm:flex-row items-center justify-between gap-4 font-sans bg-zinc-900/40 p-4 sm:p-5 rounded-2xl border border-zinc-850">
+                    <div className="text-xs text-zinc-400 font-mono text-center sm:text-left">
+                      Exibindo <span className="text-white font-bold">{(adminCatalogPage - 1) * ITEMS_PER_ADMIN_PAGE + 1}–{Math.min(adminCatalogPage * ITEMS_PER_ADMIN_PAGE, filteredAdminMovies.length)}</span> de <span className="text-rose-400 font-bold">{filteredAdminMovies.length}</span> títulos
+                      <span className="mx-2 text-zinc-700">•</span>
+                      Página <span className="text-white font-bold">{adminCatalogPage}</span> de <span className="text-zinc-400 font-bold">{totalAdminPages}</span>
+                      <span className="ml-2 text-[10px] text-zinc-500 font-mono hidden md:inline">(50 títulos por página)</span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap justify-center">
+                      {/* Botão Anterior */}
+                      <button
+                        type="button"
+                        onClick={() => handleAdminPageChange(adminCatalogPage - 1)}
+                        disabled={adminCatalogPage === 1}
+                        className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border select-none font-mono ${
+                          adminCatalogPage === 1
+                            ? 'opacity-30 cursor-not-allowed bg-zinc-950/60 border-zinc-900 text-zinc-600'
+                            : 'cursor-pointer bg-zinc-900 hover:bg-zinc-800 text-zinc-200 hover:text-white border-zinc-800 hover:border-zinc-700 shadow-sm'
+                        }`}
+                        id="btn-admin-prev-page"
+                        title="Página Anterior"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                        <span className="hidden xs:inline">Anterior</span>
+                      </button>
+
+                      {/* Botões Numéricos de Páginas */}
+                      {(() => {
+                        const pages: (number | 'ellipsis-prev' | 'ellipsis-next')[] = [];
+                        if (totalAdminPages <= 7) {
+                          for (let i = 1; i <= totalAdminPages; i++) pages.push(i);
+                        } else {
+                          pages.push(1);
+                          if (adminCatalogPage > 3) {
+                            pages.push('ellipsis-prev');
+                          }
+                          const start = Math.max(2, adminCatalogPage - 1);
+                          const end = Math.min(totalAdminPages - 1, adminCatalogPage + 1);
+                          for (let i = start; i <= end; i++) {
+                            if (!pages.includes(i)) pages.push(i);
+                          }
+                          if (adminCatalogPage < totalAdminPages - 2) {
+                            pages.push('ellipsis-next');
+                          }
+                          if (!pages.includes(totalAdminPages)) {
+                            pages.push(totalAdminPages);
+                          }
+                        }
+
+                        return pages.map((p, idx) => {
+                          if (typeof p === 'string') {
+                            return (
+                              <span key={`ell-admin-${idx}`} className="px-1.5 sm:px-2 py-1 text-zinc-600 font-mono text-xs select-none">
+                                •••
+                              </span>
+                            );
+                          }
+
+                          const isActive = p === adminCatalogPage;
+                          return (
+                            <button
+                              key={p}
+                              type="button"
+                              onClick={() => handleAdminPageChange(p)}
+                              className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl text-xs font-mono font-bold transition-all flex items-center justify-center border cursor-pointer select-none ${
+                                isActive
+                                  ? 'bg-rose-600 text-white border-rose-500 shadow-md shadow-rose-600/30 font-black'
+                                  : 'bg-zinc-950/80 hover:bg-zinc-800 border-zinc-800 hover:border-zinc-700 text-zinc-400 hover:text-white'
+                              }`}
+                              id={`btn-admin-page-${p}`}
+                              aria-label={`Ir para a página ${p}`}
+                            >
+                              {p}
+                            </button>
+                          );
+                        });
+                      })()}
+
+                      {/* Botão Próxima */}
+                      <button
+                        type="button"
+                        onClick={() => handleAdminPageChange(adminCatalogPage + 1)}
+                        disabled={adminCatalogPage === totalAdminPages}
+                        className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border select-none font-mono ${
+                          adminCatalogPage === totalAdminPages
+                            ? 'opacity-30 cursor-not-allowed bg-zinc-950/60 border-zinc-900 text-zinc-600'
+                            : 'cursor-pointer bg-zinc-900 hover:bg-zinc-800 text-zinc-200 hover:text-white border-zinc-800 hover:border-zinc-700 shadow-sm'
+                        }`}
+                        id="btn-admin-next-page"
+                        title="Próxima Página"
+                      >
+                        <span className="hidden xs:inline">Próxima</span>
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
               </>
             ) : (
               /* FORMULÁRIO DE EDIÇÃO / ADIÇÃO ESTILO ESTUDIO RETRO MODERNIZADO */

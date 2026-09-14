@@ -747,6 +747,7 @@ export async function getMovieDetailsTMDB(id: number, type: 'movie' | 'tv', apiK
       posterUrl,
       backdropUrl,
       year,
+      releaseDate: dateStr,
       duration,
       type: mediaType === 'tv' ? 'series' : 'movie',
       category: resolvedCategory,
