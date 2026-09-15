@@ -16,6 +16,11 @@ import AdminPanel from './components/AdminPanel';
 import RequestsPanel from './components/RequestsPanel';
 import SupportPanel from './components/SupportPanel';
 import { VhsTapeIcon } from './components/VhsTapeIcon';
+import { NeonFreshIcon } from './components/NeonFreshIcon';
+import { AnimatedFilmReelIcon } from './components/AnimatedFilmReelIcon';
+import { AnimatedTvIcon } from './components/AnimatedTvIcon';
+import { AnimatedResumeIcon } from './components/AnimatedResumeIcon';
+import { AnimatedNeonFlameIcon } from './components/AnimatedNeonFlameIcon';
 import { Play, Info, Sparkles, Star, Plus, Check, Shield, HelpCircle, AlertCircle, Heart, HeartOff, Volume1, Volume2, VolumeX, Bell, X, Flame, LayoutGrid, List, Trash2, ChevronLeft, ChevronRight, Film, Tv, Clock, Award, Bookmark } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { db, saveUsersToFirestore, deleteUserFromFirestore, saveProfilesToFirestore, saveMoviesToFirestore, saveSingleMovieToFirestore, deleteMovieFromFirestore, saveSettingsToFirestore, saveRequestsToFirestore, saveSingleRequestToFirestore, deleteRequestFromFirestore, handleFirestoreError, OperationType, saveSingleNotificationToFirestore, deleteNotificationFromFirestore, saveSingleCommentToFirestore, deleteCommentFromFirestore } from './lib/firebase';
@@ -167,7 +172,19 @@ export default function App() {
 
   const [movies, setMovies] = useState<Movie[]>(() => {
     const saved = localStorage.getItem('vhsflix_movies');
-    const base = saved ? JSON.parse(saved) : INITIAL_MOVIES;
+    const rawBase = saved ? JSON.parse(saved) : INITIAL_MOVIES;
+    
+    // Filtrar quaisquer itens inválidos ou mídias indesejadas (como adições automáticas indesejadas)
+    const base = Array.isArray(rawBase) ? rawBase.filter((m: any) => {
+      if (!m) return false;
+      if (m.id && String(m.id).startsWith('tmdb_trend_')) return false;
+      const title = (m.title || '').toLowerCase();
+      const poster = (m.posterUrl || '').toLowerCase();
+      if (title.includes('stranger things') && (title.includes('temporada final') || title.includes('(5)') || poster.includes('1618005182384'))) return false;
+      if (title.includes('homem-aranha') && title.includes('novo dia')) return false;
+      if (m.tmdbId === 969681) return false;
+      return true;
+    }) : INITIAL_MOVIES;
     
     // Mapa de filmes iniciais por ID e Título em minúsculas para cura de imagens
     const initialMap = new Map<string, Movie>();
@@ -483,6 +500,14 @@ export default function App() {
       const fetchedMovies: Movie[] = [];
       snapshot.forEach((docSnap) => {
         const rawMovie = docSnap.data() as Movie;
+        // Filtrar qualquer resquício ou adição incorreta de tmdb_trend_ ou títulos indesejados
+        if (docSnap.id.startsWith('tmdb_trend_')) return;
+        const title = (rawMovie.title || '').toLowerCase();
+        const poster = (rawMovie.posterUrl || '').toLowerCase();
+        if (title.includes('stranger things') && (title.includes('temporada final') || title.includes('(5)') || poster.includes('1618005182384'))) return;
+        if (title.includes('homem-aranha') && title.includes('novo dia')) return;
+        if (rawMovie.tmdbId === 969681) return;
+
         const cleanPoster = getCleanPosterUrl(rawMovie.posterUrl);
         const cleanBackdrop = getCleanBackdropUrl(rawMovie.backdropUrl, rawMovie.posterUrl);
 
@@ -873,9 +898,10 @@ export default function App() {
   }, [featuredHighlights, activeHighlightIndex]);
 
   const [tmdbTrendingList, setTmdbTrendingList] = useState<any[]>([]);
-  const [tmdbTrendingType, setTmdbTrendingType] = useState<'all' | 'movie' | 'tv'>('all');
+  const [tmdbTrendingType, setTmdbTrendingType] = useState<'movie' | 'tv'>('movie');
+  const [currentTrendingIndex, setCurrentTrendingIndex] = useState<number>(0);
 
-  // Carrega em segundo plano as tendências reais de hoje do TMDB (Filmes e Séries)
+  // Carrega em segundo plano as tendências reais de hoje do TMDB (Filmes ou Séries)
   useEffect(() => {
     let isMounted = true;
     getTMDBTrendingContent(tmdbApiKey, tmdbTrendingType).then(results => {
@@ -883,12 +909,19 @@ export default function App() {
         setTmdbTrendingList(results);
 
         // Atualiza estatísticas reais de curtidas e audiência do TMDB nos títulos do acervo
-        // SEM alterar a nota (rating) do filme no catálogo para que as capas de Melhores Avaliações
-        // NUNCA fiquem mudando ou recalculando de ordem
         setMovies(prev => {
           let updated = false;
           const next = prev.map(m => {
-            const match = results.find(r => (r.id && m.tmdbId === r.id) || (r.title || r.name || '').toLowerCase().trim() === m.title.toLowerCase().trim());
+            const isTvTrending = tmdbTrendingType === 'tv';
+            const isSameType = isTvTrending ? (m.type === 'series') : (m.type !== 'series');
+            if (!isSameType) return m;
+
+            const normM = (m.title || '').toLowerCase().trim();
+            const match = results.find(r => {
+              const rTitle = (r.title || r.name || '').toLowerCase().trim();
+              if (r.id && m.tmdbId === r.id && normM === rTitle) return true;
+              return normM && rTitle && normM === rTitle;
+            });
             if (match && match.vote_count) {
               const tmdbLikes = Math.round(((match.vote_average || 8) / 10) * match.vote_count);
               const tmdbDislikes = Math.round(((10 - (match.vote_average || 8)) / 10) * match.vote_count * 0.25);
@@ -911,7 +944,7 @@ export default function App() {
     return () => { isMounted = false; };
   }, [tmdbApiKey, tmdbTrendingType]);
 
-  // Lista de Filmes & Séries em Tendência no TMDB convertidos para objetos Movie
+  // Lista dos Top 10 Filmes ou Séries em Tendência no TMDB convertidos para objetos Movie
   const tmdbTrendingContentList = useMemo<Movie[]>(() => {
     if (!tmdbTrendingList || tmdbTrendingList.length === 0) return [];
 
@@ -924,81 +957,95 @@ export default function App() {
         .trim();
     };
 
-    return tmdbTrendingList.map((item, idx) => {
-      const isTv = item.media_type === 'tv' || Boolean(item.name);
-      const title = item.title || item.name || `Tendência #${idx + 1}`;
-      const releaseDate = item.release_date || item.first_air_date || '2026';
-      const year = parseInt(releaseDate.substring(0, 4)) || new Date().getFullYear();
+    return tmdbTrendingList
+      .slice(0, 10)
+      .map((item, idx) => {
+        const isTv = tmdbTrendingType === 'tv' || item.media_type === 'tv' || Boolean(item.name);
+        const title = item.title || item.name || `Tendência #${idx + 1}`;
+        const releaseDate = item.release_date || item.first_air_date || '2026';
+        const year = parseInt(releaseDate.substring(0, 4)) || new Date().getFullYear();
+        const normTitle = normalizeText(title);
 
-      const normTitle = normalizeText(title);
+        // Se o título do TMDB já existir no acervo cadastrado, vincula a fita existente garantindo que seja do mesmo tipo (filme ou série) e com título condizente
+        const catalogMatch = movies.find(m => {
+          const isSameType = isTv ? (m.type === 'series') : (m.type !== 'series');
+          if (!isSameType) return false;
+          const normM = normalizeText(m.title);
+          if (item.id && m.tmdbId === item.id && normM && normTitle && normM === normTitle) return true;
+          return Boolean(normM && normTitle && normM === normTitle);
+        });
 
-      // Sempre exibe as tendências globais do TMDB no catálogo inicial livremente
-      // Se houver indicação no acervo com mesmo título ou tmdbId, propaga a indicação oficial
-      const isRecommended = movies.some(m => Boolean(m.isRecommended) && (
-        (item.id && (m.tmdbId === item.id || m.id === `tmdb_${item.id}`)) ||
-        (normalizeText(m.title) && normTitle && (normalizeText(m.title) === normTitle || normTitle.includes(normalizeText(m.title))))
-      ));
+        if (catalogMatch) {
+          return {
+            ...catalogMatch,
+            trendingRank: idx + 1
+          } as Movie & { trendingRank?: number };
+        }
 
-      return {
-        id: `tmdb_trend_${item.id || idx}`,
-        tmdbId: item.id,
-        title: title,
-        type: isTv ? 'series' : 'movie',
-        category: isTv ? 'Séries' : 'Ação',
-        year: year,
-        rating: Number((item.vote_average || 8.2).toFixed(1)),
-        duration: isTv ? 'Série TMDB' : 'Filme TMDB',
-        posterUrl: getCleanPosterUrl(item.poster_path),
-        backdropUrl: getCleanBackdropUrl(item.backdrop_path, item.poster_path),
-        description: item.overview || 'Título em alta global no TMDB com grande audiência hoje.',
-        trailerUrl: 'https://www.youtube.com/embed/CRRlbK5w8AE',
-        isFeatured: idx === 0,
-        isRecommended: isRecommended,
-        clicksCount: item.vote_count || (2500 - idx * 100),
-        votesLikes: Math.round((item.vote_average || 8) * 140),
-        votesDislikes: 12,
-        vhsTapeColor: isTv ? '#10b981' : '#00ff88'
-      } as Movie;
-    });
-  }, [tmdbTrendingList, movies]);
+        const isRecommended = movies.some(m => Boolean(m.isRecommended) && (
+          (isTv ? m.type === 'series' : m.type !== 'series') && (
+            (item.id && (m.tmdbId === item.id || m.id === `tmdb_${item.id}`) && normalizeText(m.title) === normTitle) ||
+            (normalizeText(m.title) && normTitle && (normalizeText(m.title) === normTitle))
+          )
+        ));
 
-  // Fita VHS Mais Desejada (Fita #1 em alta no TMDB disponível no catálogo, ou Fixação do Admin)
-  const mostDesejadaMovie = useMemo(() => {
-    if (movies.length === 0 && tmdbTrendingContentList.length === 0) return null;
+        return {
+          id: `tmdb_trend_${item.id || idx}`,
+          tmdbId: item.id,
+          title: title,
+          type: isTv ? 'series' : 'movie',
+          category: isTv ? 'Séries' : 'Ação',
+          year: year,
+          rating: Number((item.vote_average || 8.2).toFixed(1)),
+          duration: isTv ? 'Série TMDB' : 'Filme TMDB',
+          posterUrl: getCleanPosterUrl(item.poster_path),
+          backdropUrl: getCleanBackdropUrl(item.backdrop_path, item.poster_path),
+          description: item.overview || 'Título em alta global no TMDB com grande audiência hoje.',
+          trailerUrl: 'https://www.youtube.com/embed/CRRlbK5w8AE',
+          isFeatured: idx === 0,
+          isRecommended: isRecommended,
+          clicksCount: item.vote_count || (2500 - idx * 100),
+          votesLikes: Math.round((item.vote_average || 8) * 140),
+          votesDislikes: 12,
+          vhsTapeColor: isTv ? '#10b981' : '#00ff88',
+          trendingRank: idx + 1
+        } as Movie & { trendingRank?: number };
+      });
+  }, [tmdbTrendingList, tmdbTrendingType, movies]);
 
-    // 1. MODO MANUAL: Prioridade total se o Admin fixou uma fita específica
-    if (pinnedMostDesiredMovieId) {
+  // Fita em destaque atual (Navegação de 1 a 10 no TMDB)
+  const currentTrendingMovie = useMemo(() => {
+    // 1. MODO MANUAL: Prioridade se o Admin fixou uma fita específica e estamos no índice 0
+    if (pinnedMostDesiredMovieId && currentTrendingIndex === 0) {
       const pinned = movies.find(m => m.id === pinnedMostDesiredMovieId);
       if (pinned) return pinned;
     }
 
-    // 2. TENDÊNCIAS DO TMDB: Seleciona a fita #1 da lista de tendências
-    if (tmdbTrendingContentList.length > 0) {
-      return tmdbTrendingContentList[0];
+    // 2. Título em alta do TMDB correspondente à posição atual (1 a 10)
+    if (tmdbTrendingContentList && tmdbTrendingContentList.length > 0) {
+      const safeIndex = Math.min(Math.max(0, currentTrendingIndex), tmdbTrendingContentList.length - 1);
+      return tmdbTrendingContentList[safeIndex];
     }
 
-    // 3. FALLBACK: Fita com maior pontuação (Nota + Curtidas)
-    const sorted = [...movies].sort((a, b) => {
-      const scoreA = ((a.rating || 0) * 10) + (a.votesLikes || 0) + (a.clicksCount || 0);
-      const scoreB = ((b.rating || 0) * 10) + (b.votesLikes || 0) + (b.clicksCount || 0);
-      return scoreB - scoreA;
-    });
+    // 3. Fallback inicial seguro
+    return movies.length > 0 ? movies[0] : null;
+  }, [currentTrendingIndex, tmdbTrendingContentList, pinnedMostDesiredMovieId, movies]);
 
-    return sorted[0];
-  }, [movies, pinnedMostDesiredMovieId, tmdbTrendingContentList]);
+  // Alias para compatibilidade
+  const mostDesejadaMovie = currentTrendingMovie;
 
   const isMostDesiredPinnedByAdmin = useMemo(() => {
     return Boolean(pinnedMostDesiredMovieId && movies.some(m => m.id === pinnedMostDesiredMovieId));
   }, [pinnedMostDesiredMovieId, movies]);
 
-  // 10 Lançamentos Filmes (Filmes ordenados por ano/data de lançamento mais recente)
-  const moviesReleasesTop10 = useMemo(() => {
-    return movies.filter(m => m.type === 'movie').sort(sortByReleaseYear).slice(0, 10);
+  // Filmes Lançamentos (Até 30 filmes ordenados por ano/data de lançamento mais recente)
+  const moviesReleasesTop30 = useMemo(() => {
+    return movies.filter(m => m.type === 'movie').sort(sortByReleaseYear).slice(0, 30);
   }, [movies]);
 
-  // 10 Lançamentos Séries (Séries ordenadas por ano/data de lançamento mais recente)
-  const seriesReleasesTop10 = useMemo(() => {
-    return movies.filter(m => m.type === 'series').sort(sortByReleaseYear).slice(0, 10);
+  // Séries Lançamentos (Até 30 séries ordenadas por ano/data de lançamento mais recente)
+  const seriesReleasesTop30 = useMemo(() => {
+    return movies.filter(m => m.type === 'series').sort(sortByReleaseYear).slice(0, 30);
   }, [movies]);
 
   // 10 VHS Recém Adicionados (Ordenado estritamente por ordem de adição no admin)
@@ -1534,9 +1581,10 @@ export default function App() {
   };
 
   const handleDeleteMovie = (movieId: string) => {
-    // Apenas o Administrador Rafael (rafaelguaruja09@gmail.com) tem permissão de excluir
-    const userEmail = activeUser?.email || '';
-    if (userEmail !== 'rafaelguaruja09@gmail.com') {
+    // Permissão de administrador master (Rafael Gusmão ou usuário admin ativo)
+    const userEmail = (activeUser?.email || '').toLowerCase().trim();
+    const isMasterAdmin = Boolean(activeUser?.isAdmin || userEmail === 'rafaelguaruja09@gmail.com');
+    if (!isMasterAdmin) {
       triggerNotification(
         '⚠️ Acesso Negado!',
         'Apenas o administrador master (Rafael Gusmão) tem permissão para excluir filmes ou séries.',
@@ -1547,6 +1595,15 @@ export default function App() {
     }
     setMovies(prev => prev.filter(m => m.id !== movieId));
     deleteMovieFromFirestore(movieId);
+    try {
+      const saved = localStorage.getItem('vhsflix_movies');
+      if (saved) {
+        const parsed: Movie[] = JSON.parse(saved);
+        localStorage.setItem('vhsflix_movies', JSON.stringify(parsed.filter(m => m.id !== movieId)));
+      }
+    } catch (e) {
+      console.warn('Erro ao sincronizar localStorage na exclusão:', e);
+    }
     triggerNotification(
       '📼 Item Excluído',
       'O item foi removido com sucesso do catálogo sob o seu comando.',
@@ -1556,9 +1613,10 @@ export default function App() {
   };
 
   const handleBulkDeleteMovies = (movieIds: string[]) => {
-    // Apenas o Administrador Rafael (rafaelguaruja09@gmail.com) tem permissão de excluir
-    const userEmail = activeUser?.email || '';
-    if (userEmail !== 'rafaelguaruja09@gmail.com') {
+    // Permissão de administrador master (Rafael Gusmão ou usuário admin ativo)
+    const userEmail = (activeUser?.email || '').toLowerCase().trim();
+    const isMasterAdmin = Boolean(activeUser?.isAdmin || userEmail === 'rafaelguaruja09@gmail.com');
+    if (!isMasterAdmin) {
       triggerNotification(
         '⚠️ Acesso Negado!',
         'Apenas o administrador master (Rafael Gusmão) tem permissão para excluir filmes ou séries.',
@@ -1569,6 +1627,15 @@ export default function App() {
     }
     setMovies(prev => prev.filter(m => !movieIds.includes(m.id)));
     movieIds.forEach(id => deleteMovieFromFirestore(id));
+    try {
+      const saved = localStorage.getItem('vhsflix_movies');
+      if (saved) {
+        const parsed: Movie[] = JSON.parse(saved);
+        localStorage.setItem('vhsflix_movies', JSON.stringify(parsed.filter(m => !movieIds.includes(m.id))));
+      }
+    } catch (e) {
+      console.warn('Erro ao sincronizar localStorage na exclusão em lote:', e);
+    }
     triggerNotification(
       '📼 Itens Excluídos em Lote',
       `${movieIds.length} itens foram removidos com sucesso do catálogo sob o seu comando.`,
@@ -1578,9 +1645,10 @@ export default function App() {
   };
 
   const handleResetCatalog = () => {
-    // Apenas o Administrador Rafael (rafaelguaruja09@gmail.com) tem permissão de restaurar
-    const userEmail = activeUser?.email || '';
-    if (userEmail !== 'rafaelguaruja09@gmail.com') {
+    // Permissão de administrador master (Rafael Gusmão ou usuário admin ativo)
+    const userEmail = (activeUser?.email || '').toLowerCase().trim();
+    const isMasterAdmin = Boolean(activeUser?.isAdmin || userEmail === 'rafaelguaruja09@gmail.com');
+    if (!isMasterAdmin) {
       triggerNotification(
         '⚠️ Acesso Negado!',
         'Apenas o administrador master (Rafael Gusmão) tem permissão para redefinir o catálogo.',
@@ -1628,7 +1696,10 @@ export default function App() {
     };
     setMovies(prev => prev.map(m => m.id === movie.id ? updatedMovie : m));
     setSelectedMovie(updatedMovie);
-    saveSingleMovieToFirestore(updatedMovie);
+    // Só persiste no Firestore itens que fazem parte do catálogo real (não grava previews temporários de tendências TMDB)
+    if (movie.id && !movie.id.startsWith('tmdb_trend_') && !movie.id.startsWith('virtual_')) {
+      saveSingleMovieToFirestore(updatedMovie);
+    }
   };
 
   // Contabilidade real de gostei/não-gostei profissional e preciso
@@ -1674,8 +1745,10 @@ export default function App() {
       setSelectedMovie(curr => curr ? { ...curr, votesLikes: newLikes, votesDislikes: newDislikes } : null);
     }
 
-    // Save immediately to Firestore
-    saveSingleMovieToFirestore(updatedMovie);
+    // Save immediately to Firestore only for real catalog movies
+    if (movieId && !movieId.startsWith('tmdb_trend_') && !movieId.startsWith('virtual_')) {
+      saveSingleMovieToFirestore(updatedMovie);
+    }
   };
 
   const handleAddComment = async (movieId: string, text: string) => {
@@ -2074,10 +2147,10 @@ export default function App() {
                   </div>
                 )}
 
-                {/* --- 2.B.I: ROW DE CONTINUAR ASSISTINDO (LIMITADO A 5 ITENS) --- */}
+                {/* --- 2.B.I: ROW DE CONTINUAR ASSISTINDO (ATÉ 10 ITENS COM ROLAMENTO E ANIMAÇÃO) --- */}
                 {!searchVal && !selectedCategory && activeTab === 'all' && (
                   (() => {
-                    // Seleciona filmes com histórico de progresso ativo e inacabado - exatamente 5 itens
+                    // Seleciona filmes com histórico de progresso ativo e inacabado - até 10 itens com rolamento
                     const progressHistory = (Object.values(activeProfile.watchHistory) as WatchProgress[])
                       .filter(p => p.progress > 0 && !p.isFinished)
                       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
@@ -2085,13 +2158,33 @@ export default function App() {
                     const listToResume = progressHistory
                       .map(p => movies.find(m => m.id === p.movieId))
                       .filter((m): m is Movie => !!m)
-                      .slice(0, 5);
+                      .slice(0, 10);
 
                     if (listToResume.length === 0) return null;
 
                     return (
                       <MovieRow
-                        title="Continuar Assistindo"
+                        title={
+                          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                            <span className="bg-gradient-to-r from-amber-200 via-amber-400 to-amber-500 bg-clip-text text-transparent font-black">
+                              Continuar Assistindo
+                            </span>
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold tracking-wider uppercase bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-[0_0_12px_rgba(245,158,11,0.3)] select-none">
+                              <span className="relative flex h-2 w-2">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                              </span>
+                              <span>EM ANDAMENTO</span>
+                            </span>
+                          </div>
+                        }
+                        icon={
+                          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-amber-950/70 border border-amber-500/50 flex items-center justify-center text-amber-400 shadow-[0_0_18px_rgba(245,158,11,0.45)] shrink-0 group-hover/row:scale-105 group-hover/row:border-amber-400 transition-all duration-300">
+                            <AnimatedResumeIcon size={22} />
+                          </div>
+                        }
+                        accentColor="amber"
+                        showCount={true}
                         movies={listToResume}
                         watchHistory={activeProfile.watchHistory}
                         myList={activeProfile.myList}
@@ -2103,48 +2196,32 @@ export default function App() {
                   })()
                 )}
 
-                {/* --- 2.B.I.B: SPOTLIGHT / RADAR DE TENDÊNCIAS TMDB • Nº 1 EM ALTA (VERDE NEON ELEGANTE) --- */}
-                {!searchVal && !selectedCategory && activeTab === 'all' && mostDesejadaMovie && (
+                {/* --- 2.B.I.B: SPOTLIGHT / RADAR DE TENDÊNCIAS TMDB • TOP 10 EM ALTA (VERDE NEON ELEGANTE) --- */}
+                {!searchVal && !selectedCategory && activeTab === 'all' && currentTrendingMovie && (
                   <div className="px-4 sm:px-8 mb-8 select-none animate-fade-in" id="tmdb-trending-spotlight-section">
                     {/* Header do Radar com Estética Verde Neon e Filtros Filmes/Séries */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                       <div className="flex items-center gap-3">
-                        <div className="flex items-center justify-center p-2 rounded-xl bg-emerald-500/20 border border-emerald-400/50 shadow-[0_0_15px_rgba(16,185,129,0.4)]">
-                          <Flame className="w-5 h-5 text-emerald-400 fill-emerald-400" />
+                        <div className="flex items-center justify-center p-2 rounded-xl bg-emerald-500/20 border border-emerald-400/50 shadow-[0_0_20px_rgba(16,185,129,0.5)]">
+                          <AnimatedNeonFlameIcon size={24} />
                         </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <h2 className="text-base sm:text-xl font-black tracking-tight text-white font-display flex items-center gap-2 uppercase">
-                              Tendências do TMDB <span className="text-emerald-300 font-mono text-xs sm:text-sm font-bold tracking-widest px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/50 shadow-[0_0_10px_rgba(16,185,129,0.3)]">EM ALTA</span>
-                            </h2>
-                          </div>
-                          <p className="text-[11px] sm:text-xs text-zinc-400 mt-0.5">
-                            Os títulos mais pesquisados e assistidos no mundo hoje em filmes e séries via TMDB
-                          </p>
+                        <div className="flex items-center gap-2">
+                          <h2 className="text-base sm:text-xl font-black tracking-tight text-white font-display flex items-center gap-2 uppercase">
+                            Tendências do TMDB <span className="text-emerald-300 font-mono text-xs sm:text-sm font-bold tracking-widest px-2.5 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400/50 shadow-[0_0_10px_rgba(16,185,129,0.3)]">TOP 10 EM ALTA</span>
+                          </h2>
                         </div>
                       </div>
 
-                      {/* Seletor Rápido: Todos, Filmes ou Séries (Verde Neon) */}
+                      {/* Seletor Rápido: Somente Filmes ou Séries (Verde Neon) */}
                       <div className="flex items-center gap-1.5 bg-zinc-950/90 p-1 rounded-xl border border-emerald-500/40 shadow-[0_0_15px_rgba(16,185,129,0.2)] self-start sm:self-auto">
                         <motion.button
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
-                          onClick={() => setTmdbTrendingType('all')}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-sans font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                            tmdbTrendingType === 'all'
-                              ? 'bg-emerald-500 text-black shadow-[0_0_15px_rgba(16,185,129,0.7)] font-black border border-emerald-400'
-                              : 'text-zinc-400 hover:text-emerald-400 hover:bg-zinc-900'
-                          }`}
-                          id="btn-tmdb-trend-all"
-                        >
-                          <Flame className="w-3.5 h-3.5" />
-                          <span>Todos</span>
-                        </motion.button>
-                        <motion.button
-                          whileHover={{ scale: 1.05 }}
-                          whileTap={{ scale: 0.95 }}
-                          onClick={() => setTmdbTrendingType('movie')}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-sans font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                          onClick={() => {
+                            setTmdbTrendingType('movie');
+                            setCurrentTrendingIndex(0);
+                          }}
+                          className={`px-3.5 py-1.5 rounded-lg text-xs font-sans font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
                             tmdbTrendingType === 'movie'
                               ? 'bg-emerald-500 text-black shadow-[0_0_15px_rgba(16,185,129,0.7)] font-black border border-emerald-400'
                               : 'text-zinc-400 hover:text-emerald-400 hover:bg-zinc-900'
@@ -2157,8 +2234,11 @@ export default function App() {
                         <motion.button
                           whileHover={{ scale: 1.05 }}
                           whileTap={{ scale: 0.95 }}
-                          onClick={() => setTmdbTrendingType('tv')}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-sans font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                          onClick={() => {
+                            setTmdbTrendingType('tv');
+                            setCurrentTrendingIndex(0);
+                          }}
+                          className={`px-3.5 py-1.5 rounded-lg text-xs font-sans font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
                             tmdbTrendingType === 'tv'
                               ? 'bg-emerald-500 text-black shadow-[0_0_15px_rgba(16,185,129,0.7)] font-black border border-emerald-400'
                               : 'text-zinc-400 hover:text-emerald-400 hover:bg-zinc-900'
@@ -2171,7 +2251,7 @@ export default function App() {
                       </div>
                     </div>
 
-                    {/* Cartão de Destaque / Spotlight em Verde Neon */}
+                    {/* Cartão de Destaque / Spotlight em Verde Neon com Navegação 1 ao 10 */}
                     <div className="relative overflow-hidden rounded-2xl border-2 border-emerald-500/50 bg-gradient-to-r from-zinc-950 via-zinc-950 to-emerald-950/40 p-5 sm:p-7 flex flex-col md:flex-row items-center gap-6 shadow-[0_0_35px_rgba(16,185,129,0.25)] hover:border-emerald-400 hover:shadow-[0_0_45px_rgba(16,185,129,0.45)] transition-all duration-300 group/spotlight">
                       {/* Efeitos glow e grade retro verde neon */}
                       <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-500/15 rounded-full blur-[120px] pointer-events-none"></div>
@@ -2180,21 +2260,22 @@ export default function App() {
 
                       {/* Capa VHS Interativa com borda verde neon */}
                       <div 
-                        onClick={() => handleSelectMovie(mostDesejadaMovie)}
+                        onClick={() => handleSelectMovie(currentTrendingMovie)}
                         className="relative shrink-0 w-36 sm:w-44 aspect-[2/3] rounded-xl overflow-hidden border-2 border-emerald-400 shadow-[0_0_25px_rgba(16,185,129,0.5)] scale-100 group-hover/spotlight:scale-105 transition-all duration-300 cursor-pointer group z-10"
-                        title={mostDesejadaMovie.title}
+                        title={currentTrendingMovie.title}
                         id="spotlight-poster-cover"
                       >
                         <img 
-                          src={getCleanPosterUrl(mostDesejadaMovie.posterUrl)} 
-                          alt={mostDesejadaMovie.title}
-                          className="w-full h-full object-cover group-hover:opacity-90 transition-opacity"
+                          key={`poster-${currentTrendingMovie.id}-${currentTrendingIndex}`}
+                          src={getCleanPosterUrl(currentTrendingMovie.posterUrl)} 
+                          alt={currentTrendingMovie.title}
+                          className="w-full h-full object-cover group-hover:opacity-90 transition-opacity animate-fade-in"
                           referrerPolicy="no-referrer"
                           onError={handlePosterError}
                         />
 
-                        {/* Selo Oficial de Indicação do Administrador Rafael na Capa */}
-                        {mostDesejadaMovie.isRecommended && (
+                        {/* Selo Oficial de Indicação na Capa */}
+                        {currentTrendingMovie.isRecommended && (
                           <div className="absolute top-2 right-2 z-20">
                             <RecommendationBadge variant="card" />
                           </div>
@@ -2209,73 +2290,152 @@ export default function App() {
                       </div>
 
                       {/* Conteúdo Detalhado e Métricas */}
-                      <div className="flex-1 text-center md:text-left flex flex-col items-center md:items-start z-10">
-                        {/* Badges do Spotlight */}
-                        <div className="flex flex-wrap items-center justify-center md:justify-start gap-2.5">
+                      <div className="flex-1 text-center md:text-left flex flex-col items-center md:items-start z-10 w-full">
+                        {/* Badges do Spotlight + Navegação 1 ao 10 */}
+                        <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 sm:gap-2.5 w-full">
                           {/* Selo de Indicação Oficial se o título em destaque foi indicado */}
-                          {mostDesejadaMovie.isRecommended && (
+                          {currentTrendingMovie.isRecommended && (
                             <RecommendationBadge variant="banner" />
                           )}
 
-                          {isMostDesiredPinnedByAdmin ? (
+                          {isMostDesiredPinnedByAdmin && currentTrendingIndex === 0 ? (
                             <span className="text-[11px] sm:text-xs font-mono font-black text-emerald-300 uppercase tracking-widest bg-emerald-950/70 border-2 border-emerald-400 px-3.5 py-1.5 rounded-full flex items-center gap-1.5 shadow-[0_0_15px_rgba(16,185,129,0.4)]">
                               <Sparkles className="w-4 h-4 text-emerald-400" />
                               📌 DESTAQUE ESPECIAL • FITA MAIS DESEJADA
                             </span>
                           ) : (
-                            <span className="text-[11px] sm:text-xs font-mono font-black text-black uppercase tracking-widest bg-emerald-500 border border-emerald-400 px-3.5 py-1.5 rounded-full flex items-center gap-1.5 shadow-[0_0_15px_rgba(16,185,129,0.6)] font-bold">
+                            <span className="text-[11px] sm:text-xs font-mono font-black text-black uppercase tracking-widest bg-emerald-500 border border-emerald-400 px-3.5 py-1.5 rounded-full flex items-center gap-1.5 shadow-[0_0_15px_rgba(16,185,129,0.6)]">
                               <Flame className="w-4 h-4 fill-current text-black" />
-                              🔥 Nº 1 EM ALTA NO TMDB
+                              🔥 Nº {currentTrendingIndex + 1} EM ALTA NO TMDB
                             </span>
                           )}
 
                           <span className="text-[10px] sm:text-xs font-mono text-emerald-300 bg-emerald-500/15 px-3 py-1 rounded-full border border-emerald-400/40 font-bold flex items-center gap-1">
-                            ⚡ {mostDesejadaMovie.type === 'series' ? 'SÉRIE' : 'FILME'}
+                            ⚡ {currentTrendingMovie.type === 'series' ? 'SÉRIE' : 'FILME'}
                           </span>
 
                           <span className="text-[10px] sm:text-xs font-mono text-zinc-300 bg-zinc-900/80 px-3 py-1 rounded-full border border-zinc-700 font-medium flex items-center gap-1">
-                            🔥 {mostDesejadaMovie.clicksCount || 1850} acessos
+                            🔥 {currentTrendingMovie.clicksCount || 1850} acessos
                           </span>
                         </div>
 
-                        <h3 className="text-2xl sm:text-3xl font-black text-white font-sans mt-3 tracking-tight uppercase leading-tight text-shadow">
-                          {mostDesejadaMovie.title}
+                        {/* Barra de Seleção Numérica 1 ao 10 com Setas */}
+                        <div className="flex items-center gap-1 mt-3 py-1 px-1.5 rounded-xl bg-zinc-950/90 border border-emerald-500/40 shadow-[0_0_15px_rgba(16,185,129,0.2)] max-w-full overflow-x-auto no-scrollbar select-none">
+                          <motion.button
+                            whileHover={{ scale: 1.15 }}
+                            whileTap={{ scale: 0.9 }}
+                            onClick={() => setCurrentTrendingIndex(prev => (prev > 0 ? prev - 1 : (tmdbTrendingContentList.length > 0 ? tmdbTrendingContentList.length - 1 : 0)))}
+                            className="p-1 sm:p-1.5 rounded-lg bg-zinc-900 hover:bg-emerald-500 hover:text-black text-emerald-400 border border-emerald-500/30 transition-all cursor-pointer shadow-sm shrink-0"
+                            title="Anterior (Nº anterior em alta)"
+                            id="btn-trending-prev"
+                          >
+                            <ChevronLeft className="w-3.5 h-3.5" />
+                          </motion.button>
+
+                          <div className="flex items-center gap-1">
+                            {Array.from({ length: Math.min(10, tmdbTrendingContentList.length || 10) }).map((_, idx) => {
+                              const isActive = currentTrendingIndex === idx;
+                              return (
+                                <motion.button
+                                  key={idx}
+                                  whileHover={{ scale: isActive ? 1.05 : 1.15 }}
+                                  whileTap={{ scale: 0.9 }}
+                                  onClick={() => setCurrentTrendingIndex(idx)}
+                                  className={`w-6 h-6 sm:w-7 sm:h-7 rounded-lg text-[11px] sm:text-xs font-mono font-black transition-all flex items-center justify-center cursor-pointer ${
+                                    isActive
+                                      ? 'bg-emerald-500 text-black shadow-[0_0_12px_rgba(16,185,129,0.7)] border border-emerald-300 scale-105'
+                                      : 'bg-zinc-900/90 text-zinc-400 hover:text-emerald-300 hover:border-emerald-500/50 border border-zinc-800/80'
+                                  }`}
+                                  title={`Ver Nº ${idx + 1} em alta no TMDB`}
+                                  id={`btn-trending-rank-${idx + 1}`}
+                                >
+                                  {idx + 1}
+                                </motion.button>
+                              );
+                            })}
+                          </div>
+
+                          <motion.button
+                            whileHover={{ scale: 1.15 }}
+                            whileTap={{ scale: 0.9 }}
+                            onClick={() => setCurrentTrendingIndex(prev => (prev < (tmdbTrendingContentList.length - 1) ? prev + 1 : 0))}
+                            className="p-1 sm:p-1.5 rounded-lg bg-zinc-900 hover:bg-emerald-500 hover:text-black text-emerald-400 border border-emerald-500/30 transition-all cursor-pointer shadow-sm shrink-0"
+                            title="Próximo (Próximo número em alta)"
+                            id="btn-trending-next"
+                          >
+                            <ChevronRight className="w-3.5 h-3.5" />
+                          </motion.button>
+                        </div>
+
+                        <h3 
+                          key={`title-${currentTrendingMovie.id}-${currentTrendingIndex}`}
+                          className="text-2xl sm:text-3xl font-black text-white font-sans mt-3 tracking-tight uppercase leading-tight text-shadow animate-fade-in"
+                        >
+                          {currentTrendingMovie.title}
                         </h3>
 
-                        <p className="text-xs sm:text-sm text-zinc-300 mt-2 max-w-2xl leading-relaxed text-justify md:text-left line-clamp-3">
-                          {mostDesejadaMovie.description}
-                        </p>
+                        {/* Bloco da Sinopse com Botão Animado de Avanço Lateral */}
+                        <div className="mt-2.5 flex flex-col sm:flex-row items-stretch sm:items-start gap-3 w-full max-w-3xl">
+                          <p 
+                            key={`desc-${currentTrendingMovie.id}-${currentTrendingIndex}`}
+                            className="text-xs sm:text-sm text-zinc-300 leading-relaxed text-justify md:text-left line-clamp-3 flex-1 animate-fade-in"
+                          >
+                            {currentTrendingMovie.description}
+                          </p>
+
+                          {/* Botão Bonito e Animado ao Lado da Sinopse para Avançar os Números 1 a 10 */}
+                          <motion.button
+                            whileHover={{ scale: 1.06, x: 2 }}
+                            whileTap={{ scale: 0.94 }}
+                            onClick={() => setCurrentTrendingIndex(prev => (prev < (tmdbTrendingContentList.length - 1) ? prev + 1 : 0))}
+                            className="shrink-0 flex items-center justify-center gap-2 px-3.5 py-2 sm:py-2.5 rounded-xl bg-gradient-to-r from-emerald-950 via-zinc-900 to-emerald-900/50 border border-emerald-400/60 hover:border-emerald-300 text-emerald-300 hover:text-white shadow-[0_0_18px_rgba(16,185,129,0.35)] hover:shadow-[0_0_25px_rgba(16,185,129,0.6)] transition-all cursor-pointer group/next"
+                            title={`Avançar para o Nº ${((currentTrendingIndex + 1) % (tmdbTrendingContentList.length || 10)) + 1} em alta no TMDB`}
+                            id="btn-synopsis-next-trend"
+                          >
+                            <div className="flex flex-col text-left">
+                              <span className="text-[9px] font-mono uppercase tracking-wider text-emerald-400 font-bold leading-none">
+                                Próximo
+                              </span>
+                              <span className="text-xs font-mono font-black text-white leading-tight mt-0.5">
+                                Nº {((currentTrendingIndex + 1) % (tmdbTrendingContentList.length || 10)) + 1}
+                              </span>
+                            </div>
+                            <div className="p-1 rounded-lg bg-emerald-500 text-black group-hover/next:scale-110 transition-transform">
+                              <ChevronRight className="w-4 h-4 stroke-[3]" />
+                            </div>
+                          </motion.button>
+                        </div>
 
                         {/* Metadados Estilizados */}
                         <div className="flex flex-wrap items-center justify-center md:justify-start gap-2.5 sm:gap-3.5 text-xs font-mono text-zinc-400 mt-4">
                           <span className="flex items-center gap-1 bg-zinc-900/90 border border-emerald-400/40 px-2.5 py-1 rounded text-white font-bold shadow-[0_0_10px_rgba(16,185,129,0.2)]">
                             <Star className="w-3.5 h-3.5 text-yellow-400 fill-current" />
-                            <span className="text-white font-black">{mostDesejadaMovie.rating}</span>
+                            <span className="text-white font-black">{currentTrendingMovie.rating}</span>
                             <span className="text-zinc-500 text-[10px]">/10 TMDB</span>
                           </span>
                           <span className="bg-zinc-900/80 border border-zinc-800 px-2.5 py-1 rounded text-zinc-300">
-                            {mostDesejadaMovie.year}
+                            {currentTrendingMovie.year}
                           </span>
                           <span className="bg-zinc-900/80 border border-emerald-400/30 px-2.5 py-1 rounded text-emerald-400 font-semibold uppercase">
-                            {mostDesejadaMovie.category}
+                            {currentTrendingMovie.category}
                           </span>
                           <span className="bg-zinc-900/80 border border-zinc-800 px-2.5 py-1 rounded text-zinc-300">
-                            {mostDesejadaMovie.duration}
+                            {currentTrendingMovie.duration}
                           </span>
                         </div>
 
                         {/* Botões Interativos de Ação em Verde Neon */}
-                        <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 mt-6">
+                        <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 mt-5">
                           <motion.button
                             whileHover={{ scale: 1.05, boxShadow: "0 0 30px rgba(16,185,129,0.7)" }}
                             whileTap={{ scale: 0.95 }}
-                            onClick={() => handleSelectMovie(mostDesejadaMovie)}
+                            onClick={() => handleSelectMovie(currentTrendingMovie)}
                             className="bg-emerald-500 hover:bg-emerald-400 text-black font-sans text-xs font-black uppercase tracking-wider px-6 py-3 rounded-xl flex items-center gap-2 transition-all cursor-pointer shadow-[0_0_25px_rgba(16,185,129,0.6)] border border-emerald-400 group"
                             id="btn-play-most-desired"
                           >
                             <Play className="w-4 h-4 fill-black text-black group-hover:scale-110 transition-transform" />
                             <span>
-                              {mostDesejadaMovie.type === 'series' ? 'Assistir Série' : 'Assistir Filme'}
+                              {currentTrendingMovie.type === 'series' ? 'Assistir Série' : 'Assistir Filme'}
                             </span>
                           </motion.button>
                           
@@ -2284,16 +2444,16 @@ export default function App() {
                             whileTap={{ scale: 0.95 }}
                             onClick={() => {
                               if (!activeProfile) return;
-                              handleToggleMyList(mostDesejadaMovie.id);
+                              handleToggleMyList(currentTrendingMovie.id);
                             }}
                             className={`border font-sans text-xs font-bold uppercase tracking-wider px-5 py-3 rounded-xl transition-all cursor-pointer flex items-center gap-2 ${
-                              activeProfile?.myList?.includes(mostDesejadaMovie.id)
+                              activeProfile?.myList?.includes(currentTrendingMovie.id)
                                 ? 'bg-emerald-500/20 border-emerald-400 text-emerald-300 shadow-[0_0_12px_rgba(16,185,129,0.4)]'
                                 : 'border-zinc-700 hover:border-emerald-400/60 text-zinc-300 hover:text-white bg-zinc-900/60'
                             }`}
                             id="btn-toggle-mylist-most-desired"
                           >
-                            {activeProfile?.myList?.includes(mostDesejadaMovie.id) ? (
+                            {activeProfile?.myList?.includes(currentTrendingMovie.id) ? (
                               <>
                                 <Check className="w-4 h-4 text-emerald-400" />
                                 <span>Na Minha Lista</span>
@@ -2317,15 +2477,15 @@ export default function App() {
                     if (activeTab === 'all') {
                       return (
                         <div className="space-y-4">
-                          {/* 1. Lançamentos Filmes (Top 10) */}
+                          {/* 1. Filmes Lançamentos (Até 30) */}
                           <MovieRow
-                            title="Lançamentos Filmes"
+                            title="Filmes Lançamentos"
                             icon={
-                              <div className="w-8 h-8 rounded-xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-500 shadow-[0_0_12px_rgba(244,63,94,0.35)]">
-                                <Film className="w-4 h-4" />
+                              <div className="w-8 h-8 rounded-xl bg-rose-950/60 border border-rose-500/40 flex items-center justify-center text-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.4)] shrink-0">
+                                <AnimatedFilmReelIcon size={20} />
                               </div>
                             }
-                            movies={moviesReleasesTop10}
+                            movies={moviesReleasesTop30}
                             watchHistory={activeProfile.watchHistory}
                             myList={activeProfile.myList}
                             onMovieClick={handleSelectMovie}
@@ -2333,15 +2493,15 @@ export default function App() {
                             onPlayClick={handleFeaturedPlay}
                           />
 
-                          {/* 4. Lançamentos Séries (Top 10) */}
+                          {/* 4. Séries Lançamentos (Até 30) */}
                           <MovieRow
-                            title="Lançamentos Séries"
+                            title="Séries Lançamentos"
                             icon={
-                              <div className="w-8 h-8 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.35)]">
-                                <Tv className="w-4 h-4" />
+                              <div className="w-8 h-8 rounded-xl bg-emerald-950/60 border border-emerald-400/40 flex items-center justify-center text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.4)] shrink-0">
+                                <AnimatedTvIcon size={20} />
                               </div>
                             }
-                            movies={seriesReleasesTop10}
+                            movies={seriesReleasesTop30}
                             watchHistory={activeProfile.watchHistory}
                             myList={activeProfile.myList}
                             onMovieClick={handleSelectMovie}
@@ -2349,12 +2509,12 @@ export default function App() {
                             onPlayClick={handleFeaturedPlay}
                           />
 
-                          {/* 5. VHS Recém Adicionados (Top 10) */}
+                          {/* 5. Recém Adicionados (Top 10) */}
                           <MovieRow
-                            title="VHS Recém Adicionados"
+                            title="Recém Adicionados"
                             icon={
-                              <div className="w-8 h-8 rounded-xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shadow-[0_0_12px_rgba(6,182,212,0.35)]">
-                                <Clock className="w-4 h-4" />
+                              <div className="w-8 h-8 rounded-xl bg-emerald-950/60 border border-emerald-400/40 flex items-center justify-center text-emerald-400 shadow-[0_0_15px_rgba(34,197,94,0.4)] shrink-0">
+                                <NeonFreshIcon size={20} />
                               </div>
                             }
                             movies={recentlyAddedMoviesTop10}
@@ -2849,7 +3009,7 @@ export default function App() {
                 )}
 
                 {/* --- 2.B.III: GRID DE FILMES/SÉRIES/LANÇAMENTOS, BUSCA OU CATEGORIAS SELECIONADAS --- */}
-                {activeTab !== 'mylist' && (searchVal || activeTab === 'releases' || activeTab === 'movies' || activeTab === 'series' || selectedCategory || activeTab === 'all') && (
+                {activeTab !== 'mylist' && (Boolean(searchVal) || activeTab === 'releases' || activeTab === 'movies' || activeTab === 'series' || Boolean(selectedCategory)) && (
                   (() => {
                     if (filteredMovies.length === 0) {
                       return (

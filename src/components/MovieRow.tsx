@@ -71,6 +71,37 @@ export const MovieRow = React.memo(function MovieRow({
 
   const titleString = typeof title === 'string' ? title : 'categoria';
 
+  // Cores dinâmicas de acordo com accentColor
+  const theme = {
+    rose: {
+      titleHover: 'group-hover/row:text-red-500',
+      cardHover: 'hover:border-red-500 hover:shadow-[0_0_22px_rgba(239,68,68,0.35)] focus-visible:ring-red-500',
+      cardTitleHover: 'group-hover/card:text-red-400',
+      playBtn: 'bg-red-600 hover:bg-red-500 shadow-[0_0_12px_rgba(239,68,68,0.6)]',
+      progressFill: 'bg-red-600 shadow-[0_0_8px_#ef4444]',
+      progressText: 'text-red-400 font-bold',
+      arrowHover: 'hover:text-red-500',
+    },
+    amber: {
+      titleHover: 'group-hover/row:text-amber-400',
+      cardHover: 'hover:border-amber-500 hover:shadow-[0_0_22px_rgba(245,158,11,0.35)] focus-visible:ring-amber-500',
+      cardTitleHover: 'group-hover/card:text-amber-400',
+      playBtn: 'bg-amber-500 hover:bg-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.6)]',
+      progressFill: 'bg-gradient-to-r from-amber-500 to-amber-400 shadow-[0_0_8px_#f59e0b]',
+      progressText: 'text-amber-400 font-bold',
+      arrowHover: 'hover:text-amber-400',
+    },
+    neon: {
+      titleHover: 'group-hover/row:text-emerald-400',
+      cardHover: 'hover:border-emerald-500 hover:shadow-[0_0_22px_rgba(16,185,129,0.35)] focus-visible:ring-emerald-500',
+      cardTitleHover: 'group-hover/card:text-emerald-400',
+      playBtn: 'bg-emerald-600 hover:bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.6)]',
+      progressFill: 'bg-emerald-500 shadow-[0_0_8px_#10b981]',
+      progressText: 'text-emerald-400 font-bold',
+      arrowHover: 'hover:text-emerald-400',
+    }
+  }[accentColor || 'rose'];
+
   return (
     <div className="relative mb-6 sm:mb-10 font-sans group/row">
       {/* Título da Categoria */}
@@ -81,7 +112,7 @@ export const MovieRow = React.memo(function MovieRow({
               {icon}
             </div>
           )}
-          <h2 className="text-base sm:text-xl font-black tracking-tight text-white font-display group-hover/row:text-red-500 transition-colors flex items-center gap-2 uppercase">
+          <h2 className={`text-base sm:text-xl font-black tracking-tight text-white font-display ${theme.titleHover} transition-colors flex items-center gap-2 uppercase`}>
             {title}
           </h2>
         </div>
@@ -136,7 +167,7 @@ export const MovieRow = React.memo(function MovieRow({
                 key={movie.id}
                 whileHover={{ y: -6, transition: { duration: 0.2 } }}
                 tabIndex={0}
-                className="relative flex-none w-[125px] xs:w-[145px] sm:w-[185px] md:w-[215px] xl:w-[245px] snap-start group/card rounded-xl overflow-hidden bg-zinc-900 border border-zinc-800/80 hover:border-red-500 hover:shadow-[0_0_22px_rgba(239,68,68,0.35)] focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:outline-none transition-all duration-300 cursor-pointer animate-fade-in"
+                className={`relative flex-none w-[125px] xs:w-[145px] sm:w-[185px] md:w-[215px] xl:w-[245px] snap-start group/card rounded-xl overflow-hidden bg-zinc-900 border border-zinc-800/80 ${theme.cardHover} focus-visible:ring-2 focus-visible:outline-none transition-all duration-300 cursor-pointer animate-fade-in`}
                 onClick={() => onMovieClick(movie)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
@@ -191,7 +222,7 @@ export const MovieRow = React.memo(function MovieRow({
                         whileHover={{ scale: 1.15 }}
                         whileTap={{ scale: 0.9 }}
                         onClick={(e) => onPlayClick(movie, e)}
-                        className="p-1.5 sm:p-2.5 rounded-full transition-all bg-red-600 hover:bg-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.7)] cursor-pointer"
+                        className={`p-1.5 sm:p-2.5 rounded-full transition-all text-white cursor-pointer ${theme.playBtn}`}
                         title={movie.type === 'series' ? 'Assistir Série' : 'Assistir Filme'}
                       >
                         <Play className="w-3 h-3 sm:w-4 sm:h-4 fill-white text-white" />
@@ -214,7 +245,7 @@ export const MovieRow = React.memo(function MovieRow({
                         <motion.button 
                           whileHover={{ scale: 1.15 }}
                           whileTap={{ scale: 0.9 }}
-                          className="p-1.5 sm:p-2.5 border border-zinc-600 text-zinc-300 hover:text-red-400 hover:border-red-500 bg-zinc-900/80 rounded-full transition-all cursor-pointer"
+                          className={`p-1.5 sm:p-2.5 border border-zinc-600 text-zinc-300 ${theme.cardTitleHover} bg-zinc-900/80 rounded-full transition-all cursor-pointer`}
                         >
                           <Info className="w-3 h-3 sm:w-4 sm:h-4" />
                         </motion.button>
@@ -234,7 +265,7 @@ export const MovieRow = React.memo(function MovieRow({
 
                 {/* Bloco de Texto Inferior Compacto */}
                 <div className="p-2 sm:p-3 bg-zinc-950 border-t border-zinc-900 flex flex-col justify-between h-13 sm:h-18">
-                  <p className="text-[11px] sm:text-sm font-semibold text-zinc-200 group-hover/card:text-red-400 transition-colors truncate">
+                  <p className={`text-[11px] sm:text-sm font-semibold text-zinc-200 ${theme.cardTitleHover} transition-colors truncate`}>
                     {movie.title}
                   </p>
                   
@@ -243,11 +274,11 @@ export const MovieRow = React.memo(function MovieRow({
                     <div className="mt-1 sm:mt-2">
                       <div className="flex justify-between items-center text-[8px] sm:text-[10px] text-zinc-500 font-mono mb-1 leading-none">
                         <span>{Math.floor(progress.currentTime / 60)}m</span>
-                        <span className="text-red-400 font-bold">{Math.round(progress.progress)}%</span>
+                        <span className={theme.progressText}>{Math.round(progress.progress)}%</span>
                       </div>
                       <div className="w-full bg-zinc-800 h-1 sm:h-1.5 rounded-full overflow-hidden">
                         <div 
-                          className="bg-red-600 h-full rounded-full shadow-[0_0_8px_#ef4444]" 
+                          className={`h-full rounded-full ${theme.progressFill}`}
                           style={{ width: `${progress.progress}%` }}
                         />
                       </div>

@@ -33,22 +33,6 @@ export const INITIAL_MOVIES: Movie[] = [
     tmdbId: 414906
   },
   {
-    id: 'm_2026_2',
-    title: 'Stranger Things: Temporada Final (5)',
-    description: 'A épica conclusão da saga dos anos 80 em Hawkins. Eleven, Mike e toda a turma precisam unir forças em uma batalha derradeira contra o mundo invertido e o terrível vilão Vecna, para fechar de vez o portal e salvar o mundo.',
-    posterUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=780&q=80',
-    backdropUrl: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=1200&q=80',
-    category: 'Suspense',
-    year: 2026,
-    duration: '5ª Temporada',
-    type: 'series',
-    rating: 9.1,
-    trailerUrl: 'https://www.youtube.com/embed/b9EkMc79ZSU',
-    isFeatured: true,
-    vhsTapeColor: '#e11d48', // Crimson Red
-    tmdbId: 66732
-  },
-  {
     id: 'm_2026_3',
     title: 'Avatar: Fogo e Cinzas',
     description: 'Jake Sully e Neytiri enfrentam uma nova tribo Na\'vi ameaçadora e vulcânica em Pandora: o Povo das Cinzas. Determinados a manter a paz e proteger seu ecossistema, eles precisam forjar perigosas alianças contra novos inimigos.',
@@ -396,13 +380,13 @@ const mockTMDBDatabase = [
   },
   {
     id: 66732,
-    title: 'Stranger Things: Temporada Final (5)',
-    overview: 'A épica conclusão da saga dos anos 80 em Hawkins. Eleven, Mike e toda a turma precisam unir forças em uma batalha derradeira contra o mundo invertido e o terrível vilão Vecna, para fechar de vez o portal e salvar o mundo.',
-    release_date: '2026-06-15',
-    poster_path: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=780&q=80',
-    backdrop_path: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=1200&q=80',
-    vote_average: 9.1,
-    duration_min: 55,
+    title: 'Stranger Things',
+    overview: 'Quando um garoto desaparece sob circunstâncias misteriosas, uma pequena cidade descobre mistérios envolvendo experimentos governamentais secretos, forças sobrenaturais aterrorizantes e uma garotinha muito estranha com poderes telecinéticos.',
+    release_date: '2016-07-15',
+    poster_path: 'https://image.tmdb.org/t/p/w780/twfKp60THrcOIep9sjHODOOfO8d.jpg',
+    backdrop_path: 'https://image.tmdb.org/t/p/w1280/56v2KjBlU4XaOv9rVYEQypROD7P.jpg',
+    vote_average: 8.7,
+    duration_min: 50,
     media_type: 'tv',
     genres: ['Suspense', 'Ficção Científica', 'Drama'],
     trailerId: 'b9EkMc79ZSU'
@@ -800,27 +784,13 @@ export async function getMovieDetailsTMDB(id: number, type: 'movie' | 'tv', apiK
  * Permite filtrar por 'all', 'movie' ou 'tv'
  */
 export async function getTMDBTrendingContent(apiKey: string, type: 'all' | 'movie' | 'tv' = 'all'): Promise<any[]> {
-  if (!apiKey || apiKey === 'MY_GEMINI_API_KEY' || apiKey.trim() === '') {
-    const mockDb = await fallbackTMDBSearch('');
-    const filtered = type === 'all' ? mockDb : mockDb.filter(m => m.media_type === type);
-    return filtered.map(item => ({
-      id: item.id,
-      title: item.title,
-      name: item.title,
-      popularity: item.vote_average * 10,
-      vote_average: item.vote_average,
-      media_type: item.media_type || 'movie',
-      poster_path: item.poster_path,
-      backdrop_path: item.backdrop_path,
-      overview: item.overview,
-      release_date: item.release_date,
-      first_air_date: item.release_date
-    }));
-  }
+  const effectiveKey = (apiKey && apiKey !== 'MY_GEMINI_API_KEY' && apiKey.trim() !== '')
+    ? apiKey.trim()
+    : DEFAULT_TMDB_API_KEY;
 
   try {
     const endpoint = type === 'movie' ? 'trending/movie/day' : type === 'tv' ? 'trending/tv/day' : 'trending/all/day';
-    const url = `https://api.themoviedb.org/3/${endpoint}?api_key=${encodeURIComponent(apiKey)}&language=pt-BR`;
+    const url = `https://api.themoviedb.org/3/${endpoint}?api_key=${encodeURIComponent(effectiveKey)}&language=pt-BR`;
     const res = await fetchApi(url);
     if (res.ok && res.data && Array.isArray(res.data.results) && res.data.results.length > 0) {
       return res.data.results.map((item: any) => ({
