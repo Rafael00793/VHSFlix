@@ -8,6 +8,7 @@ import { Search, Bell, Shield, LogOut, RefreshCw, UserCheck, Film, Tv, List, Sli
 import { User, Profile, AppNotification, Movie, getSubscriptionDaysLeft } from '../types';
 import { GENRE_CATEGORIES } from '../data';
 import { motion, AnimatePresence } from 'motion/react';
+import { VhsTapeIcon } from './VhsTapeIcon';
 
 interface NavbarProps {
   user: User;
@@ -190,7 +191,7 @@ export default function Navbar({
                   }`}
                   id="navbar-tab-releases"
                 >
-                  <Sparkles className="w-3.5 h-3.5 text-amber-400 fill-amber-400/20" />
+                  <VhsTapeIcon size={18} animated={true} />
                   <span>Lançamentos</span>
                   {activeTab === 'releases' && (
                     <motion.div layoutId="navbarActiveIndicator" className="absolute bottom-0 left-1 right-1 h-0.5 bg-red-600 shadow-[0_0_8px_#ef4444] rounded-full" />
@@ -579,7 +580,7 @@ export default function Navbar({
               }`}
               id="mobile-nav-releases-btn"
             >
-              <Sparkles className="w-3.5 h-3.5 text-amber-400 fill-amber-400/20" />
+              <VhsTapeIcon size={18} animated={true} />
               <span>Lançamentos</span>
             </motion.button>
 

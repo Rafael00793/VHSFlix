@@ -12,6 +12,11 @@
   status = 200
 
 [[redirects]]
+  from = "/api/tmdb-proxy"
+  to = "/.netlify/functions/tmdb-proxy"
+  status = 200
+
+[[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200

@@ -67,17 +67,61 @@ export interface FetchResult<T = any> {
  */
 export async function fetchApi<T = any>(endpoint: string, options: RequestInit = {}): Promise<FetchResult<T>> {
   const method = (options.method || 'GET').toUpperCase();
-  let fullUrl = endpoint;
 
-  // Redireciona chamadas diretas ao TMDB pelo proxy local para evitar bloqueios de CORS e browser
+  // Para chamadas diretas ao TMDB API:
+  // 1. Tentamos conexão direta do navegador (o TMDB oferece CORS universal nativo com ultra baixa latência).
+  // 2. Caso haja restrição de rede local ou adblocker no navegador do usuário, recorre ao proxy do backend.
   if (endpoint.includes('api.themoviedb.org/3/')) {
+    try {
+      const directController = new AbortController();
+      const directTimeout = setTimeout(() => directController.abort(), 6000);
+      const directRes = await fetch(endpoint, {
+        ...options,
+        signal: directController.signal,
+        headers: {
+          'Accept': 'application/json',
+          ...(options.headers || {})
+        }
+      });
+      clearTimeout(directTimeout);
+
+      const contentType = directRes.headers.get('content-type') || '';
+      if (directRes.ok && contentType.includes('application/json')) {
+        const directData = await directRes.json();
+        logApiTransaction({
+          url: endpoint,
+          method,
+          status: directRes.status,
+          statusText: directRes.statusText,
+          responseBody: directData
+        });
+        return {
+          ok: true,
+          status: directRes.status,
+          data: directData,
+          isJson: true
+        };
+      }
+    } catch (directErr) {
+      console.warn('[fetchApi] Conexão direta com TMDB falhou ou bloqueada por adblocker, recorrendo ao proxy local:', directErr);
+    }
+
+    // Recurso via Proxy do servidor
     const baseUrl = getApiBaseUrl();
-    fullUrl = `${baseUrl}/api/tmdb-proxy?url=${encodeURIComponent(endpoint)}`;
-  } else if (!endpoint.startsWith('http://') && !endpoint.startsWith('https://')) {
+    const proxyUrl = `${baseUrl}/api/tmdb-proxy?url=${encodeURIComponent(endpoint)}`;
+    return fetchApiInternal(proxyUrl, options, method);
+  }
+
+  let fullUrl = endpoint;
+  if (!endpoint.startsWith('http://') && !endpoint.startsWith('https://')) {
     const baseUrl = getApiBaseUrl();
     fullUrl = `${baseUrl}${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;
   }
 
+  return fetchApiInternal(fullUrl, options, method);
+}
+
+async function fetchApiInternal<T = any>(fullUrl: string, options: RequestInit, method: string): Promise<FetchResult<T>> {
   try {
     const response = await fetch(fullUrl, {
       ...options,
@@ -109,8 +153,12 @@ export async function fetchApi<T = any>(endpoint: string, options: RequestInit =
       responseBody: responseData
     });
 
+    // Se o status for 200 mas a resposta for HTML (ex: rewrite de SPA do Netlify),
+    // marcamos ok = false para não quebrar parsers que esperam JSON
+    const isActuallyOk = response.ok && (!fullUrl.includes('/api/') || isJson);
+
     return {
-      ok: response.ok,
+      ok: isActuallyOk,
       status: response.status,
       data: responseData,
       isJson

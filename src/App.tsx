@@ -15,6 +15,7 @@ import RecommendationBadge from './components/RecommendationBadge';
 import AdminPanel from './components/AdminPanel';
 import RequestsPanel from './components/RequestsPanel';
 import SupportPanel from './components/SupportPanel';
+import { VhsTapeIcon } from './components/VhsTapeIcon';
 import { Play, Info, Sparkles, Star, Plus, Check, Shield, HelpCircle, AlertCircle, Heart, HeartOff, Volume1, Volume2, VolumeX, Bell, X, Flame, LayoutGrid, List, Trash2, ChevronLeft, ChevronRight, Film, Tv, Clock, Award, Bookmark } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { db, saveUsersToFirestore, deleteUserFromFirestore, saveProfilesToFirestore, saveMoviesToFirestore, saveSingleMovieToFirestore, deleteMovieFromFirestore, saveSettingsToFirestore, saveRequestsToFirestore, saveSingleRequestToFirestore, deleteRequestFromFirestore, handleFirestoreError, OperationType, saveSingleNotificationToFirestore, deleteNotificationFromFirestore, saveSingleCommentToFirestore, deleteCommentFromFirestore } from './lib/firebase';
@@ -2863,7 +2864,7 @@ export default function App() {
                     const getGridTitle = () => {
                       if (searchVal) return `Resultados para "${searchVal}"`;
                       if (selectedCategory) return selectedCategory;
-                      if (activeTab === 'releases') return 'Lançamentos (2026 & Recentes)';
+                      if (activeTab === 'releases') return 'Lançamentos Filmes e Séries';
                       if (activeTab === 'movies') return 'Filmes';
                       if (activeTab === 'series') return 'Séries';
                       return 'Catálogo Completo';
@@ -2872,8 +2873,8 @@ export default function App() {
                     const getGridIcon = () => {
                       if (activeTab === 'releases') {
                         return (
-                          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-br from-rose-500/20 via-amber-500/20 to-red-500/20 border border-rose-500/40 flex items-center justify-center text-amber-400 shadow-[0_0_14px_rgba(244,63,94,0.35)] shrink-0">
-                            <Sparkles className="w-4 h-4 sm:w-4.5 sm:h-4.5 text-amber-400 fill-amber-400/20" />
+                          <div className="w-10 h-8 sm:w-11 sm:h-9 rounded-xl bg-zinc-950 border border-zinc-800/90 flex items-center justify-center shadow-[0_0_15px_rgba(239,68,68,0.25)] shrink-0 px-1 py-0.5">
+                            <VhsTapeIcon size={34} animated={true} />
                           </div>
                         );
                       }
@@ -2916,11 +2917,6 @@ export default function App() {
                                 {getGridTitle()}
                               </h2>
                             </div>
-                            {activeTab === 'releases' && (
-                              <p className="text-xs text-zinc-400 mt-1 pl-11">
-                                Estreias do ano de 2026, novas temporadas, produções recentes e títulos com dublagem nacional recém-lançada.
-                              </p>
-                            )}
                           </div>
 
                           {/* Indicador de Páginas Rápido no Topo */}

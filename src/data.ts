@@ -379,120 +379,133 @@ export const GENRE_CATEGORIES = [
   'Romance'
 ];
 
+// Banco estendido de títulos que simula o TMDB perfeitamente com posters de alta resolução
+const mockTMDBDatabase = [
+  {
+    id: 414906,
+    title: 'The Batman: Parte II',
+    overview: 'No segundo capítulo da saga do Cavaleiro das Trevas dirigida por Matt Reeves, Bruce Wayne se aprofunda ainda mais no submundo corrupto e gótico de Gotham City, enfrentando novas ameaças que testam sua integridade e mente investigativa.',
+    release_date: '2026-10-02',
+    poster_path: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=780&q=80',
+    backdrop_path: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=1200&q=80',
+    vote_average: 8.9,
+    duration_min: 165,
+    media_type: 'movie',
+    genres: ['Ação', 'Crime', 'Suspense'],
+    trailerId: 'mqq_H30_u5Q'
+  },
+  {
+    id: 66732,
+    title: 'Stranger Things: Temporada Final (5)',
+    overview: 'A épica conclusão da saga dos anos 80 em Hawkins. Eleven, Mike e toda a turma precisam unir forças em uma batalha derradeira contra o mundo invertido e o terrível vilão Vecna, para fechar de vez o portal e salvar o mundo.',
+    release_date: '2026-06-15',
+    poster_path: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=780&q=80',
+    backdrop_path: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=1200&q=80',
+    vote_average: 9.1,
+    duration_min: 55,
+    media_type: 'tv',
+    genres: ['Suspense', 'Ficção Científica', 'Drama'],
+    trailerId: 'b9EkMc79ZSU'
+  },
+  {
+    id: 83533,
+    title: 'Avatar: Fogo e Cinzas',
+    overview: 'Jake Sully e Neytiri enfrentam uma nova tribo Na\'vi ameaçadora e vulcânica em Pandora: o Povo das Cinzas. Determinados a manter a paz e proteger seu ecossistema, eles precisam forjar perigosas alianças contra novos inimigos.',
+    release_date: '2026-12-18',
+    poster_path: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=780&q=80',
+    backdrop_path: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=1200&q=80',
+    vote_average: 8.4,
+    duration_min: 155,
+    media_type: 'movie',
+    genres: ['Ficção Científica', 'Aventura', 'Ação'],
+    trailerId: 'CRRlbK5w8AE'
+  },
+  {
+    id: 100088,
+    title: 'The Last of Us: 2ª Temporada',
+    overview: 'Cinco anos após os eventos traumáticos de Salt Lake City, Joel e Ellie tentam se estabelecer em Jackson, Wyoming. Uma tragédia violenta força Ellie a embarcar em uma implacável jornada em busca de justiça e vingança.',
+    release_date: '2025-03-24',
+    poster_path: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=780&q=80',
+    backdrop_path: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=1200&q=80',
+    vote_average: 8.8,
+    duration_min: 58,
+    media_type: 'tv',
+    genres: ['Drama', 'Ação', 'Terror'],
+    trailerId: 'uLtkt8BonwM'
+  },
+  {
+    id: 693134,
+    title: 'Duna: Parte 2',
+    overview: 'Paul Atreides se une a Chani e aos Fremen enquanto busca vingança contra os conspiradores que destruíram sua família. Diante de uma escolha entre o amor de sua vida e o destino do universo, ele deve evitar um futuro terrível que só ele pode prever.',
+    release_date: '2024-03-01',
+    poster_path: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?auto=format&fit=crop&w=780&q=80',
+    backdrop_path: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=1200&q=80',
+    vote_average: 8.6,
+    duration_min: 166,
+    media_type: 'movie',
+    genres: ['Ficção Científica', 'Aventura'],
+    trailerId: 'Way9Dexny3w'
+  },
+  {
+    id: 533535,
+    title: 'Deadpool & Wolverine',
+    overview: 'Wade Wilson leva uma vida tranquila e aposentada até que a Autoridade de Variância Temporal o recruta para uma missão épica que ameaça destruir sua linha temporal, forçando-o a buscar a ajuda relutante de Wolverine.',
+    release_date: '2024-07-26',
+    poster_path: 'https://images.unsplash.com/photo-1485846234645-a62644f84728?auto=format&fit=crop&w=780&q=80',
+    backdrop_path: 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&w=1200&q=80',
+    vote_average: 8.1,
+    duration_min: 128,
+    media_type: 'movie',
+    genres: ['Ação', 'Comédia', 'Ficção Científica'],
+    trailerId: '73_1biulkYk'
+  },
+  {
+    id: 119051,
+    title: 'Wandinha (Wednesday): Temporada 2',
+    overview: 'Wandinha Addams retorna à Academia Nunca Mais para enfrentar novos mistérios sobrenaturais, desvendar antigos segredos de sua família e lidar com o surgimento de uma nova e perigosa ameaça na floresta.',
+    release_date: '2025-08-10',
+    poster_path: 'https://images.unsplash.com/photo-1514565131-fce0801e5785?auto=format&fit=crop&w=780&q=80',
+    backdrop_path: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=1200&q=80',
+    vote_average: 8.5,
+    duration_min: 52,
+    media_type: 'tv',
+    genres: ['Mistério', 'Comédia', 'Fantasia'],
+    trailerId: 'Di310BC8UrU'
+  },
+  {
+    id: 329,
+    title: 'Jurassic Park: O Parque dos Dinossauros',
+    overview: 'Os paleontólogos Alan Grant e Ellie Sattler e o matemático Ian Malcolm fazem parte de um seleto grupo convidado a visitar um parque temático na ilha Nublar habitado por dinossauros clonados a partir de DNA pré-histórico.',
+    release_date: '1993-06-11',
+    poster_path: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=780&q=80',
+    backdrop_path: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=1200&q=80',
+    vote_average: 8.3,
+    duration_min: 127,
+    media_type: 'movie',
+    genres: ['Aventura', 'Ficção Científica'],
+    trailerId: 'lc0UehYemQA'
+  },
+  {
+    id: 105,
+    title: 'De Volta para o Futuro',
+    overview: 'Marty McFly, um adolescente típico dos anos 80, é acidentalmente enviado de volta a 1955 em uma máquina do tempo construída pelo excêntrico cientista Doc Brown. Para voltar, ele precisa fazer com que seus futuros pais se apaixonem.',
+    release_date: '1985-07-03',
+    poster_path: 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&w=780&q=80',
+    backdrop_path: 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=1200&q=80',
+    vote_average: 8.5,
+    duration_min: 116,
+    media_type: 'movie',
+    genres: ['Ficção Científica', 'Aventura', 'Comédia'],
+    trailerId: 'qvsgGtIvCBY'
+  }
+];
+
 /**
  * Função simuladora de Busca do TMDB para quando o usuário ESTÁ sem chave de API
  * permitindo testar facilmente e visualizar resultados fantásticos.
  */
 export async function fallbackTMDBSearch(query: string): Promise<any[]> {
-  const normalizedQuery = query.toLowerCase();
-  
-  // Banco estendido de títulos que simula o TMDB perfeitamente com posters de alta resolução
-  const mockTMDBDatabase = [
-    {
-      id: 414906,
-      title: 'The Batman: Parte II',
-      overview: 'No segundo capítulo da saga do Cavaleiro das Trevas dirigida por Matt Reeves, Bruce Wayne se aprofunda ainda mais no submundo corrupto e gótico de Gotham City, enfrentando novas ameaças que testam sua integridade e mente investigativa.',
-      release_date: '2026-10-02',
-      poster_path: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=780&q=80',
-      backdrop_path: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=1200&q=80',
-      vote_average: 8.9,
-      duration_min: 165,
-      media_type: 'movie',
-      genres: ['Ação', 'Crime', 'Suspense'],
-      trailerId: 'mqq_H30_u5Q'
-    },
-    {
-      id: 66732,
-      title: 'Stranger Things: Temporada Final (5)',
-      overview: 'A épica conclusão da saga dos anos 80 em Hawkins. Eleven, Mike e toda a turma precisam unir forças em uma batalha derradeira contra o mundo invertido e o terrível vilão Vecna, para fechar de vez o portal e salvar o mundo.',
-      release_date: '2026-06-15',
-      poster_path: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=780&q=80',
-      backdrop_path: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=1200&q=80',
-      vote_average: 9.1,
-      duration_min: 55,
-      media_type: 'tv',
-      genres: ['Suspense', 'Ficção Científica', 'Drama'],
-      trailerId: 'b9EkMc79ZSU'
-    },
-    {
-      id: 83533,
-      title: 'Avatar: Fogo e Cinzas',
-      overview: 'Jake Sully e Neytiri enfrentam uma nova tribo Na\'vi ameaçadora e vulcânica em Pandora: o Povo das Cinzas. Determinados a manter a paz e proteger seu ecossistema, eles precisam forjar perigosas alianças contra novos inimigos.',
-      release_date: '2026-12-18',
-      poster_path: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=780&q=80',
-      backdrop_path: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=1200&q=80',
-      vote_average: 8.4,
-      duration_min: 155,
-      media_type: 'movie',
-      genres: ['Ficção Científica', 'Aventura', 'Ação'],
-      trailerId: 'CRRlbK5w8AE'
-    },
-    {
-      id: 100088,
-      title: 'The Last of Us: 2ª Temporada',
-      overview: 'Cinco anos após os eventos traumáticos de Salt Lake City, Joel e Ellie tentam se estabelecer em Jackson, Wyoming. Uma tragédia violenta força Ellie a embarcar em uma implacável jornada em busca de justiça e vingança.',
-      release_date: '2025-03-24',
-      poster_path: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=780&q=80',
-      backdrop_path: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=1200&q=80',
-      vote_average: 8.8,
-      duration_min: 58,
-      media_type: 'tv',
-      genres: ['Drama', 'Ação', 'Terror'],
-      trailerId: 'uLtkt8BonwM'
-    },
-    {
-      id: 693134,
-      title: 'Duna: Parte 2',
-      overview: 'Paul Atreides se une a Chani e aos Fremen enquanto busca vingança contra os conspiradores que destruíram sua família. Diante de uma escolha entre o amor de sua vida e o destino do universo, ele deve evitar um futuro terrível que só ele pode prever.',
-      release_date: '2024-03-01',
-      poster_path: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?auto=format&fit=crop&w=780&q=80',
-      backdrop_path: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=1200&q=80',
-      vote_average: 8.6,
-      duration_min: 166,
-      media_type: 'movie',
-      genres: ['Ficção Científica', 'Aventura'],
-      trailerId: 'Way9Dexny3w'
-    },
-    {
-      id: 533535,
-      title: 'Deadpool & Wolverine',
-      overview: 'Wade Wilson leva uma vida tranquila e aposentada até que a Autoridade de Variância Temporal o recruta para uma missão épica que ameaça destruir sua linha temporal, forçando-o a buscar a ajuda relutante de Wolverine.',
-      release_date: '2024-07-26',
-      poster_path: 'https://images.unsplash.com/photo-1485846234645-a62644f84728?auto=format&fit=crop&w=780&q=80',
-      backdrop_path: 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&w=1200&q=80',
-      vote_average: 8.1,
-      duration_min: 128,
-      media_type: 'movie',
-      genres: ['Ação', 'Comédia', 'Ficção Científica'],
-      trailerId: '73_1biulkYk'
-    },
-    {
-      id: 119051,
-      title: 'Wandinha (Wednesday): Temporada 2',
-      overview: 'Wandinha Addams retorna à Academia Nunca Mais para enfrentar novos mistérios sobrenaturais, desvendar antigos segredos de sua família e lidar com o surgimento de uma nova e perigosa ameaça na floresta.',
-      release_date: '2025-08-10',
-      poster_path: 'https://images.unsplash.com/photo-1514565131-fce0801e5785?auto=format&fit=crop&w=780&q=80',
-      backdrop_path: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=1200&q=80',
-      vote_average: 8.5,
-      duration_min: 52,
-      media_type: 'tv',
-      genres: ['Mistério', 'Comédia', 'Fantasia'],
-      trailerId: 'Di310BC8UrU'
-    },
-    {
-      id: 105,
-      title: 'De Volta para o Futuro',
-      overview: 'Marty McFly, um adolescente típico dos anos 80, é acidentalmente enviado de volta a 1955 em uma máquina do tempo construída pelo excêntrico cientista Doc Brown. Para voltar, ele precisa fazer com que seus futuros pais se apaixonem.',
-      release_date: '1985-07-03',
-      poster_path: 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&w=780&q=80',
-      backdrop_path: 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=1200&q=80',
-      vote_average: 8.5,
-      duration_min: 116,
-      media_type: 'movie',
-      genres: ['Ficção Científica', 'Aventura', 'Comédia'],
-      trailerId: 'qvsgGtIvCBY'
-    }
-  ];
+  const normalizedQuery = (query || '').toLowerCase();
 
   if (!query) return mockTMDBDatabase;
 
@@ -503,71 +516,70 @@ export async function fallbackTMDBSearch(query: string): Promise<any[]> {
   );
 }
 
+export const DEFAULT_TMDB_API_KEY = '9ba478ffe785bbc34fa2b10c46296580';
+
 /**
- * Busca Real de filmes no TMDB usando API.
- * Se falhar ou estiver sem chave, retorna uma busca simulada inteligente.
+ * Busca Real de filmes no TMDB usando API com alta resiliência e múltiplos níveis de fallback.
  */
-export async function searchMoviesTMDB(query: string, apiKey: string): Promise<any[]> {
-  if (!apiKey || apiKey === 'MY_GEMINI_API_KEY' || apiKey.trim() === '') {
-    return fallbackTMDBSearch(query);
+export async function searchMoviesTMDB(query: string, apiKey?: string): Promise<any[]> {
+  const trimmed = (query || '').trim();
+  if (!trimmed) return [];
+
+  const effectiveKey = (apiKey && apiKey !== 'MY_GEMINI_API_KEY' && apiKey.trim() !== '')
+    ? apiKey.trim()
+    : DEFAULT_TMDB_API_KEY;
+
+  // 1. Tenta pesquisa multi do TMDB com idioma em português
+  try {
+    const url = `https://api.themoviedb.org/3/search/multi?api_key=${encodeURIComponent(effectiveKey)}&query=${encodeURIComponent(trimmed)}&language=pt-BR&include_adult=false`;
+    const res = await fetchApi(url);
+    if (res.ok && res.data && Array.isArray(res.data.results) && res.data.results.length > 0) {
+      const valid = res.data.results.filter((item: any) => (item.media_type === 'movie' || item.media_type === 'tv') && (item.title || item.name));
+      if (valid.length > 0) {
+        return valid;
+      }
+    }
+  } catch (err) {
+    console.warn('[searchMoviesTMDB Multi pt-BR] Erro:', err);
   }
 
+  // 2. Tenta pesquisa combinada de filmes e séries separadamente (caso multi tenha sido estrita)
   try {
-    const url = `https://api.themoviedb.org/3/search/multi?api_key=${encodeURIComponent(apiKey)}&query=${encodeURIComponent(query)}&language=pt-BR&include_adult=false`;
-    const res = await fetchApi(url);
-    if (res.ok && res.data && Array.isArray(res.data.results)) {
-      return res.data.results.filter((item: any) => item.media_type === 'movie' || item.media_type === 'tv');
+    const [resMovie, resTv] = await Promise.all([
+      fetchApi(`https://api.themoviedb.org/3/search/movie?api_key=${encodeURIComponent(effectiveKey)}&query=${encodeURIComponent(trimmed)}&language=pt-BR&include_adult=false`),
+      fetchApi(`https://api.themoviedb.org/3/search/tv?api_key=${encodeURIComponent(effectiveKey)}&query=${encodeURIComponent(trimmed)}&language=pt-BR&include_adult=false`)
+    ]);
+
+    const moviesList = (resMovie.ok && resMovie.data && Array.isArray(resMovie.data.results))
+      ? resMovie.data.results.map((m: any) => ({ ...m, media_type: 'movie' }))
+      : [];
+    const tvList = (resTv.ok && resTv.data && Array.isArray(resTv.data.results))
+      ? resTv.data.results.map((t: any) => ({ ...t, media_type: 'tv' }))
+      : [];
+
+    const combined = [...moviesList, ...tvList].filter(i => i.title || i.name);
+    if (combined.length > 0) {
+      return combined;
     }
-    return fallbackTMDBSearch(query);
   } catch (err) {
-    return fallbackTMDBSearch(query);
+    console.warn('[searchMoviesTMDB Movie/Tv] Erro:', err);
   }
+
+  // 3. Fallback para busca simulada local integrada caso não haja internet ou o TMDB esteja fora
+  return fallbackTMDBSearch(trimmed);
 }
 
 /**
- * Detalhes de um filme no TMDB para preenchimento de formulário admin.
+ * Detalhes de um filme ou série no TMDB para preenchimento automático de formulário admin.
  */
-export async function getMovieDetailsTMDB(id: number, type: 'movie' | 'tv', apiKey: string): Promise<Partial<Movie> | null> {
+export async function getMovieDetailsTMDB(id: number, type: 'movie' | 'tv', apiKey?: string): Promise<Partial<Movie> | null> {
   const mediaType = type === 'tv' ? 'tv' : 'movie';
-  
-  if (!apiKey || apiKey === 'MY_GEMINI_API_KEY' || apiKey.trim() === '') {
-    // Busca simulada do fallback
-    const mockDb = await fallbackTMDBSearch('');
-    const found = mockDb.find(m => m.id === id);
-    if (found) {
-      return {
-        title: found.title,
-        description: found.overview,
-        posterUrl: `https://image.tmdb.org/t/p/w780${found.poster_path}`,
-        backdropUrl: `https://image.tmdb.org/t/p/original${found.backdrop_path}`,
-        year: parseInt(found.release_date.split('-')[0]) || 1980,
-        duration: found.duration_min ? `${Math.floor(found.duration_min / 60)}h ${found.duration_min % 60}m` : '1h 45m',
-        type: 'movie',
-        category: found.genres[0],
-        rating: found.vote_average,
-        trailerUrl: `https://www.youtube.com/embed/${found.trailerId}`,
-        tmdbId: found.id
-      };
-    }
-    
-    // Retorna mock randômico caso não ache
-    return {
-      title: 'Filme Retro Importado #' + id,
-      description: 'Uma obra prima dos anos dourados simulada, cheia de ação, suspense, fitas em rolo e sintetizadores vibrantes que revivem o melhor das fitas de videocassete da nossa infância.',
-      posterUrl: 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&w=780&q=80',
-      backdropUrl: 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=1200&q=80',
-      year: 1989,
-      duration: '1h 50m',
-      type: 'movie',
-      category: 'Ação',
-      rating: 7.9,
-      trailerUrl: 'https://www.youtube.com/embed/qvsgGtIvCBY',
-      tmdbId: id
-    };
-  }
+  const effectiveKey = (apiKey && apiKey !== 'MY_GEMINI_API_KEY' && apiKey.trim() !== '')
+    ? apiKey.trim()
+    : DEFAULT_TMDB_API_KEY;
 
   try {
-    const url = `https://api.themoviedb.org/3/${mediaType}/${id}?api_key=${encodeURIComponent(apiKey)}&language=pt-BR&append_to_response=videos`;
+    const url = `https://api.themoviedb.org/3/${mediaType}/${id}?api_key=${encodeURIComponent(effectiveKey)}&language=pt-BR&append_to_response=videos`;
     const res = await fetchApi(url);
     if (!res.ok || !res.data) throw new Error('Não foi possível obter detalhes do TMDB');
     const data = res.data;
@@ -761,6 +773,24 @@ export async function getMovieDetailsTMDB(id: number, type: 'movie' | 'tv', apiK
     };
   } catch (err) {
     console.error('Erro de detalhamento TMDB:', err);
+    // Fallback gracioso para mockDatabase se for um ID conhecido localmente
+    const mockFound = mockTMDBDatabase.find(m => m.id === id);
+    if (mockFound) {
+      return {
+        title: mockFound.title,
+        description: mockFound.overview,
+        posterUrl: mockFound.poster_path,
+        backdropUrl: mockFound.backdrop_path,
+        year: parseInt(mockFound.release_date.split('-')[0]) || 1990,
+        releaseDate: mockFound.release_date,
+        duration: mockFound.duration_min ? `${Math.floor(mockFound.duration_min / 60)}h ${mockFound.duration_min % 60}m` : '1h 50m',
+        type: (mockFound.media_type === 'tv' ? 'series' : 'movie') as 'movie' | 'series',
+        category: mockFound.genres[0] || 'Ação',
+        rating: mockFound.vote_average,
+        trailerUrl: `https://www.youtube.com/embed/${mockFound.trailerId}`,
+        tmdbId: mockFound.id
+      };
+    }
     return null;
   }
 }

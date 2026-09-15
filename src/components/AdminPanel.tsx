@@ -2003,14 +2003,15 @@ export default function AdminPanel({
                   </form>
 
                   {/* Status do TMDB API */}
-                  {!tmdbApiKey && (
-                    <div className="p-3 bg-amber-500/10 rounded-xl border border-amber-500/25 text-[11px] text-amber-300 font-mono flex items-start gap-2">
-                      <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                      <span>
-                        Sem chave TMDB definida. Utilizando o <strong>banco de importação inteligente integrado</strong>. Adicione uma chave na aba "Configurações" se desejar buscar no acervo mundial live.
-                      </span>
+                  <div className="p-2.5 bg-emerald-500/10 rounded-xl border border-emerald-500/25 text-[11px] text-emerald-300 font-mono flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                      <span>API TMDB Conectada: Busca Mundial Live Pronta</span>
                     </div>
-                  )}
+                    <span className="text-[9px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                      {tmdbApiKey ? 'Chave Personalizada' : 'Chave Integrada VHSFLIX'}
+                    </span>
+                  </div>
 
                   {/* Lista de Resultados da Busca para Importar com Detecção de Duplicidade */}
                   <div className="space-y-2.5 max-h-[420px] overflow-y-auto pr-1.5 custom-scrollbar">

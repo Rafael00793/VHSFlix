@@ -206,7 +206,7 @@ app.get('/api/tmdb-proxy', async (req, res) => {
         'Accept': 'application/json',
         'User-Agent': 'VHSFLIX/1.0'
       },
-      signal: AbortSignal.timeout(2000)
+      signal: AbortSignal.timeout(8000)
     });
 
     if (!tmdbRes.ok) {
@@ -226,8 +226,8 @@ app.get('/api/tmdb-proxy', async (req, res) => {
     res.setHeader('Cache-Control', 'public, max-age=300');
     return res.json(json);
   } catch (err: any) {
-    return res.status(200).json({
-      error: 'Proxy fallback',
+    return res.status(502).json({
+      error: 'Proxy fallback error',
       message: err.message || String(err),
       results: []
     });
