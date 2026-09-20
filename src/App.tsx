@@ -1580,6 +1580,29 @@ export default function App() {
     });
   };
 
+  const handleToggleRecommendation = (movieId: string) => {
+    const isMasterAdmin = Boolean(activeUser?.isAdmin || (activeUser?.email || '').toLowerCase().trim() === 'rafaelguaruja09@gmail.com' || activeUser?.id === 'u1');
+    if (!isMasterAdmin) return;
+
+    setMovies(prev => prev.map(m => {
+      if (m.id === movieId) {
+        const nextRecommended = !m.isRecommended;
+        const updated = { ...m, isRecommended: nextRecommended };
+        saveSingleMovieToFirestore(updated);
+        return updated;
+      }
+      return m;
+    }));
+
+    // Se o filme atualmente selecionado for o alterado, atualiza também a referência
+    setSelectedMovie(prev => {
+      if (prev && prev.id === movieId) {
+        return { ...prev, isRecommended: !prev.isRecommended };
+      }
+      return prev;
+    });
+  };
+
   const handleDeleteMovie = (movieId: string) => {
     // Permissão de administrador master (Rafael Gusmão ou usuário admin ativo)
     const userEmail = (activeUser?.email || '').toLowerCase().trim();
@@ -2053,14 +2076,19 @@ export default function App() {
                     >
                       {/* Botão de Assistir */}
                       <motion.button
-                        whileHover={{ scale: 1.05, boxShadow: "0 0 35px rgba(239,68,68,0.7)" }}
+                        whileHover={{ scale: 1.05, boxShadow: "0 0 35px rgba(239,68,68,0.75)" }}
                         whileTap={{ scale: 0.95 }}
                         onClick={() => handleFeaturedPlay(featuredMovie)}
-                        className="bg-red-600 hover:bg-red-500 text-white font-black text-xs sm:text-sm px-6 py-3.5 sm:px-8 sm:py-4 rounded-xl flex items-center gap-2.5 shadow-[0_0_25px_rgba(239,68,68,0.5)] transition-all cursor-pointer tracking-wider border border-red-500 group"
+                        className="relative overflow-hidden bg-gradient-to-r from-red-600 via-rose-600 to-red-600 hover:from-red-500 hover:via-rose-500 hover:to-red-500 text-white font-black text-xs sm:text-sm px-6 py-3.5 sm:px-8 sm:py-4 rounded-xl flex items-center gap-2.5 shadow-[0_0_25px_rgba(239,68,68,0.55)] transition-all cursor-pointer tracking-wider border border-red-500/80 group"
                         id="btn-hero-play"
                       >
-                        <Play className="w-4 h-4 sm:w-5 sm:h-5 fill-white text-white group-hover:scale-110 transition-transform" />
-                        <span className="font-extrabold uppercase">
+                        {/* Efeito de brilho animado (sheen) */}
+                        <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/20 to-transparent pointer-events-none" />
+                        
+                        <div className="relative z-10 flex items-center justify-center p-1.5 rounded-full bg-white/20 text-white shadow-inner group-hover:scale-110 group-hover:bg-white group-hover:text-red-600 transition-all duration-300">
+                          <Play className="w-4 h-4 sm:w-4.5 sm:h-4.5 fill-current ml-0.5" />
+                        </div>
+                        <span className="relative z-10 font-extrabold uppercase tracking-wider text-shadow">
                           {featuredMovie.type === 'series' ? 'Assistir Série' : 'Assistir Filme'}
                         </span>
                       </motion.button>
@@ -2427,14 +2455,19 @@ export default function App() {
                         {/* Botões Interativos de Ação em Verde Neon */}
                         <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 mt-5">
                           <motion.button
-                            whileHover={{ scale: 1.05, boxShadow: "0 0 30px rgba(16,185,129,0.7)" }}
+                            whileHover={{ scale: 1.05, boxShadow: "0 0 35px rgba(16,185,129,0.8)" }}
                             whileTap={{ scale: 0.95 }}
                             onClick={() => handleSelectMovie(currentTrendingMovie)}
-                            className="bg-emerald-500 hover:bg-emerald-400 text-black font-sans text-xs font-black uppercase tracking-wider px-6 py-3 rounded-xl flex items-center gap-2 transition-all cursor-pointer shadow-[0_0_25px_rgba(16,185,129,0.6)] border border-emerald-400 group"
+                            className="relative overflow-hidden bg-emerald-500 hover:bg-emerald-400 text-black font-sans text-xs font-black uppercase tracking-wider px-6 py-3 rounded-xl flex items-center gap-2.5 transition-all cursor-pointer shadow-[0_0_25px_rgba(16,185,129,0.6)] border border-emerald-400 group"
                             id="btn-play-most-desired"
                           >
-                            <Play className="w-4 h-4 fill-black text-black group-hover:scale-110 transition-transform" />
-                            <span>
+                            {/* Efeito de brilho animado (sheen) */}
+                            <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/40 to-transparent pointer-events-none" />
+                            
+                            <div className="relative z-10 flex items-center justify-center p-1 rounded-full bg-black/15 text-black group-hover:scale-110 group-hover:bg-black group-hover:text-emerald-400 transition-all duration-300">
+                              <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
+                            </div>
+                            <span className="relative z-10 font-black tracking-wider">
                               {currentTrendingMovie.type === 'series' ? 'Assistir Série' : 'Assistir Filme'}
                             </span>
                           </motion.button>
@@ -3272,6 +3305,7 @@ export default function App() {
             onDeleteComment={handleDeleteComment}
             currentUser={activeUser}
             activeProfile={activeProfile}
+            onToggleRecommendation={handleToggleRecommendation}
           />
 
           {/* --- SISTEMA DE TOAST DE NOTIFICAÇÃO AO VIVO RETRÔ --- */}

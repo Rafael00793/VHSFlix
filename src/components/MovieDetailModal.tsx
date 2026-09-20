@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Movie, WatchProgress, MovieComment } from '../types';
-import { X, Play, Pause, Plus, Check, Star, RefreshCw, Tv, Clock, HelpCircle, Film, Sparkles, AlertCircle, ExternalLink, Maximize, Minimize, RotateCw, Smartphone, Shield, Sliders, ThumbsUp, ThumbsDown, ChevronDown, ArrowLeft, Settings, Volume2, VolumeX, User, Users, Send, MessageSquare, Trash2, Zap, Server, Clapperboard } from 'lucide-react';
+import { X, Play, Pause, Plus, Check, Star, RefreshCw, Tv, Clock, HelpCircle, Film, Sparkles, AlertCircle, ExternalLink, Maximize, Minimize, RotateCw, Smartphone, Shield, Sliders, ThumbsUp, ThumbsDown, ChevronDown, ArrowLeft, Settings, Volume2, VolumeX, User, Users, Send, MessageSquare, Trash2, Zap, Server, Clapperboard, Award } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { INITIAL_MOVIES } from '../data';
 import { handlePosterError, handleBackdropError, getCleanPosterUrl, getCleanBackdropUrl } from '../lib/imageUtils';
@@ -354,6 +354,7 @@ interface MovieDetailModalProps {
   onDeleteComment?: (commentId: string) => void;
   currentUser?: any;
   activeProfile?: any;
+  onToggleRecommendation?: (movieId: string) => void;
 }
 
 const CATEGORY_COLORS: { [key: string]: string } = {
@@ -494,7 +495,8 @@ export default function MovieDetailModal({
   onAddComment,
   onDeleteComment,
   currentUser,
-  activeProfile
+  activeProfile,
+  onToggleRecommendation
 }: MovieDetailModalProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [selectedServer, setSelectedServer] = useState<'play1' | 'play2' | 'play3' | 'play4' | 'play'>('play1');
@@ -1177,7 +1179,12 @@ export default function MovieDetailModal({
       // Carrega progresso anterior uma única vez ao carregar o filme
       const initialProgress = watchHistory[movie.id];
       if (initialProgress) {
-        setCurrentTime(initialProgress.currentTime);
+        // Se o progresso salvo já chegou a 100% ou ao final, reiniciamos do início para permitir assistir novamente sem travar
+        if (initialProgress.progress >= 100 || initialProgress.currentTime >= (seconds - 5)) {
+          setCurrentTime(0);
+        } else {
+          setCurrentTime(initialProgress.currentTime);
+        }
       } else {
         setCurrentTime(0);
       }
@@ -1191,17 +1198,9 @@ export default function MovieDetailModal({
         const prev = currentTimeRef.current;
         let nextTime = prev + (1 * playbackSpeed);
         if (nextTime >= totalDuration) {
-          nextTime = totalDuration;
-          setIsPlaying(false);
-          if (timerRef.current) clearInterval(timerRef.current);
-          
-          // Fim do filme!
-          onUpdateProgress(movie.id, 100, totalDuration, totalDuration, true);
-          setCurrentTime(totalDuration);
+          // Quando chega ao final, reinicia o contador suavemente sem bloquear ou forçar parada
+          setCurrentTime(0);
         } else {
-          // Envia atualizações de progresso
-          const percentage = (nextTime / totalDuration) * 100;
-          onUpdateProgress(movie.id, percentage, nextTime, totalDuration, false);
           setCurrentTime(nextTime);
         }
       }, 1000);
@@ -1214,7 +1213,7 @@ export default function MovieDetailModal({
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [isPlaying, totalDuration, movie?.id, playbackSpeed, onUpdateProgress, parsedVideo.type]);
+  }, [isPlaying, totalDuration, movie?.id, playbackSpeed, parsedVideo.type]);
 
   // --- SISTEMA DE PRÉ-CARREGAMENTO (PREFETCHING) E PRECONNECT ---
   // Pré-conecta silenciosamente aos servidores de streaming e faz prefetch do player ativo e do próximo episódio
@@ -1332,6 +1331,10 @@ export default function MovieDetailModal({
   };
 
   const handleStartPlayback = () => {
+    // Se o progresso já estava em 100% ou no final, recomeça do início para não travar o filme
+    if (currentTime >= (totalDuration - 5) || currentTime >= totalDuration) {
+      setCurrentTime(0);
+    }
     setIsConfiguringPlayer(false);
     setIsTapeLoading(true);
 
@@ -1402,59 +1405,87 @@ export default function MovieDetailModal({
               <div ref={playerContainerRef} className="fixed inset-0 bg-black flex flex-col text-white font-mono z-[85] animate-fade-in h-[100dvh] w-screen overflow-hidden">
                 {/* 1. Barra de Navegação Superior do Player - Design Cinematográfico Vermelho */}
                 <div className="min-h-[4.5rem] sm:min-h-[5rem] bg-gradient-to-b from-black via-zinc-950/95 to-black/85 backdrop-blur-xl border-b border-red-600/30 flex items-center justify-between px-3 sm:px-8 py-3 select-none shrink-0 z-50 shadow-[0_4px_30px_rgba(239,68,68,0.15)] pt-[calc(env(safe-area-inset-top)+0.5rem)]">
-                  {/* Esquerda: Botão Voltar ao Catálogo Cinematográfico em Verde Neon com Animação */}
-                  <div className="flex items-center">
+                  {/* Esquerda: Botão Voltar ao Catálogo e Botão Pequeno e Animado para Trocar Servidor */}
+                  <div className="flex items-center gap-2 sm:gap-2.5">
                     <button
                       onClick={() => {
                         setIsPlaying(false);
                         setIsTapeLoading(false);
                         if (onClose) onClose();
                       }}
-                      className="bg-red-600 hover:bg-red-500 active:scale-95 text-white font-sans font-black text-xs sm:text-sm h-11 sm:h-12 px-4 sm:px-6 rounded-xl transition-all duration-200 flex items-center gap-2.5 shadow-[0_0_22px_rgba(239,68,68,0.5)] hover:shadow-[0_0_35px_rgba(239,68,68,0.8)] cursor-pointer focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none shrink-0 border border-red-500 group"
+                      className="bg-red-600 hover:bg-red-500 active:scale-95 text-white font-sans font-black text-xs sm:text-sm h-11 sm:h-12 px-3.5 sm:px-6 rounded-xl transition-all duration-200 flex items-center gap-2 shadow-[0_0_22px_rgba(239,68,68,0.5)] hover:shadow-[0_0_35px_rgba(239,68,68,0.8)] cursor-pointer focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none shrink-0 border border-red-500 group"
                       aria-label="Voltar para Catálogo"
                       title="Voltar ao catálogo principal"
                       id="btn-close-vhs-player"
                     >
                       <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5 stroke-[3] group-hover:-translate-x-1.5 transition-transform duration-200" />
-                      <span className="font-black tracking-wider text-xs sm:text-sm uppercase">VOLTAR AO CATÁLOGO</span>
+                      <span className="font-black tracking-wider text-xs sm:text-sm uppercase hidden sm:inline">VOLTAR AO CATÁLOGO</span>
+                      <span className="font-black tracking-wider text-xs uppercase sm:hidden">CATÁLOGO</span>
                     </button>
+
+                    {/* Botão pequeno e animado para voltar na aba anterior de escolher outro servidor */}
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.93 }}
+                      onClick={() => {
+                        setIsServerSelectorOpen(true);
+                      }}
+                      className="relative overflow-hidden h-11 sm:h-12 px-3 sm:px-4 rounded-xl bg-zinc-900/90 hover:bg-zinc-800 border border-red-500/50 hover:border-red-400 text-white flex items-center gap-1.5 sm:gap-2 font-sans font-bold text-xs sm:text-xs shadow-[0_0_15px_rgba(239,68,68,0.25)] hover:shadow-[0_0_25px_rgba(239,68,68,0.5)] transition-all cursor-pointer group shrink-0"
+                      aria-label="Escolher outro servidor"
+                      title="Voltar e escolher outro servidor de reprodução"
+                      id="btn-change-server-player"
+                    >
+                      {/* Brilho animado (sheen) */}
+                      <motion.div
+                        className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent pointer-events-none"
+                        animate={{ x: ['-100%', '200%'] }}
+                        transition={{ repeat: Infinity, duration: 2.2, ease: 'easeInOut' }}
+                      />
+                      <Server className="w-4 h-4 text-red-400 group-hover:rotate-12 transition-transform duration-300 shrink-0" />
+                      <span className="text-[11px] sm:text-xs tracking-wider uppercase font-extrabold text-zinc-100 group-hover:text-white whitespace-nowrap">
+                        Servidores
+                      </span>
+                    </motion.button>
                   </div>
 
-                  {/* Centro: Título do Conteúdo e Status 'Reproduzindo Agora' em Vermelho Vibrante */}
-                  <div className="flex-1 text-center px-4 flex flex-col justify-center items-center overflow-hidden">
-                    <div className="inline-flex items-center gap-2 px-3 py-0.5 rounded-full bg-red-600/15 border border-red-500/40 shadow-[0_0_12px_rgba(239,68,68,0.25)] mb-1">
-                      <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse"></span>
-                      <span className="text-red-400 font-mono text-[9px] sm:text-[11px] font-black uppercase tracking-widest">
+                  {/* Centro: Título do Conteúdo e Status 'Reproduzindo Agora' com Tipografia Chamativa e Animação */}
+                  <div className="flex-1 text-center px-2 sm:px-6 flex flex-col justify-center items-center overflow-hidden">
+                    <motion.div 
+                      initial={{ opacity: 0, y: -6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-950/60 border border-red-500/50 shadow-[0_0_16px_rgba(239,68,68,0.35)] mb-1.5"
+                    >
+                      <span className="w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
+                      <span className="text-red-300 font-mono text-[9px] sm:text-[11px] font-black uppercase tracking-widest">
                         REPRODUZINDO AGORA • {selectedServer === 'play1' ? 'PLAY 1' : selectedServer === 'play2' ? 'PLAY 2' : selectedServer === 'play3' ? 'PLAY 3' : selectedServer === 'play4' ? 'PLAY 4' : 'PLAY 5'}
                       </span>
-                    </div>
-                    <h2 className="text-white text-xs sm:text-base font-black font-sans truncate tracking-wider max-w-[180px] xs:max-w-[280px] sm:max-w-lg md:max-w-xl drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)]">
-                      {movie.title}
-                      {movie.type === 'series' && (
-                        <span className="text-red-400 ml-2 font-mono text-[10px] sm:text-xs font-bold bg-black/80 border border-red-500/40 px-2 py-0.5 rounded-md shadow-sm">
-                          T{season.toString().padStart(2, '0')} E{episode.toString().padStart(2, '0')}
-                        </span>
-                      )}
-                    </h2>
-                  </div>
+                    </motion.div>
 
-                  {/* Direita: Status da Fita / Indicador de Sinal e Botão de Abrir Externo se Bloqueado por Sandbox */}
-                  <div className="flex items-center gap-2 shrink-0">
-                    {parsedVideo.url && (
-                      <a
-                        href={parsedVideo.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 hover:border-red-500/50 text-zinc-200 hover:text-white font-mono text-[10px] sm:text-xs font-bold transition-all shadow-sm cursor-pointer"
-                        title="Caso o player apresente erro de sandbox ou bloqueio de reprodução pelo navegador, clique aqui para abrir diretamente"
+                    <div className="flex items-center justify-center gap-2 max-w-full overflow-hidden">
+                      <motion.h2 
+                        initial={{ opacity: 0, scale: 0.96 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="text-white text-sm xs:text-base sm:text-xl md:text-2xl font-black font-sans truncate tracking-wider drop-shadow-[0_2px_12px_rgba(239,68,68,0.4)]"
                       >
-                        <ExternalLink className="w-3.5 h-3.5 text-red-400" />
-                        <span className="hidden xs:inline">Abrir Sem Sandbox</span>
-                      </a>
-                    )}
-                    <div className="hidden sm:flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-zinc-900/90 border border-red-500/30 text-zinc-300 font-mono text-[11px] shadow-sm">
-                      <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
-                      <span className="font-bold tracking-wider uppercase text-zinc-200">SINAL ATIVO</span>
+                        {movie.title}
+                      </motion.h2>
+
+                      {movie.type === 'series' && (
+                        <motion.span 
+                          initial={{ opacity: 0, scale: 0.8 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          className="relative overflow-hidden inline-flex items-center px-2.5 py-0.5 rounded-lg bg-gradient-to-r from-red-600 via-rose-600 to-red-600 text-white font-mono text-[10px] sm:text-xs font-black tracking-widest uppercase shadow-[0_0_14px_rgba(239,68,68,0.6)] border border-red-400 shrink-0"
+                        >
+                          <motion.div
+                            className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/30 to-transparent pointer-events-none"
+                            animate={{ x: ['-100%', '200%'] }}
+                            transition={{ repeat: Infinity, duration: 2, ease: 'easeInOut' }}
+                          />
+                          <span className="relative z-10">
+                            T{season.toString().padStart(2, '0')} • E{episode.toString().padStart(2, '0')}
+                          </span>
+                        </motion.span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -2158,20 +2189,20 @@ export default function MovieDetailModal({
                     <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-4 mt-5 sm:mt-8 w-full sm:w-auto">
                       
                       <motion.button
-                        whileHover={{ scale: 1.05, boxShadow: "0 0 35px rgba(239,68,68,0.7)" }}
+                        whileHover={{ scale: 1.05, boxShadow: "0 0 35px rgba(239,68,68,0.75)" }}
                         whileTap={{ scale: 0.95 }}
                         onClick={handlePlayClick}
-                        className="w-full sm:w-auto bg-red-600 hover:bg-red-500 text-white font-black text-xs sm:text-base px-7 py-3.5 sm:px-9 sm:py-4 rounded-xl transition-all flex items-center justify-center gap-3 shadow-[0_0_25px_rgba(239,68,68,0.5)] cursor-pointer tracking-wider border border-red-500 group"
+                        className="relative overflow-hidden w-full sm:w-auto bg-gradient-to-r from-red-600 via-rose-600 to-red-600 hover:from-red-500 hover:via-rose-500 hover:to-red-500 text-white font-black text-xs sm:text-base px-7 py-3.5 sm:px-9 sm:py-4 rounded-xl transition-all flex items-center justify-center gap-3 shadow-[0_0_25px_rgba(239,68,68,0.55)] cursor-pointer tracking-wider border border-red-500/80 group"
                         id="btn-modal-play"
                       >
-                        <Play className="w-5 h-5 sm:w-6 sm:h-6 fill-white text-white group-hover:scale-110 transition-transform" />
-                        <span className="uppercase font-extrabold">
-                          {progressState && progressState.progress > 0 
-                            ? `Continuar (${Math.round(progressState.progress)}%)` 
-                            : movie.type === 'series'
-                              ? 'Assistir Série'
-                              : 'Assistir Filme'
-                          }
+                        {/* Efeito de brilho de luz animado (sheen) atravessando o botão */}
+                        <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/20 to-transparent pointer-events-none" />
+                        
+                        <div className="relative z-10 flex items-center justify-center p-1.5 rounded-full bg-white/20 text-white shadow-inner group-hover:scale-110 group-hover:bg-white group-hover:text-red-600 transition-all duration-300">
+                          <Play className="w-4 h-4 sm:w-5 sm:h-5 fill-current ml-0.5" />
+                        </div>
+                        <span className="relative z-10 uppercase font-black tracking-wider text-shadow">
+                          {movie.type === 'series' ? 'Assistir Série' : 'Assistir Filme'}
                         </span>
                       </motion.button>
 
@@ -2211,6 +2242,39 @@ export default function MovieDetailModal({
                         >
                           <RefreshCw className="w-4 h-4 sm:w-5 sm:h-5" />
                           <span className="sm:hidden text-xs font-semibold">Recomeçar</span>
+                        </motion.button>
+                      )}
+
+                      {/* Exclusivo para o ADM Rafael: Botão Animado de Indicar / Desindicar Título */}
+                      {(currentUser?.isAdmin || currentUser?.email === 'rafaelguaruja09@gmail.com' || currentUser?.id === 'u1') && (
+                        <motion.button
+                          whileHover={{ scale: 1.05, boxShadow: movie.isRecommended ? '0 0 25px rgba(245,158,11,0.6)' : '0 0 20px rgba(245,158,11,0.3)' }}
+                          whileTap={{ scale: 0.94 }}
+                          onClick={() => {
+                            if (onToggleRecommendation) {
+                              onToggleRecommendation(movie.id);
+                            }
+                          }}
+                          className={`relative overflow-hidden w-full sm:w-auto px-5 py-3.5 sm:px-6 sm:py-4 rounded-xl border transition-all flex items-center justify-center gap-2.5 cursor-pointer font-sans font-black text-xs sm:text-sm tracking-wider select-none ${
+                            movie.isRecommended
+                              ? 'bg-gradient-to-r from-amber-500/30 via-yellow-500/25 to-amber-600/30 border-amber-400 text-amber-200 shadow-[0_0_20px_rgba(245,158,11,0.4)]'
+                              : 'bg-zinc-900/90 hover:bg-zinc-800/90 border-amber-500/50 hover:border-amber-400 text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.2)]'
+                          }`}
+                          title={movie.isRecommended ? 'Remover selo de indicação' : 'Indicar filme/série com selo oficial'}
+                          id="btn-modal-admin-recommend"
+                        >
+                          {/* Brilho animado contínuo */}
+                          <motion.div
+                            className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-amber-300/25 to-transparent pointer-events-none"
+                            animate={{ x: ['-100%', '200%'] }}
+                            transition={{ repeat: Infinity, duration: 2.2, ease: 'easeInOut' }}
+                          />
+
+                          <Award className={`w-4 h-4 sm:w-5 sm:h-5 ${movie.isRecommended ? 'fill-amber-400 text-amber-300 drop-shadow-[0_0_8px_rgba(251,191,36,0.9)]' : 'text-amber-400'}`} />
+                          <span className="uppercase font-black">
+                            {movie.isRecommended ? 'Indicado' : 'Indicar'}
+                          </span>
+                          <Sparkles className={`w-3.5 h-3.5 ${movie.isRecommended ? 'text-amber-300 animate-pulse' : 'text-amber-400/70'}`} />
                         </motion.button>
                       )}
                     </div>
@@ -2697,7 +2761,7 @@ export default function MovieDetailModal({
                           onClick={handlePlayClick}
                           className="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded-lg transition-all text-xs font-black flex items-center gap-1.5 cursor-pointer shadow-[0_0_15px_rgba(239,68,68,0.4)] border border-red-500"
                         >
-                          <Play className="w-3.5 h-3.5 fill-white text-white" /> Retomar
+                          <Play className="w-3.5 h-3.5 fill-white text-white" /> {movie.type === 'series' ? 'Assistir Série' : 'Assistir Filme'}
                         </motion.button>
                       </div>
                     )}
