@@ -52,6 +52,8 @@ export interface WatchProgress {
   duration: number; // duração total em segundos
   updatedAt: string; // ISO string
   isFinished: boolean;
+  lastSeason?: number; // Última temporada assistida (para séries)
+  lastEpisode?: number; // Último episódio assistido (para séries)
 }
 
 export interface Profile {

@@ -1424,7 +1424,9 @@ export default function App() {
     progress: number, 
     currentTime: number, 
     duration: number, 
-    isFinished: boolean
+    isFinished: boolean,
+    lastSeason?: number,
+    lastEpisode?: number
   ) => {
     const targetUserId = currentUserId || users[0]?.id || 'u1';
     const userProfs = allProfiles[targetUserId] || [];
@@ -1436,13 +1438,16 @@ export default function App() {
       const userList = prev[targetUserId] || [];
       const updatedList = userList.map(p => {
         if (p.id === targetPid) {
+          const prevEntry = p.watchHistory?.[String(movieId)];
           const currentProgress: WatchProgress = {
             movieId: String(movieId),
             progress,
             currentTime,
             duration,
             updatedAt: new Date().toISOString(),
-            isFinished
+            isFinished,
+            lastSeason: lastSeason !== undefined ? lastSeason : prevEntry?.lastSeason,
+            lastEpisode: lastEpisode !== undefined ? lastEpisode : prevEntry?.lastEpisode
           };
 
           const nextHistory = { ...p.watchHistory };

@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Movie, WatchProgress, MovieComment } from '../types';
-import { X, Play, Pause, Plus, Check, Star, RefreshCw, Tv, Clock, HelpCircle, Film, Sparkles, AlertCircle, ExternalLink, Maximize, Minimize, RotateCw, Smartphone, Shield, Sliders, ThumbsUp, ThumbsDown, ChevronDown, ArrowLeft, Settings, Volume2, VolumeX, User, Users, Send, MessageSquare, Trash2, Zap, Server, Clapperboard, Award } from 'lucide-react';
+import { X, Play, Pause, Plus, Check, Star, RefreshCw, Tv, Clock, HelpCircle, Film, Sparkles, AlertCircle, ExternalLink, Maximize, Minimize, RotateCw, Smartphone, Shield, Sliders, ThumbsUp, ThumbsDown, ChevronDown, ArrowLeft, Settings, Volume2, VolumeX, User, Users, Send, MessageSquare, Trash2, Zap, Server, Clapperboard, Award, Bookmark, History, PlayCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { INITIAL_MOVIES } from '../data';
 import { handlePosterError, handleBackdropError, getCleanPosterUrl, getCleanBackdropUrl } from '../lib/imageUtils';
@@ -341,7 +341,7 @@ interface MovieDetailModalProps {
   myList: string[];
   onToggleMyList: (movieId: string) => void;
   watchHistory: { [movieId: string]: WatchProgress };
-  onUpdateProgress: (movieId: string, progress: number, currentTime: number, duration: number, isFinished: boolean) => void;
+  onUpdateProgress: (movieId: string, progress: number, currentTime: number, duration: number, isFinished: boolean, lastSeason?: number, lastEpisode?: number) => void;
   adguardEnabled?: boolean;
   onVoteMovie?: (movieId: string, voteType: 'like' | 'dislike') => void;
   activeProfileId?: string;
@@ -474,6 +474,91 @@ export function getSeriesSeasonsData(movie: Movie) {
   }
 
   return seasons;
+}
+
+/**
+ * Componente de Fita VHS Realista Animada (Estilo Fita Cassete Original Anos 80/90)
+ * Apresenta carcaça preta com relevos, janela fumê central, fita magnética
+ * e dois carretéis com engrenagens centrais girando de verdade em loop contínuo.
+ */
+function AnimatedVhsTape({ className = '' }: { className?: string }) {
+  return (
+    <motion.div 
+      initial={{ scale: 0.95 }}
+      animate={{ y: [0, -2, 0] }}
+      transition={{ repeat: Infinity, duration: 2.8, ease: "easeInOut" }}
+      className={`relative w-20 h-13 sm:w-24 sm:h-15 bg-[#101011] rounded-md border-2 border-black ring-1 ring-zinc-700/80 shadow-[0_5px_15px_rgba(0,0,0,0.9),inset_0_1px_1px_rgba(255,255,255,0.12)] flex flex-col justify-between p-1 select-none shrink-0 overflow-hidden ${className}`}
+      title="Fita VHS Original com Gravação Ativa"
+    >
+      {/* Chanfros plásticos de fita VHS nos cantos */}
+      <div className="absolute top-0 left-1 right-1 h-[2px] bg-zinc-800/90 rounded-t" />
+      <div className="absolute bottom-0 left-1 right-1 h-[1.5px] bg-zinc-900 rounded-b" />
+
+      {/* Rótulo superior da fita VHS com fonte retrô */}
+      <div className="flex items-center justify-between px-1 py-0.5 bg-zinc-900/95 border-b border-black rounded-[2px] text-[7px] font-mono font-black text-zinc-300">
+        <span className="text-[#00FF66] tracking-tighter uppercase font-extrabold flex items-center gap-1 drop-shadow-[0_0_5px_rgba(0,255,102,0.8)]">
+          <span className="w-1.5 h-1.5 rounded-full bg-[#00FF66] animate-pulse" />
+          VHS HQ
+        </span>
+        <span className="text-[6.5px] tracking-wider text-zinc-400 font-bold uppercase">HI-FI SP</span>
+      </div>
+
+      {/* Janela central de acrílico fumê com os dois carretéis giratórios reais */}
+      <div className="relative mx-auto w-[92%] h-6 sm:h-7 bg-black/95 rounded border border-zinc-800 flex items-center justify-between px-1.5 overflow-hidden shadow-inner">
+        {/* Fita magnética escura conectando os dois rolos */}
+        <div className="absolute inset-x-2 top-1/2 -translate-y-1/2 h-[3.5px] bg-zinc-800 shadow-[inset_0_1px_2px_rgba(0,0,0,0.9)]" />
+
+        {/* Carretel esquerdo girando de forma contínua */}
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ repeat: Infinity, duration: 2.4, ease: "linear" }}
+          className="relative z-10 w-5 h-5 sm:w-5.5 sm:h-5.5 rounded-full border border-zinc-600 bg-zinc-900 flex items-center justify-center shadow-md"
+        >
+          {/* Fita enrolada no carretel */}
+          <div className="w-4 h-4 sm:w-4.5 sm:h-4.5 rounded-full border border-black bg-zinc-950 flex items-center justify-center">
+            {/* Engrenagem / dentes brancos centrais da bobina da fita VHS */}
+            <div className="w-2.5 h-2.5 rounded-full bg-zinc-200 border border-zinc-400 flex items-center justify-center relative">
+              <div className="w-1.2 h-1.2 rounded-full bg-black" />
+              {/* Dentes da engrenagem */}
+              <div className="absolute inset-0 border-t border-b border-zinc-600 rounded-full" />
+              <div className="absolute inset-0 border-l border-r border-zinc-600 rounded-full" />
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Visor central do cassete com indicador LED verde neon */}
+        <div className="relative z-10 flex flex-col items-center justify-center gap-0.5">
+          <div className="w-1.5 h-1.5 rounded-full bg-[#00FF66] shadow-[0_0_8px_#00FF66] animate-ping" />
+          <span className="text-[5px] font-mono text-[#00FF66] font-bold tracking-tighter">REC</span>
+        </div>
+
+        {/* Carretel direito girando de forma contínua */}
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ repeat: Infinity, duration: 2.4, ease: "linear" }}
+          className="relative z-10 w-5 h-5 sm:w-5.5 sm:h-5.5 rounded-full border border-zinc-600 bg-zinc-900 flex items-center justify-center shadow-md"
+        >
+          {/* Fita enrolada no carretel */}
+          <div className="w-4 h-4 sm:w-4.5 sm:h-4.5 rounded-full border border-black bg-zinc-950 flex items-center justify-center">
+            {/* Engrenagem / dentes brancos centrais da bobina da fita VHS */}
+            <div className="w-2.5 h-2.5 rounded-full bg-zinc-200 border border-zinc-400 flex items-center justify-center relative">
+              <div className="w-1.2 h-1.2 rounded-full bg-black" />
+              {/* Dentes da engrenagem */}
+              <div className="absolute inset-0 border-t border-b border-zinc-600 rounded-full" />
+              <div className="absolute inset-0 border-l border-r border-zinc-600 rounded-full" />
+            </div>
+          </div>
+        </motion.div>
+      </div>
+
+      {/* Faixa inferior com parafusos simulados e carimbo de áudio */}
+      <div className="flex items-center justify-between px-1 text-[6px] text-zinc-500 font-mono font-bold">
+        <span className="w-1 h-1 rounded-full bg-zinc-600 shadow-sm" />
+        <span className="tracking-widest uppercase text-[#00FF66]/80 text-[6.5px]">T-120 MEMORY</span>
+        <span className="w-1 h-1 rounded-full bg-zinc-600 shadow-sm" />
+      </div>
+    </motion.div>
+  );
 }
 
 export default function MovieDetailModal({
@@ -1179,6 +1264,10 @@ export default function MovieDetailModal({
       // Carrega progresso anterior uma única vez ao carregar o filme
       const initialProgress = watchHistory[movie.id];
       if (initialProgress) {
+        if (movie.type === 'series') {
+          if (initialProgress.lastSeason) setSeason(initialProgress.lastSeason);
+          if (initialProgress.lastEpisode) setEpisode(initialProgress.lastEpisode);
+        }
         // Se o progresso salvo já chegou a 100% ou ao final, reiniciamos do início para permitir assistir novamente sem travar
         if (initialProgress.progress >= 100 || initialProgress.currentTime >= (seconds - 5)) {
           setCurrentTime(0);
@@ -1338,6 +1427,12 @@ export default function MovieDetailModal({
     setIsConfiguringPlayer(false);
     setIsTapeLoading(true);
 
+    // Registra imediatamente a última temporada e episódio assistidos caso seja série
+    if (movie && movie.type === 'series') {
+      const pct = (currentTime / (totalDuration || 1)) * 100;
+      onUpdateProgress(movie.id, pct, currentTime, totalDuration, false, season, episode);
+    }
+
     const modalElem = document.getElementById('movie-detail-modal');
     if (modalElem) {
       modalElem.scrollTo({ top: 0, behavior: 'instant' });
@@ -1363,14 +1458,14 @@ export default function MovieDetailModal({
     const targetSecs = parseInt(e.target.value);
     setCurrentTime(targetSecs);
     const percentage = (targetSecs / totalDuration) * 100;
-    onUpdateProgress(movie.id, percentage, targetSecs, totalDuration, targetSecs >= totalDuration);
+    onUpdateProgress(movie.id, percentage, targetSecs, totalDuration, targetSecs >= totalDuration, movie.type === 'series' ? season : undefined, movie.type === 'series' ? episode : undefined);
   };
 
   const handleResetProgress = () => {
     if (!movie) return;
     setCurrentTime(0);
     setIsPlaying(false);
-    onUpdateProgress(movie.id, 0, 0, totalDuration, false);
+    onUpdateProgress(movie.id, 0, 0, totalDuration, false, movie.type === 'series' ? season : undefined, movie.type === 'series' ? episode : undefined);
   };
 
   if (!movie) return null;
@@ -1411,16 +1506,14 @@ export default function MovieDetailModal({
                       onClick={() => {
                         setIsPlaying(false);
                         setIsTapeLoading(false);
-                        if (onClose) onClose();
                       }}
                       className="bg-red-600 hover:bg-red-500 active:scale-95 text-white font-sans font-black text-xs sm:text-sm h-11 sm:h-12 px-3.5 sm:px-6 rounded-xl transition-all duration-200 flex items-center gap-2 shadow-[0_0_22px_rgba(239,68,68,0.5)] hover:shadow-[0_0_35px_rgba(239,68,68,0.8)] cursor-pointer focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none shrink-0 border border-red-500 group"
-                      aria-label="Voltar para Catálogo"
-                      title="Voltar ao catálogo principal"
+                      aria-label="Voltar para a tela anterior"
+                      title="Voltar para a tela anterior deste filme ou série"
                       id="btn-close-vhs-player"
                     >
                       <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5 stroke-[3] group-hover:-translate-x-1.5 transition-transform duration-200" />
-                      <span className="font-black tracking-wider text-xs sm:text-sm uppercase hidden sm:inline">VOLTAR AO CATÁLOGO</span>
-                      <span className="font-black tracking-wider text-xs uppercase sm:hidden">CATÁLOGO</span>
+                      <span className="font-black tracking-wider text-xs sm:text-sm uppercase">VOLTAR</span>
                     </button>
 
                     {/* Botão pequeno e animado para voltar na aba anterior de escolher outro servidor */}
@@ -1514,12 +1607,12 @@ export default function MovieDetailModal({
                             const duration = videoRef.current.duration || totalDuration || 1;
                             const pct = (current / duration) * 100;
                             setCurrentTime(current);
-                            onUpdateProgress(movie.id, pct, current, duration, current >= duration);
+                            onUpdateProgress(movie.id, pct, current, duration, current >= duration, movie.type === 'series' ? season : undefined, movie.type === 'series' ? episode : undefined);
                           }
                         }}
                         onEnded={() => {
                           setIsPlaying(false);
-                          onUpdateProgress(movie.id, 100, totalDuration, totalDuration, true);
+                          onUpdateProgress(movie.id, 100, totalDuration, totalDuration, true, movie.type === 'series' ? season : undefined, movie.type === 'series' ? episode : undefined);
                         }}
                       />
 
@@ -2278,6 +2371,107 @@ export default function MovieDetailModal({
                         </motion.button>
                       )}
                     </div>
+
+                    {/* LEMBRETE ANIMADO RETRÔ VERDE NEON: ÚLTIMO EPISÓDIO / TEMPORADA VISTO PELO USUÁRIO */}
+                    {movie.type === 'series' && (() => {
+                      // Prioriza o progresso salvo na memória do perfil ou os estados atuais
+                      const savedSeason = progressState?.lastSeason || season || 1;
+                      const savedEpisode = progressState?.lastEpisode || episode || 1;
+                      const hasWatchedHistory = Boolean(progressState && (progressState.lastSeason || progressState.lastEpisode || progressState.progress > 0));
+
+                      return (
+                        <motion.div 
+                          initial={{ opacity: 0, y: 15 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 0.15, duration: 0.4 }}
+                          className="mt-4 sm:mt-5 w-full sm:max-w-2xl"
+                          id="series-last-watched-reminder"
+                        >
+                          <div className="relative group overflow-hidden rounded-2xl bg-gradient-to-r from-black via-[#031d0d] to-black border-2 border-[#00FF66] ring-2 ring-black p-3.5 sm:p-4.5 shadow-[0_0_35px_rgba(0,255,102,0.38),inset_0_0_20px_rgba(0,255,102,0.08)] hover:shadow-[0_0_45px_rgba(0,255,102,0.55),inset_0_0_25px_rgba(0,255,102,0.15)] transition-all duration-300 backdrop-blur-xl">
+                            
+                            {/* Feixe de luz suave animado em looping contínuo varrendo o card */}
+                            <motion.div 
+                              className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-[#00FF66]/15 to-transparent pointer-events-none"
+                              animate={{ x: ['-100%', '200%'] }}
+                              transition={{ repeat: Infinity, duration: 3.2, ease: 'easeInOut' }}
+                            />
+
+                            <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                              <div className="flex items-center gap-3.5 sm:gap-4">
+                                {/* Símbolo: Fita VHS Animada da Cor Preta Original com Carretéis Girando */}
+                                <AnimatedVhsTape />
+
+                                <div className="text-left">
+                                  {/* Cabeçalho da Fita / Memória Salva */}
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-black/90 border border-[#00FF66]/60 shadow-[0_0_10px_rgba(0,255,102,0.25)]">
+                                      <span className="w-2 h-2 rounded-full bg-[#00FF66] shadow-[0_0_8px_#00FF66] animate-pulse" />
+                                      <span className="text-[#00FF66] font-mono text-[9px] sm:text-[11px] font-black uppercase tracking-widest">
+                                        {hasWatchedHistory ? 'SESSÃO GRAVADA NA FITA' : 'MEMÓRIA DE MARATONA'}
+                                      </span>
+                                    </div>
+                                    {hasWatchedHistory && progressState?.progress !== undefined && progressState.progress > 0 && (
+                                      <span className="text-[9px] sm:text-[10px] font-mono font-black px-2 py-0.5 rounded-md bg-[#00FF66]/15 text-[#00FF66] border border-[#00FF66]/40 shadow-[0_0_8px_rgba(0,255,102,0.2)]">
+                                        {Math.round(progressState.progress)}% ASSISTIDO
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {/* Chamada Principal e Destaque da Temporada e Episódio */}
+                                  <div className="mt-1.5 flex items-center flex-wrap gap-2">
+                                    <span className="text-zinc-200 text-xs sm:text-sm font-black font-sans uppercase tracking-wider">
+                                      {hasWatchedHistory ? 'Você parou na' : 'Próximo episódio:'}
+                                    </span>
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="px-2.5 py-1 rounded-lg bg-black text-[#00FF66] border-2 border-black ring-1 ring-[#00FF66]/80 font-mono font-black text-xs sm:text-sm tracking-wider uppercase shadow-[0_0_12px_rgba(0,255,102,0.25)]">
+                                        TEMPORADA {savedSeason}
+                                      </span>
+                                      <span className="text-[#00FF66] font-black text-sm sm:text-base">•</span>
+                                      <span className="px-2.5 py-1 rounded-lg bg-[#00FF66] text-black border-2 border-black font-mono font-black text-xs sm:text-sm tracking-wider uppercase shadow-[0_0_16px_rgba(0,255,102,0.5)]">
+                                        EPISÓDIO {savedEpisode.toString().padStart(2, '0')}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Botão Continuar Animado com Verde Neon, Contorno Preto e Feixe de Luz */}
+                              <div className="flex items-center justify-end shrink-0 w-full md:w-auto">
+                                <motion.button
+                                  whileHover={{ scale: 1.06, boxShadow: "0 0 30px rgba(0,255,102,0.9)" }}
+                                  whileTap={{ scale: 0.94 }}
+                                  animate={{ scale: [1, 1.025, 1] }}
+                                  transition={{ repeat: Infinity, duration: 2.2, ease: "easeInOut" }}
+                                  onClick={() => {
+                                    setSeason(savedSeason);
+                                    setEpisode(savedEpisode);
+                                    setActiveTab('episodes');
+                                    setIsServerSelectorOpen(true);
+                                  }}
+                                  className="relative overflow-hidden w-full md:w-auto px-5 py-3 sm:px-6 sm:py-3.5 rounded-xl bg-[#00FF66] hover:bg-[#33ff85] active:bg-[#00e65c] text-black font-sans font-black text-xs sm:text-sm tracking-wider uppercase flex items-center justify-center gap-2 border-2 border-black shadow-[0_0_22px_rgba(0,255,102,0.7)] cursor-pointer group select-none"
+                                  title={`Continuar maratona na Temporada ${savedSeason} Episódio ${savedEpisode}`}
+                                  id="btn-reminder-continue"
+                                >
+                                  {/* Feixe de luz branco passando continuamente pelo botão */}
+                                  <motion.div
+                                    className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/50 to-transparent pointer-events-none"
+                                    animate={{ x: ['-100%', '200%'] }}
+                                    transition={{ repeat: Infinity, duration: 1.8, ease: 'easeInOut' }}
+                                  />
+
+                                  <div className="w-5 h-5 rounded-full bg-black text-[#00FF66] flex items-center justify-center shadow-sm shrink-0 group-hover:scale-110 transition-transform">
+                                    <Play className="w-3 h-3 fill-current ml-0.5" />
+                                  </div>
+                                  <span className="relative z-10 font-black">
+                                    CONTINUAR EP {savedEpisode.toString().padStart(2, '0')}
+                                  </span>
+                                </motion.button>
+                              </div>
+                            </div>
+                          </div>
+                        </motion.div>
+                      );
+                    })()}
                   </div>
                 </>
               )}
