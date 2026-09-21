@@ -496,8 +496,8 @@ function AnimatedVhsTape({ className = '' }: { className?: string }) {
 
       {/* Rótulo superior da fita VHS com fonte retrô */}
       <div className="flex items-center justify-between px-1 py-0.5 bg-zinc-900/95 border-b border-black rounded-[2px] text-[7px] font-mono font-black text-zinc-300">
-        <span className="text-[#00FF66] tracking-tighter uppercase font-extrabold flex items-center gap-1 drop-shadow-[0_0_5px_rgba(0,255,102,0.8)]">
-          <span className="w-1.5 h-1.5 rounded-full bg-[#00FF66] animate-pulse" />
+        <span className="text-rose-400 tracking-tighter uppercase font-extrabold flex items-center gap-1 drop-shadow-[0_0_5px_rgba(244,63,94,0.8)]">
+          <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
           VHS HQ
         </span>
         <span className="text-[6.5px] tracking-wider text-zinc-400 font-bold uppercase">HI-FI SP</span>
@@ -512,7 +512,7 @@ function AnimatedVhsTape({ className = '' }: { className?: string }) {
         <motion.div
           animate={{ rotate: 360 }}
           transition={{ repeat: Infinity, duration: 2.4, ease: "linear" }}
-          className="relative z-10 w-5 h-5 sm:w-5.5 sm:h-5.5 rounded-full border border-zinc-600 bg-zinc-900 flex items-center justify-center shadow-md"
+          className="relative z-10 w-5 h-5 sm:w-5.5 sm:h-5.5 rounded-full border border-zinc-650 bg-zinc-900 flex items-center justify-center shadow-md"
         >
           {/* Fita enrolada no carretel */}
           <div className="w-4 h-4 sm:w-4.5 sm:h-4.5 rounded-full border border-black bg-zinc-950 flex items-center justify-center">
@@ -526,17 +526,17 @@ function AnimatedVhsTape({ className = '' }: { className?: string }) {
           </div>
         </motion.div>
 
-        {/* Visor central do cassete com indicador LED verde neon */}
+        {/* Visor central do cassete com indicador LED vermelho vinho / rubi */}
         <div className="relative z-10 flex flex-col items-center justify-center gap-0.5">
-          <div className="w-1.5 h-1.5 rounded-full bg-[#00FF66] shadow-[0_0_8px_#00FF66] animate-ping" />
-          <span className="text-[5px] font-mono text-[#00FF66] font-bold tracking-tighter">REC</span>
+          <div className="w-1.5 h-1.5 rounded-full bg-rose-500 shadow-[0_0_8px_#f43f5e] animate-ping" />
+          <span className="text-[5px] font-mono text-rose-400 font-bold tracking-tighter">REC</span>
         </div>
 
         {/* Carretel direito girando de forma contínua */}
         <motion.div
           animate={{ rotate: 360 }}
           transition={{ repeat: Infinity, duration: 2.4, ease: "linear" }}
-          className="relative z-10 w-5 h-5 sm:w-5.5 sm:h-5.5 rounded-full border border-zinc-600 bg-zinc-900 flex items-center justify-center shadow-md"
+          className="relative z-10 w-5 h-5 sm:w-5.5 sm:h-5.5 rounded-full border border-zinc-650 bg-zinc-900 flex items-center justify-center shadow-md"
         >
           {/* Fita enrolada no carretel */}
           <div className="w-4 h-4 sm:w-4.5 sm:h-4.5 rounded-full border border-black bg-zinc-950 flex items-center justify-center">
@@ -554,7 +554,7 @@ function AnimatedVhsTape({ className = '' }: { className?: string }) {
       {/* Faixa inferior com parafusos simulados e carimbo de áudio */}
       <div className="flex items-center justify-between px-1 text-[6px] text-zinc-500 font-mono font-bold">
         <span className="w-1 h-1 rounded-full bg-zinc-600 shadow-sm" />
-        <span className="tracking-widest uppercase text-[#00FF66]/80 text-[6.5px]">T-120 MEMORY</span>
+        <span className="tracking-widest uppercase text-rose-400/90 text-[6.5px]">T-120 MEMORY</span>
         <span className="w-1 h-1 rounded-full bg-zinc-600 shadow-sm" />
       </div>
     </motion.div>
@@ -2372,7 +2372,7 @@ export default function MovieDetailModal({
                       )}
                     </div>
 
-                    {/* LEMBRETE ANIMADO RETRÔ VERDE NEON: ÚLTIMO EPISÓDIO / TEMPORADA VISTO PELO USUÁRIO */}
+                    {/* LEMBRETE ANIMADO RETRÔ VERMELHO VINHO COM CONTORNOS PRETOS: ÚLTIMO EPISÓDIO / TEMPORADA VISTO PELO USUÁRIO */}
                     {movie.type === 'series' && (() => {
                       // Prioriza o progresso salvo na memória do perfil ou os estados atuais
                       const savedSeason = progressState?.lastSeason || season || 1;
@@ -2387,11 +2387,11 @@ export default function MovieDetailModal({
                           className="mt-4 sm:mt-5 w-full sm:max-w-2xl"
                           id="series-last-watched-reminder"
                         >
-                          <div className="relative group overflow-hidden rounded-2xl bg-gradient-to-r from-black via-[#031d0d] to-black border-2 border-[#00FF66] ring-2 ring-black p-3.5 sm:p-4.5 shadow-[0_0_35px_rgba(0,255,102,0.38),inset_0_0_20px_rgba(0,255,102,0.08)] hover:shadow-[0_0_45px_rgba(0,255,102,0.55),inset_0_0_25px_rgba(0,255,102,0.15)] transition-all duration-300 backdrop-blur-xl">
+                          <div className="relative group overflow-hidden rounded-2xl bg-gradient-to-r from-black via-[#38040e] to-black border-2 border-[#9f1239] ring-2 ring-black p-3.5 sm:p-4.5 shadow-[0_0_35px_rgba(159,18,57,0.45),inset_0_0_20px_rgba(159,18,57,0.15)] hover:shadow-[0_0_45px_rgba(225,29,72,0.6),inset_0_0_25px_rgba(225,29,72,0.2)] transition-all duration-300 backdrop-blur-xl">
                             
                             {/* Feixe de luz suave animado em looping contínuo varrendo o card */}
                             <motion.div 
-                              className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-[#00FF66]/15 to-transparent pointer-events-none"
+                              className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-[#e11d48]/20 to-transparent pointer-events-none"
                               animate={{ x: ['-100%', '200%'] }}
                               transition={{ repeat: Infinity, duration: 3.2, ease: 'easeInOut' }}
                             />
@@ -2402,16 +2402,16 @@ export default function MovieDetailModal({
                                 <AnimatedVhsTape />
 
                                 <div className="text-left">
-                                  {/* Cabeçalho da Fita / Memória Salva */}
+                                  {/* Cabeçalho da Fita / Memória Salva em Tom Vermelho Vinho */}
                                   <div className="flex items-center gap-2 flex-wrap">
-                                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-black/90 border border-[#00FF66]/60 shadow-[0_0_10px_rgba(0,255,102,0.25)]">
-                                      <span className="w-2 h-2 rounded-full bg-[#00FF66] shadow-[0_0_8px_#00FF66] animate-pulse" />
-                                      <span className="text-[#00FF66] font-mono text-[9px] sm:text-[11px] font-black uppercase tracking-widest">
+                                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-black/90 border border-[#9f1239]/70 shadow-[0_0_12px_rgba(159,18,57,0.35)]">
+                                      <span className="w-2 h-2 rounded-full bg-[#e11d48] shadow-[0_0_8px_#f43f5e] animate-pulse" />
+                                      <span className="text-rose-200 font-mono text-[9px] sm:text-[11px] font-black uppercase tracking-widest">
                                         {hasWatchedHistory ? 'SESSÃO GRAVADA NA FITA' : 'MEMÓRIA DE MARATONA'}
                                       </span>
                                     </div>
                                     {hasWatchedHistory && progressState?.progress !== undefined && progressState.progress > 0 && (
-                                      <span className="text-[9px] sm:text-[10px] font-mono font-black px-2 py-0.5 rounded-md bg-[#00FF66]/15 text-[#00FF66] border border-[#00FF66]/40 shadow-[0_0_8px_rgba(0,255,102,0.2)]">
+                                      <span className="text-[9px] sm:text-[10px] font-mono font-black px-2 py-0.5 rounded-md bg-[#9f1239]/25 text-rose-300 border border-[#9f1239]/50 shadow-[0_0_8px_rgba(159,18,57,0.25)]">
                                         {Math.round(progressState.progress)}% ASSISTIDO
                                       </span>
                                     )}
@@ -2423,11 +2423,11 @@ export default function MovieDetailModal({
                                       {hasWatchedHistory ? 'Você parou na' : 'Próximo episódio:'}
                                     </span>
                                     <div className="flex items-center gap-1.5">
-                                      <span className="px-2.5 py-1 rounded-lg bg-black text-[#00FF66] border-2 border-black ring-1 ring-[#00FF66]/80 font-mono font-black text-xs sm:text-sm tracking-wider uppercase shadow-[0_0_12px_rgba(0,255,102,0.25)]">
+                                      <span className="px-2.5 py-1 rounded-lg bg-black text-rose-200 border-2 border-black ring-1 ring-[#9f1239] font-mono font-black text-xs sm:text-sm tracking-wider uppercase shadow-[0_0_14px_rgba(159,18,57,0.35)]">
                                         TEMPORADA {savedSeason}
                                       </span>
-                                      <span className="text-[#00FF66] font-black text-sm sm:text-base">•</span>
-                                      <span className="px-2.5 py-1 rounded-lg bg-[#00FF66] text-black border-2 border-black font-mono font-black text-xs sm:text-sm tracking-wider uppercase shadow-[0_0_16px_rgba(0,255,102,0.5)]">
+                                      <span className="text-rose-500 font-black text-sm sm:text-base">•</span>
+                                      <span className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-[#881337] via-[#9f1239] to-[#881337] text-white border-2 border-black font-mono font-black text-xs sm:text-sm tracking-wider uppercase shadow-[0_0_18px_rgba(159,18,57,0.6)]">
                                         EPISÓDIO {savedEpisode.toString().padStart(2, '0')}
                                       </span>
                                     </div>
@@ -2435,10 +2435,10 @@ export default function MovieDetailModal({
                                 </div>
                               </div>
 
-                              {/* Botão Continuar Animado com Verde Neon, Contorno Preto e Feixe de Luz */}
+                              {/* Botão Continuar Animado com Vermelho Vinho, Contorno Preto e Feixe de Luz */}
                               <div className="flex items-center justify-end shrink-0 w-full md:w-auto">
                                 <motion.button
-                                  whileHover={{ scale: 1.06, boxShadow: "0 0 30px rgba(0,255,102,0.9)" }}
+                                  whileHover={{ scale: 1.06, boxShadow: "0 0 35px rgba(225,29,72,0.9)" }}
                                   whileTap={{ scale: 0.94 }}
                                   animate={{ scale: [1, 1.025, 1] }}
                                   transition={{ repeat: Infinity, duration: 2.2, ease: "easeInOut" }}
@@ -2448,7 +2448,7 @@ export default function MovieDetailModal({
                                     setActiveTab('episodes');
                                     setIsServerSelectorOpen(true);
                                   }}
-                                  className="relative overflow-hidden w-full md:w-auto px-5 py-3 sm:px-6 sm:py-3.5 rounded-xl bg-[#00FF66] hover:bg-[#33ff85] active:bg-[#00e65c] text-black font-sans font-black text-xs sm:text-sm tracking-wider uppercase flex items-center justify-center gap-2 border-2 border-black shadow-[0_0_22px_rgba(0,255,102,0.7)] cursor-pointer group select-none"
+                                  className="relative overflow-hidden w-full md:w-auto px-5 py-3 sm:px-6 sm:py-3.5 rounded-xl bg-gradient-to-r from-[#881337] via-[#be123c] to-[#881337] hover:from-[#9f1239] hover:via-[#e11d48] hover:to-[#9f1239] active:bg-[#4c0519] text-white font-sans font-black text-xs sm:text-sm tracking-wider uppercase flex items-center justify-center gap-2 border-2 border-black shadow-[0_0_25px_rgba(159,18,57,0.7)] cursor-pointer group select-none"
                                   title={`Continuar maratona na Temporada ${savedSeason} Episódio ${savedEpisode}`}
                                   id="btn-reminder-continue"
                                 >
@@ -2459,7 +2459,7 @@ export default function MovieDetailModal({
                                     transition={{ repeat: Infinity, duration: 1.8, ease: 'easeInOut' }}
                                   />
 
-                                  <div className="w-5 h-5 rounded-full bg-black text-[#00FF66] flex items-center justify-center shadow-sm shrink-0 group-hover:scale-110 transition-transform">
+                                  <div className="w-5 h-5 rounded-full bg-black text-rose-400 flex items-center justify-center shadow-sm shrink-0 group-hover:scale-110 group-hover:text-white transition-transform">
                                     <Play className="w-3 h-3 fill-current ml-0.5" />
                                   </div>
                                   <span className="relative z-10 font-black">
