@@ -21,28 +21,28 @@ export function getContentIdFromUrl(): string | null {
     const search = window.location.search || '';
     const hash = window.location.hash || '';
 
-    // 1. Extração por Pathname (ex: /filme/m_2026_1 ou /serie/m_stranger_things)
-    const pathMatch = pathname.match(/^\/(?:filme|serie|series|assistir|watch|title|m)\/([^/?#]+)/i);
+    // 1. Extração por Pathname (ex: /filme/m_2026_1 ou /serie/m_1790970889620)
+    const pathMatch = pathname.match(/^\/(?:filme|filmes|serie|series|assistir|watch|title|m)\/([^/?#]+)/i);
     if (pathMatch && pathMatch[1]) {
-      return decodeURIComponent(pathMatch[1]);
+      return decodeURIComponent(pathMatch[1]).trim();
     }
 
     // 2. Extração por Query Params (ex: ?watch=m_2026_1 ou ?filme=m_2026_1 ou ?id=m_2026_1)
     const params = new URLSearchParams(search);
-    const paramId = params.get('watch') || params.get('filme') || params.get('serie') || params.get('title') || params.get('id') || params.get('m');
+    const paramId = params.get('watch') || params.get('filme') || params.get('serie') || params.get('series') || params.get('title') || params.get('id') || params.get('m');
     if (paramId) {
-      return decodeURIComponent(paramId);
+      return decodeURIComponent(paramId).trim();
     }
 
     // 3. Extração por Hash (ex: #/filme/m_2026_1 ou #m_2026_1)
     if (hash) {
       const cleanHash = hash.replace(/^#\/?/, '');
-      const hashPathMatch = cleanHash.match(/^(?:filme|serie|series|assistir|watch|title|m)\/([^/?#]+)/i);
+      const hashPathMatch = cleanHash.match(/^(?:filme|filmes|serie|series|assistir|watch|title|m)\/([^/?#]+)/i);
       if (hashPathMatch && hashPathMatch[1]) {
-        return decodeURIComponent(hashPathMatch[1]);
+        return decodeURIComponent(hashPathMatch[1]).trim();
       }
       if (cleanHash.startsWith('m_') || /^\d+$/.test(cleanHash)) {
-        return decodeURIComponent(cleanHash);
+        return decodeURIComponent(cleanHash).trim();
       }
     }
   } catch (err) {
@@ -97,24 +97,24 @@ export function findMovieById(movies: Movie[], targetId: string): Movie | null {
 
   const normalizedTarget = targetId.trim().toLowerCase();
 
-  // 1. Busca exata por ID
-  const exact = movies.find(m => m.id === targetId || m.id.toLowerCase() === normalizedTarget);
+  // 1. Busca exata por ID (seguro contra campos nulos)
+  const exact = movies.find(m => m && m.id && (m.id === targetId || m.id.toLowerCase() === normalizedTarget));
   if (exact) return exact;
 
   // 2. Busca por TMDB ID numérico
-  const byTmdb = movies.find(m => m.tmdbId && String(m.tmdbId) === normalizedTarget);
+  const byTmdb = movies.find(m => m && m.tmdbId && String(m.tmdbId).trim().toLowerCase() === normalizedTarget);
   if (byTmdb) return byTmdb;
 
   // 3. Busca por título slugificado ou simplificado
   const byTitleSlug = movies.find(m => {
-    if (!m.title) return false;
+    if (!m || !m.title) return false;
     const slug = m.title
       .toLowerCase()
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '');
-    return slug === normalizedTarget || m.title.toLowerCase() === normalizedTarget;
+    return slug === normalizedTarget || m.title.toLowerCase().trim() === normalizedTarget;
   });
   if (byTitleSlug) return byTitleSlug;
 

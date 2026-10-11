@@ -328,18 +328,55 @@ export default function App() {
   });
   const [searchVal, setSearchVal] = useState('');
 
-  // Sincronização de URLs individuais e Deep Linking ao atualizar filmes do banco
+  // Sincronização de URLs individuais e Deep Linking ao atualizar filmes do banco ou abrir link direto
   useEffect(() => {
     const targetId = getContentIdFromUrl();
-    if (targetId) {
-      if (!selectedMovie || (selectedMovie.id !== targetId && String(selectedMovie.tmdbId) !== targetId)) {
-        const found = findMovieById(movies, targetId) || findMovieById(INITIAL_MOVIES, targetId);
-        if (found) {
-          setSelectedMovie(found);
-          document.title = `${found.title} • VHSFLIX`;
-        }
-      }
+    if (!targetId) return;
+
+    // Se já está com o filme/série correto selecionado, não precisa reprocessar
+    if (selectedMovie && (selectedMovie.id === targetId || String(selectedMovie.tmdbId) === targetId)) {
+      return;
     }
+
+    // 1. Tenta encontrar no catálogo carregado em memória ou no catálogo inicial
+    const found = findMovieById(movies, targetId) || findMovieById(INITIAL_MOVIES, targetId);
+    if (found) {
+      setSelectedMovie(found);
+      document.title = `${found.title} • VHSFLIX`;
+      return;
+    }
+
+    // 2. Se for um link compartilhado (ex: /serie/m_1790970889620) e ainda não estiver no pool local,
+    // busca pontualmente o documento direto no Firestore pelo ID do documento
+    let isCancelled = false;
+    getDoc(doc(db, 'movies', targetId))
+      .then((docSnap) => {
+        if (!isCancelled && docSnap.exists()) {
+          const rawMovie = docSnap.data() as Movie;
+          const cleanPoster = getCleanPosterUrl(rawMovie.posterUrl);
+          const cleanBackdrop = getCleanBackdropUrl(rawMovie.backdropUrl, rawMovie.posterUrl);
+          const singleMovie: Movie = {
+            ...rawMovie,
+            id: rawMovie.id || docSnap.id,
+            posterUrl: cleanPoster,
+            backdropUrl: cleanBackdrop
+          };
+          setSelectedMovie(singleMovie);
+          document.title = `${singleMovie.title} • VHSFLIX`;
+          // Adiciona ao pool de filmes para garantir que recomendações e navegação funcionem
+          setMovies(prev => {
+            if (prev.some(m => m.id === singleMovie.id)) return prev;
+            return [singleMovie, ...prev];
+          });
+        }
+      })
+      .catch((err) => {
+        console.warn('[ROUTING] Erro ao buscar documento direto no Firestore:', err);
+      });
+
+    return () => {
+      isCancelled = true;
+    };
   }, [movies, selectedMovie]);
 
   // Listener para botões Voltar / Avançar do navegador (popstate)
@@ -351,6 +388,22 @@ export default function App() {
         if (found) {
           setSelectedMovie(found);
           document.title = `${found.title} • VHSFLIX`;
+        } else {
+          getDoc(doc(db, 'movies', targetId)).then((docSnap) => {
+            if (docSnap.exists()) {
+              const rawMovie = docSnap.data() as Movie;
+              const cleanPoster = getCleanPosterUrl(rawMovie.posterUrl);
+              const cleanBackdrop = getCleanBackdropUrl(rawMovie.backdropUrl, rawMovie.posterUrl);
+              const singleMovie: Movie = {
+                ...rawMovie,
+                id: rawMovie.id || docSnap.id,
+                posterUrl: cleanPoster,
+                backdropUrl: cleanBackdrop
+              };
+              setSelectedMovie(singleMovie);
+              document.title = `${singleMovie.title} • VHSFLIX`;
+            }
+          }).catch(() => {});
         }
       } else {
         setSelectedMovie(null);
@@ -576,6 +629,7 @@ export default function App() {
 
         const sanitizedMovie = {
           ...rawMovie,
+          id: rawMovie.id || docSnap.id,
           posterUrl: cleanPoster,
           backdropUrl: cleanBackdrop
         };
