@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Movie, WatchProgress, MovieComment } from '../types';
-import { X, Play, Pause, Plus, Check, Star, RefreshCw, Tv, Clock, HelpCircle, Film, Sparkles, AlertCircle, ExternalLink, Maximize, Minimize, RotateCw, Smartphone, Shield, Sliders, ThumbsUp, ThumbsDown, ChevronDown, ArrowLeft, Settings, Volume2, VolumeX, User, Users, Send, MessageSquare, Trash2, Zap, Server, Clapperboard, Award, Bookmark, History, PlayCircle } from 'lucide-react';
+import { X, Play, Pause, Plus, Check, Star, RefreshCw, Tv, Clock, HelpCircle, Film, Sparkles, AlertCircle, ExternalLink, Maximize, Minimize, RotateCw, Smartphone, Shield, Sliders, ThumbsUp, ThumbsDown, ChevronDown, ArrowLeft, Settings, Volume2, VolumeX, User, Users, Send, MessageSquare, Trash2, Zap, Server, Clapperboard, Award, Bookmark, History, PlayCircle, Share2, Copy, MessageCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { INITIAL_MOVIES } from '../data';
 import { handlePosterError, handleBackdropError, getCleanPosterUrl, getCleanBackdropUrl } from '../lib/imageUtils';
@@ -15,6 +15,7 @@ import { FembedService } from '../services/fembedService';
 import { SuperflixService } from '../services/superflixService';
 import { fetchApi } from '../lib/apiClient';
 import { RecommendationBadge } from './RecommendationBadge';
+import { getShareUrl } from '../lib/routing';
 
 export interface CastMember {
   id: number;
@@ -477,86 +478,248 @@ export function getSeriesSeasonsData(movie: Movie) {
 }
 
 /**
- * Componente de Fita VHS Realista Animada (Estilo Fita Cassete Original Anos 80/90)
- * Apresenta carcaça preta com relevos, janela fumê central, fita magnética
- * e dois carretéis com engrenagens centrais girando de verdade em loop contínuo.
+/**
+ * Componente Fita Cassete de Locadora Animada
+ * Apresenta carcaça preta autêntica de fita cassete/VHS de videolocadora,
+ * etiqueta adesiva clássica dos anos 80/90 com a escrita "VHSFLIX" em destaque,
+ * selo retrô "FAVOR REBOBINAR", código de barras de acervo de locadora,
+ * visor acrílico fumê com fita magnética marrom e dois carretéis dentados animados
+ * girando continuamente em loop suave.
  */
-function AnimatedVhsTape({ className = '' }: { className?: string }) {
+function AnimatedVhsTape({ className = '', onClick }: { className?: string; onClick?: () => void }) {
   return (
-    <motion.div 
-      initial={{ scale: 0.95 }}
-      animate={{ y: [0, -2, 0] }}
-      transition={{ repeat: Infinity, duration: 2.8, ease: "easeInOut" }}
-      className={`relative w-20 h-13 sm:w-24 sm:h-15 bg-[#101011] rounded-md border-2 border-black ring-1 ring-zinc-700/80 shadow-[0_5px_15px_rgba(0,0,0,0.9),inset_0_1px_1px_rgba(255,255,255,0.12)] flex flex-col justify-between p-1 select-none shrink-0 overflow-hidden ${className}`}
-      title="Fita VHS Original com Gravação Ativa"
+    <motion.div
+      initial={{ scale: 0.96 }}
+      animate={{ y: [0, -2.5, 0] }}
+      transition={{ repeat: Infinity, duration: 3.2, ease: "easeInOut" }}
+      whileHover={{ scale: 1.05 }}
+      whileTap={{ scale: 0.95 }}
+      onClick={onClick}
+      className={`relative w-28 h-18 sm:w-36 sm:h-23 md:w-40 md:h-25 select-none shrink-0 cursor-pointer drop-shadow-[0_8px_18px_rgba(0,0,0,0.85)] ${className}`}
+      title="Fita Cassete de Locadora VHSFLIX - Reprodução Ativa"
     >
-      {/* Chanfros plásticos de fita VHS nos cantos */}
-      <div className="absolute top-0 left-1 right-1 h-[2px] bg-zinc-800/90 rounded-t" />
-      <div className="absolute bottom-0 left-1 right-1 h-[1.5px] bg-zinc-900 rounded-b" />
+      <svg
+        viewBox="0 0 160 100"
+        className="w-full h-full overflow-visible"
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <defs>
+          {/* Gradiente carcaça plástica preta da fita de locadora */}
+          <linearGradient id="vhsCassetteChassis" x1="0" y1="0" x2="0" y2="100" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#252528" />
+            <stop offset="10%" stopColor="#161619" />
+            <stop offset="85%" stopColor="#0a0a0c" />
+            <stop offset="100%" stopColor="#040405" />
+          </linearGradient>
 
-      {/* Rótulo superior da fita VHS com fonte retrô */}
-      <div className="flex items-center justify-between px-1 py-0.5 bg-zinc-900/95 border-b border-black rounded-[2px] text-[7px] font-mono font-black text-zinc-300">
-        <span className="text-rose-400 tracking-tighter uppercase font-extrabold flex items-center gap-1 drop-shadow-[0_0_5px_rgba(244,63,94,0.8)]">
-          <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+          {/* Gradiente da janela acrílica fumê central */}
+          <linearGradient id="vhsCassetteWindow" x1="0" y1="42" x2="0" y2="86" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="#07070a" />
+            <stop offset="100%" stopColor="#14141a" />
+          </linearGradient>
+
+          {/* Bobina de fita magnética marrom-escura */}
+          <linearGradient id="vhsMagneticTape" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#3d1403" />
+            <stop offset="50%" stopColor="#2b0e02" />
+            <stop offset="100%" stopColor="#1a0801" />
+          </linearGradient>
+
+          {/* Faixa tricolor retrô de locadora (Vermelho, Amarelo, Azul) */}
+          <linearGradient id="vhsRentalStripes" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="#ef4444" />
+            <stop offset="45%" stopColor="#f59e0b" />
+            <stop offset="100%" stopColor="#3b82f6" />
+          </linearGradient>
+
+          {/* Brilho sutil neon */}
+          <filter id="vhsFlixGlow" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="0" dy="0" stdDeviation="0.8" floodColor="#ef4444" floodOpacity="0.5" />
+          </filter>
+        </defs>
+
+        {/* 1. CORPO DA FITA CASSETE (Plástico preto com contorno e chanfros) */}
+        <rect
+          x="2"
+          y="2"
+          width="156"
+          height="96"
+          rx="4.5"
+          fill="url(#vhsCassetteChassis)"
+          stroke="#3f3f46"
+          strokeWidth="1.6"
+        />
+
+        {/* Ranhuras de pegada tátil nas laterais */}
+        <line x1="4.5" y1="12" x2="4.5" y2="88" stroke="#09090b" strokeWidth="1.2" />
+        <line x1="6" y1="12" x2="6" y2="88" stroke="#333338" strokeWidth="0.8" />
+        <line x1="154" y1="12" x2="154" y2="88" stroke="#333338" strokeWidth="0.8" />
+        <line x1="155.5" y1="12" x2="155.5" y2="88" stroke="#09090b" strokeWidth="1.2" />
+
+        {/* Parafusos metálicos nos 4 cantos e no meio superior */}
+        {[
+          { cx: 7, cy: 7 },
+          { cx: 153, cy: 7 },
+          { cx: 7, cy: 93 },
+          { cx: 153, cy: 93 },
+          { cx: 80, cy: 6 }
+        ].map((screw, idx) => (
+          <g key={idx}>
+            <circle cx={screw.cx} cy={screw.cy} r="2.2" fill="#71717a" stroke="#27272a" strokeWidth="0.5" />
+            <line x1={screw.cx - 1.2} y1={screw.cy} x2={screw.cx + 1.2} y2={screw.cy} stroke="#18181b" strokeWidth="0.6" />
+            <line x1={screw.cx} y1={screw.cy - 1.2} x2={screw.cx} y2={screw.cy + 1.2} stroke="#18181b" strokeWidth="0.6" />
+          </g>
+        ))}
+
+        {/* Rebaixo para etiqueta de locadora */}
+        <rect x="11" y="9" width="138" height="31" rx="2.5" fill="#09090c" stroke="#1c1c22" strokeWidth="0.8" />
+
+        {/* 2. ETIQUETA ADESIVA DE LOCADORA DE VÍDEO (Estilo Anos 80/90) */}
+        <rect x="12" y="10" width="136" height="29" rx="2" fill="#faf8f2" stroke="#d6d3c7" strokeWidth="0.6" />
+
+        {/* Faixa colorida superior da etiqueta de locadora */}
+        <rect x="12" y="10" width="136" height="3.5" rx="1" fill="url(#vhsRentalStripes)" />
+
+        {/* Carimbo de Locadora acima do logo */}
+        <text x="16" y="17.5" fill="#6b7280" fontSize="3" fontWeight="900" fontFamily="sans-serif" letterSpacing="0.8">
+          LOCADORA OFICIAL
+        </text>
+
+        {/* ESCRITA DESTACADA: VHSFLIX */}
+        <g filter="url(#vhsFlixGlow)">
+          <text x="16" y="28" fontFamily="'Arial Black', 'Impact', sans-serif" fontWeight="900" fontSize="11" letterSpacing="0.6">
+            <tspan fill="#111827">VHS</tspan>
+            <tspan fill="#dc2626">FLIX</tspan>
+          </text>
+        </g>
+
+        {/* Selo Clássico Amarelo de Videolocadora: FAVOR REBOBINAR */}
+        <g>
+          <rect x="68" y="17" width="46" height="7.5" rx="1.5" fill="#fef08a" stroke="#ca8a04" strokeWidth="0.6" />
+          <text x="91" y="22.5" textAnchor="middle" fill="#854d0e" fontSize="3.8" fontWeight="900" fontFamily="sans-serif" letterSpacing="0.3">
+            ▶ FAVOR REBOBINAR
+          </text>
+        </g>
+
+        {/* Código de barras clássico de acervo de locadora */}
+        <g>
+          <rect x="118" y="16" width="27" height="9" rx="0.8" fill="#ffffff" stroke="#e5e7eb" strokeWidth="0.4" />
+          <path
+            d="M 120 17.5 v 6 M 121.5 17.5 v 6 M 122.5 17.5 v 6 M 124.5 17.5 v 6 M 126 17.5 v 6 M 128 17.5 v 6 M 129 17.5 v 6 M 131 17.5 v 6 M 133 17.5 v 6 M 134 17.5 v 6 M 136 17.5 v 6 M 137.5 17.5 v 6 M 139 17.5 v 6 M 141 17.5 v 6 M 143 17.5 v 6"
+            stroke="#1f2937"
+            strokeWidth="0.7"
+          />
+          <text x="131.5" y="28.5" textAnchor="middle" fill="#4b5563" fontSize="2.8" fontFamily="monospace" fontWeight="bold">
+            #VHS-8492
+          </text>
+        </g>
+
+        {/* Sub-rótulo inferior da etiqueta */}
+        <text x="16" y="34.5" fill="#9ca3af" fontSize="2.8" fontFamily="monospace" fontWeight="bold" letterSpacing="0.4">
+          HI-FI STEREO • ED. EXCLUSIVA
+        </text>
+
+        {/* 3. JANELA CENTRAL FUMÊ DE ACRÍLICO COM A FITA MAGNÉTICA */}
+        <rect
+          x="18"
+          y="42"
+          width="124"
+          height="45"
+          rx="3.5"
+          fill="url(#vhsCassetteWindow)"
+          stroke="#27272a"
+          strokeWidth="1.2"
+        />
+
+        {/* Graduação de fita no visor acrílico */}
+        <line x1="26" y1="45" x2="134" y2="45" stroke="#3f3f46" strokeWidth="0.6" strokeDasharray="1 2.5" />
+        <text x="80" y="47.5" textAnchor="middle" fill="#71717a" fontSize="3" fontFamily="monospace" fontWeight="bold">
+          000  •  500  •  999
+        </text>
+
+        {/* Fita magnética marrom-escura correndo entre os carretéis */}
+        <path
+          d="M 44 64.5 L 116 64.5"
+          stroke="#451a03"
+          strokeWidth="6"
+          strokeLinecap="round"
+        />
+        <path
+          d="M 44 64.5 L 116 64.5"
+          stroke="#78350f"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          opacity="0.9"
+        />
+
+        {/* 4. CARRETEL ESQUERDO (Alimentador com mais fita) */}
+        {/* Rolo de fita magnética marrom enrolada */}
+        <circle cx="48" cy="65" r="16.5" fill="url(#vhsMagneticTape)" stroke="#78350f" strokeWidth="0.6" />
+
+        {/* Engrenagem dentada branca com ANIMAÇÃO DE ROTAÇÃO CONTÍNUA */}
+        <motion.g
+          animate={{ rotate: 360 }}
+          transition={{ repeat: Infinity, duration: 2.2, ease: "linear" }}
+          style={{ transformOrigin: "48px 65px" }}
+        >
+          {/* Corpo branco da bobina */}
+          <circle cx="48" cy="65" r="9.5" fill="#f4f4f5" stroke="#d4d4d8" strokeWidth="0.8" />
+          {/* Eixo central preto */}
+          <circle cx="48" cy="65" r="3.2" fill="#18181b" stroke="#09090b" strokeWidth="0.5" />
+          
+          {/* 6 dentes de engrenagem radiais clássicos da fita VHS */}
+          <line x1="48" y1="56" x2="48" y2="60.8" stroke="#52525b" strokeWidth="1.6" strokeLinecap="round" />
+          <line x1="48" y1="69.2" x2="48" y2="74" stroke="#52525b" strokeWidth="1.6" strokeLinecap="round" />
+          <line x1="40.2" y1="60.5" x2="44.4" y2="62.9" stroke="#52525b" strokeWidth="1.6" strokeLinecap="round" />
+          <line x1="51.6" y1="67.1" x2="55.8" y2="69.5" stroke="#52525b" strokeWidth="1.6" strokeLinecap="round" />
+          <line x1="40.2" y1="69.5" x2="44.4" y2="67.1" stroke="#52525b" strokeWidth="1.6" strokeLinecap="round" />
+          <line x1="51.6" y1="62.9" x2="55.8" y2="60.5" stroke="#52525b" strokeWidth="1.6" strokeLinecap="round" />
+        </motion.g>
+
+        {/* 5. VISOR CENTRAL COM INDICADOR ATIVO DE REPRODUÇÃO */}
+        <g>
+          {/* Indicador LED de gravação/reprodução ativa pulsando */}
+          <circle cx="80" cy="62" r="2.2" fill="#ef4444">
+            <animate attributeName="opacity" values="1;0.4;1" dur="1.4s" repeatCount="indefinite" />
+          </circle>
+          <text x="80" y="71" textAnchor="middle" fill="#f43f5e" fontSize="3.6" fontFamily="monospace" fontWeight="900" letterSpacing="0.4">
+            PLAY
+          </text>
+        </g>
+
+        {/* 6. CARRETEL DIREITO (Receptor com animação de rotação contínua) */}
+        {/* Rolo de fita magnética marrom enrolada */}
+        <circle cx="112" cy="65" r="14" fill="url(#vhsMagneticTape)" stroke="#78350f" strokeWidth="0.6" />
+
+        {/* Engrenagem dentada branca com ANIMAÇÃO DE ROTAÇÃO CONTÍNUA */}
+        <motion.g
+          animate={{ rotate: 360 }}
+          transition={{ repeat: Infinity, duration: 2.2, ease: "linear" }}
+          style={{ transformOrigin: "112px 65px" }}
+        >
+          {/* Corpo branco da bobina */}
+          <circle cx="112" cy="65" r="9.5" fill="#f4f4f5" stroke="#d4d4d8" strokeWidth="0.8" />
+          {/* Eixo central preto */}
+          <circle cx="112" cy="65" r="3.2" fill="#18181b" stroke="#09090b" strokeWidth="0.5" />
+
+          {/* 6 dentes de engrenagem radiais clássicos da fita VHS */}
+          <line x1="112" y1="56" x2="112" y2="60.8" stroke="#52525b" strokeWidth="1.6" strokeLinecap="round" />
+          <line x1="112" y1="69.2" x2="112" y2="74" stroke="#52525b" strokeWidth="1.6" strokeLinecap="round" />
+          <line x1="104.2" y1="60.5" x2="108.4" y2="62.9" stroke="#52525b" strokeWidth="1.6" strokeLinecap="round" />
+          <line x1="115.6" y1="67.1" x2="119.8" y2="69.5" stroke="#52525b" strokeWidth="1.6" strokeLinecap="round" />
+          <line x1="104.2" y1="69.5" x2="108.4" y2="67.1" stroke="#52525b" strokeWidth="1.6" strokeLinecap="round" />
+          <line x1="115.6" y1="62.9" x2="119.8" y2="60.5" stroke="#52525b" strokeWidth="1.6" strokeLinecap="round" />
+        </motion.g>
+
+        {/* 7. BASE DA FITA COM ENCAIXE DE CABEÇOTE E MARCAÇÃO DE ÁUDIO */}
+        <path d="M 64 98 L 72 90 L 88 90 L 96 98 Z" fill="#09090b" stroke="#27272a" strokeWidth="0.8" />
+        <text x="24" y="93.5" fill="#71717a" fontSize="3.6" fontFamily="monospace" fontWeight="bold">
+          T-120
+        </text>
+        <text x="136" y="93.5" textAnchor="end" fill="#71717a" fontSize="3.6" fontFamily="monospace" fontWeight="bold">
           VHS HQ
-        </span>
-        <span className="text-[6.5px] tracking-wider text-zinc-400 font-bold uppercase">HI-FI SP</span>
-      </div>
-
-      {/* Janela central de acrílico fumê com os dois carretéis giratórios reais */}
-      <div className="relative mx-auto w-[92%] h-6 sm:h-7 bg-black/95 rounded border border-zinc-800 flex items-center justify-between px-1.5 overflow-hidden shadow-inner">
-        {/* Fita magnética escura conectando os dois rolos */}
-        <div className="absolute inset-x-2 top-1/2 -translate-y-1/2 h-[3.5px] bg-zinc-800 shadow-[inset_0_1px_2px_rgba(0,0,0,0.9)]" />
-
-        {/* Carretel esquerdo girando de forma contínua */}
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ repeat: Infinity, duration: 2.4, ease: "linear" }}
-          className="relative z-10 w-5 h-5 sm:w-5.5 sm:h-5.5 rounded-full border border-zinc-650 bg-zinc-900 flex items-center justify-center shadow-md"
-        >
-          {/* Fita enrolada no carretel */}
-          <div className="w-4 h-4 sm:w-4.5 sm:h-4.5 rounded-full border border-black bg-zinc-950 flex items-center justify-center">
-            {/* Engrenagem / dentes brancos centrais da bobina da fita VHS */}
-            <div className="w-2.5 h-2.5 rounded-full bg-zinc-200 border border-zinc-400 flex items-center justify-center relative">
-              <div className="w-1.2 h-1.2 rounded-full bg-black" />
-              {/* Dentes da engrenagem */}
-              <div className="absolute inset-0 border-t border-b border-zinc-600 rounded-full" />
-              <div className="absolute inset-0 border-l border-r border-zinc-600 rounded-full" />
-            </div>
-          </div>
-        </motion.div>
-
-        {/* Visor central do cassete com indicador LED vermelho vinho / rubi */}
-        <div className="relative z-10 flex flex-col items-center justify-center gap-0.5">
-          <div className="w-1.5 h-1.5 rounded-full bg-rose-500 shadow-[0_0_8px_#f43f5e] animate-ping" />
-          <span className="text-[5px] font-mono text-rose-400 font-bold tracking-tighter">REC</span>
-        </div>
-
-        {/* Carretel direito girando de forma contínua */}
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ repeat: Infinity, duration: 2.4, ease: "linear" }}
-          className="relative z-10 w-5 h-5 sm:w-5.5 sm:h-5.5 rounded-full border border-zinc-650 bg-zinc-900 flex items-center justify-center shadow-md"
-        >
-          {/* Fita enrolada no carretel */}
-          <div className="w-4 h-4 sm:w-4.5 sm:h-4.5 rounded-full border border-black bg-zinc-950 flex items-center justify-center">
-            {/* Engrenagem / dentes brancos centrais da bobina da fita VHS */}
-            <div className="w-2.5 h-2.5 rounded-full bg-zinc-200 border border-zinc-400 flex items-center justify-center relative">
-              <div className="w-1.2 h-1.2 rounded-full bg-black" />
-              {/* Dentes da engrenagem */}
-              <div className="absolute inset-0 border-t border-b border-zinc-600 rounded-full" />
-              <div className="absolute inset-0 border-l border-r border-zinc-600 rounded-full" />
-            </div>
-          </div>
-        </motion.div>
-      </div>
-
-      {/* Faixa inferior com parafusos simulados e carimbo de áudio */}
-      <div className="flex items-center justify-between px-1 text-[6px] text-zinc-500 font-mono font-bold">
-        <span className="w-1 h-1 rounded-full bg-zinc-600 shadow-sm" />
-        <span className="tracking-widest uppercase text-rose-400/90 text-[6.5px]">T-120 MEMORY</span>
-        <span className="w-1 h-1 rounded-full bg-zinc-600 shadow-sm" />
-      </div>
+        </text>
+      </svg>
     </motion.div>
   );
 }
@@ -597,10 +760,73 @@ export default function MovieDetailModal({
   const [season, setSeason] = useState<number>(1);
   const [episode, setEpisode] = useState<number>(1);
   const [activeTab, setActiveTab] = useState<'episodes' | 'details' | 'cast'>('details');
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
   const [isSeasonDropdownOpen, setIsSeasonDropdownOpen] = useState(false);
   const [abyssEpisodeId, setAbyssEpisodeId] = useState<string>('');
   const [smartTrailerUrl, setSmartTrailerUrl] = useState<string>(movie?.trailerUrl || '');
   const [commentInput, setCommentInput] = useState<string>('');
+
+  // Funções de Compartilhamento Direto
+  const handleNativeShare = async () => {
+    if (!movie) return;
+    const shareUrl = getShareUrl(movie);
+    const shareData = {
+      title: `${movie.title} • VHSFLIX`,
+      text: `Assista a "${movie.title}" no VHSFLIX:`,
+      url: shareUrl,
+    };
+
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share(shareData);
+        return;
+      } catch (err: any) {
+        if (err.name !== 'AbortError') {
+          console.warn('[SHARE] Erro no compartilhamento nativo:', err);
+        }
+      }
+    }
+    // Fallback para abrir modal retro com WhatsApp e Copiar Link
+    setIsShareModalOpen(true);
+  };
+
+  const handleCopyLink = () => {
+    if (!movie) return;
+    const shareUrl = getShareUrl(movie);
+    if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(shareUrl).catch(() => {
+        fallbackCopyTextToClipboard(shareUrl);
+      });
+    } else {
+      fallbackCopyTextToClipboard(shareUrl);
+    }
+    setIsCopied(true);
+    setTimeout(() => setIsCopied(false), 2500);
+  };
+
+  const fallbackCopyTextToClipboard = (text: string) => {
+    try {
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      textArea.style.position = 'fixed';
+      textArea.style.opacity = '0';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+    } catch (e) {
+      console.warn('[SHARE] Fallback copy error:', e);
+    }
+  };
+
+  const handleWhatsAppShare = () => {
+    if (!movie) return;
+    const shareUrl = getShareUrl(movie);
+    const message = `Assista a "${movie.title}" no VHSFLIX:\n${shareUrl}`;
+    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`, '_blank');
+  };
 
   const movieComments = (comments || []).filter(c => c.movieId === movie?.id);
 
@@ -1283,6 +1509,7 @@ export default function MovieDetailModal({
   // Simulador de Ticking de Tempo do Player (Relógio da fita VHS)
   useEffect(() => {
     if (isPlaying && movie && parsedVideo.type !== 'direct') {
+      let tickCount = 0;
       timerRef.current = setInterval(() => {
         const prev = currentTimeRef.current;
         let nextTime = prev + (1 * playbackSpeed);
@@ -1291,6 +1518,21 @@ export default function MovieDetailModal({
           setCurrentTime(0);
         } else {
           setCurrentTime(nextTime);
+        }
+
+        tickCount++;
+        // Sincroniza periodicamente a cada 5 segundos de reprodução contínua
+        if (tickCount % 5 === 0) {
+          const currentPct = Math.max(1, Math.round((nextTime / (totalDuration || 1)) * 100));
+          onUpdateProgress(
+            movie.id,
+            currentPct,
+            nextTime,
+            totalDuration,
+            nextTime >= totalDuration,
+            movie.type === 'series' ? season : undefined,
+            movie.type === 'series' ? episode : undefined
+          );
         }
       }, 1000);
     } else {
@@ -1302,7 +1544,7 @@ export default function MovieDetailModal({
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [isPlaying, totalDuration, movie?.id, playbackSpeed, parsedVideo.type]);
+  }, [isPlaying, totalDuration, movie?.id, playbackSpeed, parsedVideo.type, season, episode, onUpdateProgress]);
 
   // --- SISTEMA DE PRÉ-CARREGAMENTO (PREFETCHING) E PRECONNECT ---
   // Pré-conecta silenciosamente aos servidores de streaming e faz prefetch do player ativo e do próximo episódio
@@ -1427,10 +1669,18 @@ export default function MovieDetailModal({
     setIsConfiguringPlayer(false);
     setIsTapeLoading(true);
 
-    // Registra imediatamente a última temporada e episódio assistidos caso seja série
-    if (movie && movie.type === 'series') {
-      const pct = (currentTime / (totalDuration || 1)) * 100;
-      onUpdateProgress(movie.id, pct, currentTime, totalDuration, false, season, episode);
+    // Registra imediatamente no histórico tanto para séries quanto para filmes
+    if (movie) {
+      const pct = Math.max(1, Math.round(((currentTime || 1) / (totalDuration || 1)) * 100));
+      onUpdateProgress(
+        movie.id,
+        pct,
+        Math.max(1, currentTime),
+        totalDuration,
+        false,
+        movie.type === 'series' ? season : undefined,
+        movie.type === 'series' ? episode : undefined
+      );
     }
 
     const modalElem = document.getElementById('movie-detail-modal');
@@ -1504,6 +1754,19 @@ export default function MovieDetailModal({
                   <div className="flex items-center gap-2 sm:gap-2.5">
                     <button
                       onClick={() => {
+                        const curTime = currentTimeRef.current || currentTime;
+                        const pct = Math.max(1, Math.round(((curTime || 1) / (totalDuration || 1)) * 100));
+                        if (movie) {
+                          onUpdateProgress(
+                            movie.id,
+                            pct,
+                            curTime,
+                            totalDuration,
+                            false,
+                            movie.type === 'series' ? season : undefined,
+                            movie.type === 'series' ? episode : undefined
+                          );
+                        }
                         setIsPlaying(false);
                         setIsTapeLoading(false);
                       }}
@@ -2384,7 +2647,15 @@ export default function MovieDetailModal({
                           initial={{ opacity: 0, y: 15 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ delay: 0.15, duration: 0.4 }}
-                          className="mt-4 sm:mt-5 w-full sm:max-w-2xl"
+                          whileHover={{ scale: 1.01 }}
+                          whileTap={{ scale: 0.99 }}
+                          onClick={() => {
+                            setSeason(savedSeason);
+                            setEpisode(savedEpisode);
+                            handlePlayClick();
+                          }}
+                          className="mt-4 sm:mt-5 w-full sm:max-w-2xl cursor-pointer"
+                          title="Clique na fita para continuar assistindo de onde você parou"
                           id="series-last-watched-reminder"
                         >
                           <div className="relative group overflow-hidden rounded-2xl bg-gradient-to-r from-black via-[#38040e] to-black border-2 border-[#9f1239] ring-2 ring-black p-3.5 sm:p-4.5 shadow-[0_0_35px_rgba(159,18,57,0.45),inset_0_0_20px_rgba(159,18,57,0.15)] hover:shadow-[0_0_45px_rgba(225,29,72,0.6),inset_0_0_25px_rgba(225,29,72,0.2)] transition-all duration-300 backdrop-blur-xl">
@@ -2397,9 +2668,13 @@ export default function MovieDetailModal({
                             />
 
                             <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                              <div className="flex items-center gap-3.5 sm:gap-4">
-                                {/* Símbolo: Fita VHS Animada da Cor Preta Original com Carretéis Girando */}
-                                <AnimatedVhsTape />
+                              <div className="flex items-center gap-3.5 sm:gap-4.5">
+                                {/* Símbolo: Fita Cassete de Locadora Animada com escrita VHSFLIX */}
+                                <AnimatedVhsTape onClick={() => {
+                                  setSeason(savedSeason);
+                                  setEpisode(savedEpisode);
+                                  handlePlayClick();
+                                }} />
 
                                 <div className="text-left">
                                   {/* Cabeçalho da Fita / Memória Salva em Tom Vermelho Vinho */}
@@ -2410,11 +2685,6 @@ export default function MovieDetailModal({
                                         {hasWatchedHistory ? 'SESSÃO GRAVADA NA FITA' : 'MEMÓRIA DE MARATONA'}
                                       </span>
                                     </div>
-                                    {hasWatchedHistory && progressState?.progress !== undefined && progressState.progress > 0 && (
-                                      <span className="text-[9px] sm:text-[10px] font-mono font-black px-2 py-0.5 rounded-md bg-[#9f1239]/25 text-rose-300 border border-[#9f1239]/50 shadow-[0_0_8px_rgba(159,18,57,0.25)]">
-                                        {Math.round(progressState.progress)}% ASSISTIDO
-                                      </span>
-                                    )}
                                   </div>
 
                                   {/* Chamada Principal e Destaque da Temporada e Episódio */}
@@ -2433,39 +2703,6 @@ export default function MovieDetailModal({
                                     </div>
                                   </div>
                                 </div>
-                              </div>
-
-                              {/* Botão Continuar Animado com Vermelho Vinho, Contorno Preto e Feixe de Luz */}
-                              <div className="flex items-center justify-end shrink-0 w-full md:w-auto">
-                                <motion.button
-                                  whileHover={{ scale: 1.06, boxShadow: "0 0 35px rgba(225,29,72,0.9)" }}
-                                  whileTap={{ scale: 0.94 }}
-                                  animate={{ scale: [1, 1.025, 1] }}
-                                  transition={{ repeat: Infinity, duration: 2.2, ease: "easeInOut" }}
-                                  onClick={() => {
-                                    setSeason(savedSeason);
-                                    setEpisode(savedEpisode);
-                                    setActiveTab('episodes');
-                                    setIsServerSelectorOpen(true);
-                                  }}
-                                  className="relative overflow-hidden w-full md:w-auto px-5 py-3 sm:px-6 sm:py-3.5 rounded-xl bg-gradient-to-r from-[#881337] via-[#be123c] to-[#881337] hover:from-[#9f1239] hover:via-[#e11d48] hover:to-[#9f1239] active:bg-[#4c0519] text-white font-sans font-black text-xs sm:text-sm tracking-wider uppercase flex items-center justify-center gap-2 border-2 border-black shadow-[0_0_25px_rgba(159,18,57,0.7)] cursor-pointer group select-none"
-                                  title={`Continuar maratona na Temporada ${savedSeason} Episódio ${savedEpisode}`}
-                                  id="btn-reminder-continue"
-                                >
-                                  {/* Feixe de luz branco passando continuamente pelo botão */}
-                                  <motion.div
-                                    className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/50 to-transparent pointer-events-none"
-                                    animate={{ x: ['-100%', '200%'] }}
-                                    transition={{ repeat: Infinity, duration: 1.8, ease: 'easeInOut' }}
-                                  />
-
-                                  <div className="w-5 h-5 rounded-full bg-black text-rose-400 flex items-center justify-center shadow-sm shrink-0 group-hover:scale-110 group-hover:text-white transition-transform">
-                                    <Play className="w-3 h-3 fill-current ml-0.5" />
-                                  </div>
-                                  <span className="relative z-10 font-black">
-                                    CONTINUAR EP {savedEpisode.toString().padStart(2, '0')}
-                                  </span>
-                                </motion.button>
                               </div>
                             </div>
                           </div>
@@ -2524,6 +2761,26 @@ export default function MovieDetailModal({
                       <motion.div layoutId="activeTabUnderline" className="absolute bottom-0 left-0 right-0 h-0.5 bg-red-600 shadow-[0_0_8px_#ef4444] rounded-full" />
                     )}
                   </button>
+
+                  {/* Botão Compartilhar Retrô */}
+                  <motion.button
+                    whileHover={{ scale: 1.04 }}
+                    whileTap={{ scale: 0.96 }}
+                    onClick={() => {
+                      if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+                        handleNativeShare();
+                      } else {
+                        setIsShareModalOpen(true);
+                      }
+                    }}
+                    className="relative pb-3 text-sm sm:text-base transition-all focus:outline-none cursor-pointer text-rose-300 hover:text-white flex items-center gap-2 font-bold group"
+                    title="Compartilhar link individual deste conteúdo"
+                  >
+                    <div className="w-5 h-5 rounded-md bg-rose-950/70 border border-rose-600/50 flex items-center justify-center group-hover:border-rose-400 group-hover:bg-rose-900 shadow-[0_0_8px_rgba(225,29,72,0.3)] transition-all">
+                      <Share2 className="w-3 h-3 text-rose-400 group-hover:text-rose-200" />
+                    </div>
+                    <span>Compartilhar</span>
+                  </motion.button>
                 </div>
 
                 {/* Rating Badge */}
@@ -2946,7 +3203,7 @@ export default function MovieDetailModal({
                         <div>
                           <p className="text-red-400 font-bold uppercase tracking-wider text-[11px]">Continuar Reprodução</p>
                           <p className="text-zinc-400 text-[11px] mt-0.5">
-                            Parou em <span className="text-white font-mono font-bold">{formatVCRTime(progressState.currentTime)}</span> de {formatVCRTime(totalDuration)} ({Math.round(progressState.progress)}% assistido).
+                            Parou em <span className="text-white font-mono font-bold">{formatVCRTime(progressState.currentTime)}</span> de {formatVCRTime(totalDuration)}.
                           </p>
                         </div>
                         <motion.button
@@ -3226,6 +3483,135 @@ export default function MovieDetailModal({
                 </div>
               )}
             </div>
+
+            {/* --- MODAL RETRÔ DE COMPARTILHAMENTO INDIVIDUAL --- */}
+            <AnimatePresence>
+              {isShareModalOpen && movie && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                    className="relative w-full max-w-lg bg-zinc-950 border-2 border-rose-600 rounded-2xl p-6 shadow-[0_0_50px_rgba(225,29,72,0.35)] text-left overflow-hidden ring-2 ring-black"
+                  >
+                    {/* Botão fechar */}
+                    <button
+                      onClick={() => setIsShareModalOpen(false)}
+                      className="absolute top-4 right-4 w-9 h-9 rounded-full bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white hover:border-rose-500 flex items-center justify-center transition-colors cursor-pointer"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+
+                    {/* Cabeçalho Retrô */}
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-10 h-10 rounded-xl bg-rose-950/80 border border-rose-500/60 flex items-center justify-center shadow-[0_0_15px_rgba(225,29,72,0.4)]">
+                        <Share2 className="w-5 h-5 text-rose-400" />
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-rose-400 bg-rose-950/40 px-2 py-0.5 rounded border border-rose-900/60">
+                          Sinal Aberto VHSFLIX
+                        </span>
+                        <h3 className="text-xl font-bold font-sans text-white mt-0.5">
+                          Compartilhar Conteúdo
+                        </h3>
+                      </div>
+                    </div>
+
+                    {/* Resumo da Mídia */}
+                    <div className="flex items-center gap-3 p-3 bg-zinc-900/70 border border-zinc-800/80 rounded-xl mb-5">
+                      <img
+                        src={getCleanPosterUrl(movie.posterUrl)}
+                        alt={movie.title}
+                        className="w-12 h-16 object-cover rounded-lg border border-zinc-800 shadow shrink-0"
+                        onError={handlePosterError}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <h4 className="text-sm font-bold text-white truncate font-sans">
+                          {movie.title}
+                        </h4>
+                        <div className="flex items-center gap-2 text-xs text-zinc-400 font-mono mt-1">
+                          <span className="capitalize">{movie.type === 'series' ? 'Série' : 'Filme'}</span>
+                          <span>•</span>
+                          <span>{movie.year}</span>
+                          <span>•</span>
+                          <span className="text-yellow-400">★ {movie.rating}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Caixa de Link com Cópia Direta */}
+                    <div className="space-y-2 mb-5">
+                      <label className="text-xs font-mono text-zinc-400 font-bold uppercase tracking-wider block">
+                        Endereço Único e Compartilhável:
+                      </label>
+                      <div className="flex items-center gap-2 bg-black border border-zinc-800 focus-within:border-rose-500 p-2 rounded-xl transition-all">
+                        <input
+                          type="text"
+                          readOnly
+                          value={getShareUrl(movie)}
+                          className="bg-transparent flex-1 text-xs text-zinc-300 font-mono outline-none px-2 select-all truncate"
+                        />
+                        <button
+                          onClick={handleCopyLink}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold font-sans flex items-center gap-1.5 transition-all cursor-pointer shrink-0 ${
+                            isCopied
+                              ? 'bg-emerald-600 text-white shadow-[0_0_12px_rgba(16,185,129,0.5)]'
+                              : 'bg-rose-600 hover:bg-rose-500 text-white shadow-[0_0_12px_rgba(225,29,72,0.4)]'
+                          }`}
+                        >
+                          {isCopied ? (
+                            <>
+                              <Check className="w-3.5 h-3.5" />
+                              <span>Copiado!</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3.5 h-3.5" />
+                              <span>Copiar</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Ações de Compartilhamento Direto */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {/* Botão WhatsApp */}
+                      <button
+                        onClick={handleWhatsAppShare}
+                        className="w-full flex items-center justify-center gap-2.5 py-3 px-4 bg-[#25D366]/20 hover:bg-[#25D366]/30 border border-[#25D366]/50 hover:border-[#25D366] text-emerald-300 font-bold text-xs sm:text-sm rounded-xl transition-all shadow-[0_0_15px_rgba(37,211,102,0.15)] cursor-pointer active:scale-95"
+                      >
+                        <MessageCircle className="w-4 h-4 text-[#25D366]" />
+                        <span>Enviar no WhatsApp</span>
+                      </button>
+
+                      {/* Botão Compartilhamento Nativo / Opções */}
+                      {typeof navigator !== 'undefined' && typeof navigator.share === 'function' ? (
+                        <button
+                          onClick={handleNativeShare}
+                          className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 hover:border-zinc-500 text-zinc-200 font-bold text-xs sm:text-sm rounded-xl transition-all cursor-pointer active:scale-95"
+                        >
+                          <Share2 className="w-4 h-4 text-rose-400" />
+                          <span>Mais Aplicativos</span>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={handleCopyLink}
+                          className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 hover:border-zinc-500 text-zinc-200 font-bold text-xs sm:text-sm rounded-xl transition-all cursor-pointer active:scale-95"
+                        >
+                          <Copy className="w-4 h-4 text-zinc-400" />
+                          <span>Copiar Link</span>
+                        </button>
+                      )}
+                    </div>
+
+                    <p className="mt-4 text-[11px] text-zinc-500 text-center font-mono">
+                      Ao abrir este endereço em qualquer navegador, a página de detalhes deste título abrirá diretamente.
+                    </p>
+                  </motion.div>
+                </div>
+              )}
+            </AnimatePresence>
           </motion.div>
         </motion.div>
       )}

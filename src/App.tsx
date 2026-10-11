@@ -26,6 +26,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { db, saveUsersToFirestore, deleteUserFromFirestore, saveProfilesToFirestore, saveMoviesToFirestore, saveSingleMovieToFirestore, deleteMovieFromFirestore, saveSettingsToFirestore, saveRequestsToFirestore, saveSingleRequestToFirestore, deleteRequestFromFirestore, handleFirestoreError, OperationType, saveSingleNotificationToFirestore, deleteNotificationFromFirestore, saveSingleCommentToFirestore, deleteCommentFromFirestore } from './lib/firebase';
 import { onSnapshot, collection, doc, setDoc, getDoc } from 'firebase/firestore';
 import { fetchApi } from './lib/apiClient';
+import { getContentIdFromUrl, updateBrowserUrl, findMovieById } from './lib/routing';
 
 // Helper para categorização detalhada do tipo de produção (Filme, Série de TV, Reality Show, Novela)
 function getMovieTypeDetailed(m: Movie): string {
@@ -181,8 +182,6 @@ export default function App() {
       const title = (m.title || '').toLowerCase();
       const poster = (m.posterUrl || '').toLowerCase();
       if (title.includes('stranger things') && (title.includes('temporada final') || title.includes('(5)') || poster.includes('1618005182384'))) return false;
-      if (title.includes('homem-aranha') && title.includes('novo dia')) return false;
-      if (m.tmdbId === 969681) return false;
       return true;
     }) : INITIAL_MOVIES;
     
@@ -305,13 +304,63 @@ export default function App() {
   });
 
   // Abas de navegação do usuário na plataforma
-  const [activeTab, setActiveTab] = useState<'all' | 'releases' | 'movies' | 'series' | 'mylist' | 'requests' | 'support'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'releases' | 'movies' | 'series' | 'mylist' | 'continue_watching' | 'requests' | 'support'>('all');
   const [myListViewMode, setMyListViewMode] = useState<'grid' | 'vertical_list' | 'carousel'>(() => (localStorage.getItem('vhsflix_mylist_view') as any) || 'vertical_list');
   const [myListTypeFilter, setMyListTypeFilter] = useState<'all' | 'movies' | 'series'>('all');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [isAdminView, setIsAdminView] = useState(false);
-  const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
+  const [selectedMovie, setSelectedMovie] = useState<Movie | null>(() => {
+    const targetId = getContentIdFromUrl();
+    if (!targetId) return null;
+    const saved = localStorage.getItem('vhsflix_movies');
+    let pool: Movie[] = INITIAL_MOVIES;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) pool = [...parsed, ...INITIAL_MOVIES];
+      } catch {}
+    }
+    const found = findMovieById(pool, targetId);
+    if (found && typeof document !== 'undefined') {
+      document.title = `${found.title} • VHSFLIX`;
+    }
+    return found || null;
+  });
   const [searchVal, setSearchVal] = useState('');
+
+  // Sincronização de URLs individuais e Deep Linking ao atualizar filmes do banco
+  useEffect(() => {
+    const targetId = getContentIdFromUrl();
+    if (targetId) {
+      if (!selectedMovie || (selectedMovie.id !== targetId && String(selectedMovie.tmdbId) !== targetId)) {
+        const found = findMovieById(movies, targetId) || findMovieById(INITIAL_MOVIES, targetId);
+        if (found) {
+          setSelectedMovie(found);
+          document.title = `${found.title} • VHSFLIX`;
+        }
+      }
+    }
+  }, [movies, selectedMovie]);
+
+  // Listener para botões Voltar / Avançar do navegador (popstate)
+  useEffect(() => {
+    const handlePopState = () => {
+      const targetId = getContentIdFromUrl();
+      if (targetId) {
+        const found = findMovieById(movies, targetId) || findMovieById(INITIAL_MOVIES, targetId);
+        if (found) {
+          setSelectedMovie(found);
+          document.title = `${found.title} • VHSFLIX`;
+        }
+      } else {
+        setSelectedMovie(null);
+        document.title = 'VHSFLIX • Sua Locadora Digital Retrô';
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [movies]);
 
   const [dbNotifications, setDbNotifications] = useState<AppNotification[]>(() => {
     const saved = localStorage.getItem('vhsflix_db_notifications');
@@ -475,10 +524,26 @@ export default function App() {
                   const remList = Array.isArray(remP.myList) ? remP.myList : [];
                   const locList = Array.isArray(locP.myList) ? locP.myList : [];
                   const combined = Array.from(new Set([...remList, ...locList].map(String)));
+                  
+                  // Mesclagem inteligente de histórico de reprodução por timestamp mais recente
+                  const mergedHistory: { [movieId: string]: WatchProgress } = { ...(locP.watchHistory || {}) };
+                  if (remP.watchHistory) {
+                    for (const [mId, remProgress] of Object.entries(remP.watchHistory)) {
+                      const locProgress = mergedHistory[mId];
+                      if (!locProgress) {
+                        mergedHistory[mId] = remProgress;
+                      } else {
+                        const locTime = new Date(locProgress.updatedAt || 0).getTime();
+                        const remTime = new Date(remProgress.updatedAt || 0).getTime();
+                        mergedHistory[mId] = remTime >= locTime ? remProgress : locProgress;
+                      }
+                    }
+                  }
+
                   return {
                     ...remP,
                     myList: combined,
-                    watchHistory: { ...(locP.watchHistory || {}), ...(remP.watchHistory || {}) }
+                    watchHistory: mergedHistory
                   };
                 }
                 return remP;
@@ -505,8 +570,6 @@ export default function App() {
         const title = (rawMovie.title || '').toLowerCase();
         const poster = (rawMovie.posterUrl || '').toLowerCase();
         if (title.includes('stranger things') && (title.includes('temporada final') || title.includes('(5)') || poster.includes('1618005182384'))) return;
-        if (title.includes('homem-aranha') && title.includes('novo dia')) return;
-        if (rawMovie.tmdbId === 969681) return;
 
         const cleanPoster = getCleanPosterUrl(rawMovie.posterUrl);
         const cleanBackdrop = getCleanBackdropUrl(rawMovie.backdropUrl, rawMovie.posterUrl);
@@ -1097,6 +1160,15 @@ export default function App() {
     } else if (activeTab === 'mylist' && activeProfile) {
       const savedList = Array.isArray(activeProfile.myList) ? activeProfile.myList : [];
       list = list.filter(m => savedList.some(id => String(id) === String(m.id) || (m.tmdbId && String(id) === `tmdb_${m.tmdbId}`)));
+    } else if (activeTab === 'continue_watching' && activeProfile) {
+      const histMap = activeProfile.watchHistory || {};
+      const watchedIds = Object.keys(histMap).filter(id => histMap[id] && (histMap[id].progress > 0 || histMap[id].currentTime > 0 || histMap[id].lastEpisode !== undefined));
+      list = list.filter(m => watchedIds.some(id => String(id) === String(m.id) || (m.tmdbId && String(id) === `tmdb_${m.tmdbId}`)));
+      list.sort((a, b) => {
+        const timeA = new Date(histMap[a.id]?.updatedAt || 0).getTime();
+        const timeB = new Date(histMap[b.id]?.updatedAt || 0).getTime();
+        return timeB - timeA;
+      });
     }
 
     // Filtro por categoria selecionada
@@ -1470,9 +1542,8 @@ export default function App() {
         console.warn('Erro ao salvar progresso no LocalStorage:', err);
       }
 
-      if (isFinished) {
-        saveProfilesToFirestore({ [targetUserId]: updatedList });
-      }
+      // Sincroniza sempre no Firestore para garantir persistência contínua
+      saveProfilesToFirestore({ [targetUserId]: updatedList });
 
       return nextAll;
     });
@@ -1701,7 +1772,7 @@ export default function App() {
     }
     const found = movies.find(m => m.id === movieId);
     if (found) {
-      setSelectedMovie(found);
+      handleSelectMovie(found);
     }
   };
 
@@ -1724,6 +1795,7 @@ export default function App() {
     };
     setMovies(prev => prev.map(m => m.id === movie.id ? updatedMovie : m));
     setSelectedMovie(updatedMovie);
+    updateBrowserUrl(updatedMovie);
     // Só persiste no Firestore itens que fazem parte do catálogo real (não grava previews temporários de tendências TMDB)
     if (movie.id && !movie.id.startsWith('tmdb_trend_') && !movie.id.startsWith('virtual_')) {
       saveSingleMovieToFirestore(updatedMovie);
@@ -2180,51 +2252,74 @@ export default function App() {
                   </div>
                 )}
 
-                {/* --- 2.B.I: ROW DE CONTINUAR ASSISTINDO (ATÉ 10 ITENS COM ROLAMENTO E ANIMAÇÃO) --- */}
-                {!searchVal && !selectedCategory && activeTab === 'all' && (
+                {/* --- 2.B.I: ROW DE CONTINUAR ASSISTINDO (ATÉ 15 ITENS COM ROLAMENTO E ANIMAÇÃO) --- */}
+                {!searchVal && !selectedCategory && (activeTab === 'all' || activeTab === 'continue_watching') && (
                   (() => {
-                    // Seleciona filmes com histórico de progresso ativo e inacabado - até 10 itens com rolamento
-                    const progressHistory = (Object.values(activeProfile.watchHistory) as WatchProgress[])
-                      .filter(p => p.progress > 0 && !p.isFinished)
-                      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+                    // Seleciona filmes com histórico de progresso ativo e recente
+                    const progressHistory = (Object.values(activeProfile.watchHistory || {}) as WatchProgress[])
+                      .filter(p => p && (p.progress > 0 || p.currentTime > 0 || p.lastEpisode !== undefined))
+                      .sort((a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime());
                     
                     const listToResume = progressHistory
-                      .map(p => movies.find(m => m.id === p.movieId))
+                      .map(p => movies.find(m => String(m.id) === String(p.movieId) || (m.tmdbId && String(p.movieId) === `tmdb_${m.tmdbId}`)))
                       .filter((m): m is Movie => !!m)
-                      .slice(0, 10);
+                      .slice(0, 15);
 
-                    if (listToResume.length === 0) return null;
+                    if (listToResume.length === 0) {
+                      if (activeTab === 'continue_watching') {
+                        return (
+                          <div className="py-20 text-center select-none max-w-lg mx-auto">
+                            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-amber-950/40 border border-amber-500/30 flex items-center justify-center text-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.2)]">
+                              <AnimatedResumeIcon size={32} />
+                            </div>
+                            <h3 className="text-xl font-black text-white uppercase tracking-wider font-display">Nenhuma fita em andamento</h3>
+                            <p className="text-xs text-zinc-400 font-sans mt-2 leading-relaxed">
+                              Dê o play em qualquer filme ou episódio de série para que ele fique registrado automaticamente aqui para você continuar de onde parou!
+                            </p>
+                            <button
+                              onClick={() => setActiveTab('all')}
+                              className="mt-5 px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-sans font-black text-xs uppercase tracking-wider transition-all cursor-pointer shadow-lg shadow-red-600/30"
+                            >
+                              Explorar Catálogo
+                            </button>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }
 
                     return (
-                      <MovieRow
-                        title={
-                          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-                            <span className="bg-gradient-to-r from-amber-200 via-amber-400 to-amber-500 bg-clip-text text-transparent font-black">
-                              Continuar Assistindo
-                            </span>
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold tracking-wider uppercase bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-[0_0_12px_rgba(245,158,11,0.3)] select-none">
-                              <span className="relative flex h-2 w-2">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                      <div className="mb-4 animate-fade-in" id="continue-watching-section">
+                        <MovieRow
+                          title={
+                            <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+                              <span className="bg-gradient-to-r from-amber-200 via-amber-400 to-amber-500 bg-clip-text text-transparent font-black">
+                                Continuar Assistindo
                               </span>
-                              <span>EM ANDAMENTO</span>
-                            </span>
-                          </div>
-                        }
-                        icon={
-                          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-amber-950/70 border border-amber-500/50 flex items-center justify-center text-amber-400 shadow-[0_0_18px_rgba(245,158,11,0.45)] shrink-0 group-hover/row:scale-105 group-hover/row:border-amber-400 transition-all duration-300">
-                            <AnimatedResumeIcon size={22} />
-                          </div>
-                        }
-                        accentColor="amber"
-                        showCount={true}
-                        movies={listToResume}
-                        watchHistory={activeProfile.watchHistory}
-                        myList={activeProfile.myList}
-                        onMovieClick={handleSelectMovie}
-                        onToggleMyList={handleToggleMyList}
-                        onPlayClick={handleFeaturedPlay}
-                      />
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold tracking-wider uppercase bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-[0_0_12px_rgba(245,158,11,0.3)] select-none">
+                                <span className="relative flex h-2 w-2">
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                                </span>
+                                <span>{listToResume.length} EM ANDAMENTO</span>
+                              </span>
+                            </div>
+                          }
+                          icon={
+                            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-amber-950/70 border border-amber-500/50 flex items-center justify-center text-amber-400 shadow-[0_0_18px_rgba(245,158,11,0.45)] shrink-0 group-hover/row:scale-105 group-hover/row:border-amber-400 transition-all duration-300">
+                              <AnimatedResumeIcon size={22} />
+                            </div>
+                          }
+                          accentColor="amber"
+                          showCount={true}
+                          movies={listToResume}
+                          watchHistory={activeProfile.watchHistory}
+                          myList={activeProfile.myList}
+                          onMovieClick={handleSelectMovie}
+                          onToggleMyList={handleToggleMyList}
+                          onPlayClick={handleFeaturedPlay}
+                        />
+                      </div>
                     );
                   })()
                 )}
@@ -3289,30 +3384,6 @@ export default function App() {
             </div>
           </footer>
 
-          {/* --- MODAL DE DETALHE COMPACTO --- */}
-          <MovieDetailModal
-            movie={selectedMovie ? (movies.find(m => m.id === selectedMovie.id) || selectedMovie) : null}
-            isOpen={selectedMovie !== null}
-            onClose={() => setSelectedMovie(null)}
-            myList={activeProfile ? activeProfile.myList : []}
-            onToggleMyList={(id) => handleToggleMyList(id)}
-            watchHistory={activeProfile ? activeProfile.watchHistory : {}}
-            onUpdateProgress={handleUpdateWatchProgress}
-            adguardEnabled={adguardEnabled}
-            onVoteMovie={handleVoteMovie}
-            activeProfileId={activeProfile ? activeProfile.id : ''}
-            tmdbApiKey={tmdbApiKey}
-            abyssApiKey={abyssApiKey}
-            movies={movies}
-            onSelectMovie={handleSelectMovie}
-            comments={comments}
-            onAddComment={handleAddComment}
-            onDeleteComment={handleDeleteComment}
-            currentUser={activeUser}
-            activeProfile={activeProfile}
-            onToggleRecommendation={handleToggleRecommendation}
-          />
-
           {/* --- SISTEMA DE TOAST DE NOTIFICAÇÃO AO VIVO RETRÔ --- */}
           <AnimatePresence>
             {toast && (() => {
@@ -3392,7 +3463,7 @@ export default function App() {
                     {toastMovie ? (
                       <button
                         onClick={() => {
-                          setSelectedMovie(toastMovie);
+                          handleSelectMovie(toastMovie);
                           setToast(null);
                         }}
                         className="mt-3 w-full bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 active:scale-[0.97] transition-all text-white font-mono text-[9px] font-black uppercase tracking-widest py-2 px-3 rounded-lg flex items-center justify-center gap-1.5 shadow-[0_2px_10px_rgba(244,63,94,0.3)] cursor-pointer"
@@ -3413,6 +3484,33 @@ export default function App() {
 
         </div>
       )}
+
+      {/* --- MODAL DE DETALHE UNIVERSAL (DEEP LINKING & COMPARTILHAMENTO INDIVIDUAL) --- */}
+      <MovieDetailModal
+        movie={selectedMovie ? (movies.find(m => m.id === selectedMovie.id) || selectedMovie) : null}
+        isOpen={selectedMovie !== null}
+        onClose={() => {
+          setSelectedMovie(null);
+          updateBrowserUrl(null);
+        }}
+        myList={activeProfile ? activeProfile.myList : []}
+        onToggleMyList={(id) => handleToggleMyList(id)}
+        watchHistory={activeProfile ? activeProfile.watchHistory : {}}
+        onUpdateProgress={handleUpdateWatchProgress}
+        adguardEnabled={adguardEnabled}
+        onVoteMovie={handleVoteMovie}
+        activeProfileId={activeProfile ? activeProfile.id : ''}
+        tmdbApiKey={tmdbApiKey}
+        abyssApiKey={abyssApiKey}
+        movies={movies}
+        onSelectMovie={handleSelectMovie}
+        comments={comments}
+        onAddComment={handleAddComment}
+        onDeleteComment={handleDeleteComment}
+        currentUser={activeUser}
+        activeProfile={activeProfile}
+        onToggleRecommendation={handleToggleRecommendation}
+      />
     </div>
   );
 }

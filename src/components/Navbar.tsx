@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Bell, Shield, LogOut, RefreshCw, UserCheck, Film, Tv, List, Sliders, ChevronDown, MessageSquare, Heart, Sparkles } from 'lucide-react';
+import { Search, Bell, Shield, LogOut, RefreshCw, UserCheck, Film, Tv, List, Sliders, ChevronDown, MessageSquare, Heart, Sparkles, Clock } from 'lucide-react';
 import { User, Profile, AppNotification, Movie, getSubscriptionDaysLeft } from '../types';
 import { GENRE_CATEGORIES } from '../data';
 import { motion, AnimatePresence } from 'motion/react';
@@ -19,8 +19,8 @@ interface NavbarProps {
   onSwitchUser: () => void;
   searchVal: string;
   onSearchChange: (val: string) => void;
-  activeTab: 'all' | 'releases' | 'movies' | 'series' | 'mylist' | 'requests' | 'support';
-  onTabChange: (tab: 'all' | 'releases' | 'movies' | 'series' | 'mylist' | 'requests' | 'support') => void;
+  activeTab: 'all' | 'releases' | 'movies' | 'series' | 'mylist' | 'continue_watching' | 'requests' | 'support';
+  onTabChange: (tab: 'all' | 'releases' | 'movies' | 'series' | 'mylist' | 'continue_watching' | 'requests' | 'support') => void;
   isAdminView: boolean;
   onToggleAdminView: (val: boolean) => void;
   notifications: AppNotification[];
