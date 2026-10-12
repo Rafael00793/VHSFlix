@@ -1662,6 +1662,12 @@ export default function MovieDetailModal({
   };
 
   const handleStartPlayback = () => {
+    // Proteção Real: Bloqueia início de reprodução caso não haja usuário ou perfil autenticado
+    if (!currentUser || !activeProfile || !activeProfileId) {
+      setIsPlaying(false);
+      return;
+    }
+
     // Se o progresso já estava em 100% ou no final, recomeça do início para não travar o filme
     if (currentTime >= (totalDuration - 5) || currentTime >= totalDuration) {
       setCurrentTime(0);
@@ -1718,7 +1724,8 @@ export default function MovieDetailModal({
     onUpdateProgress(movie.id, 0, 0, totalDuration, false, movie.type === 'series' ? season : undefined, movie.type === 'series' ? episode : undefined);
   };
 
-  if (!movie) return null;
+  // Proteção Real: Bloqueia exibição de detalhes e player se não autenticado
+  if (!movie || !currentUser || !activeProfile) return null;
 
   const tapeColor = CATEGORY_COLORS[movie.category] || movie.vhsTapeColor || '#dc2626';
   const tapeLabel = CATEGORY_TAPE_LABELS[movie.category] || 'Estojo Preto Clássico';

@@ -916,6 +916,12 @@ export default function App() {
     return userProfs[0] || null;
   }, [allProfiles, currentUserId, currentProfileId]);
 
+  // Autenticação estrita do usuário (sessão ativa + conta existente + perfil selecionado)
+  const isUserAuthenticated = useMemo(() => {
+    const hasSession = localStorage.getItem('vhs_session_logged_in') === 'true';
+    return Boolean(hasSession && currentUserId && activeUser && activeProfile);
+  }, [currentUserId, activeUser, activeProfile]);
+
   // Escolhe o filme em grande plano (Hero Banner)
   const [activeHighlightIndex, setActiveHighlightIndex] = useState(0);
 
@@ -1357,6 +1363,96 @@ export default function App() {
     saveProfilesToFirestore({ [newUser.id]: [defaultProfile] });
 
     return null; // Sucesso
+  };
+
+  // Tratador de auto-cadastro para novos visitantes da plataforma
+  const handleRegisterUser = (name: string, email: string, password: string): string | null => {
+    const emailLower = email.trim().toLowerCase();
+    
+    // Verifica se já existe conta cadastrada com esse e-mail
+    if (users.some(u => u.email.toLowerCase() === emailLower)) {
+      return 'Este e-mail já está sendo utilizado por outra conta. Acesse a aba "Já tenho uma conta — Entrar".';
+    }
+
+    const defaultAvatar = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80';
+    const thirtyDaysFromNow = new Date();
+    thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+
+    const newUser: User = {
+      id: 'u_' + Date.now(),
+      name: name.trim(),
+      email: emailLower,
+      password: password,
+      isAdmin: false,
+      avatarUrl: defaultAvatar,
+      createdAt: new Date().toISOString(),
+      subscriptionExpiresAt: thirtyDaysFromNow.toISOString()
+    };
+
+    const defaultProfile: Profile = {
+      id: 'p_' + Date.now(),
+      name: name.trim().split(' ')[0],
+      avatarUrl: defaultAvatar,
+      myList: [],
+      watchHistory: {}
+    };
+
+    // Atualiza estado local imediatamente
+    setUsers(prev => [...prev, newUser]);
+    setAllProfiles(prev => ({
+      ...prev,
+      [newUser.id]: [defaultProfile]
+    }));
+
+    // Sincroniza em tempo real com o Cloud Firestore
+    saveUsersToFirestore([newUser]);
+    saveProfilesToFirestore({ [newUser.id]: [defaultProfile] });
+
+    // Autentica o usuário automaticamente
+    setCurrentUserId(newUser.id);
+    setCurrentProfileId(defaultProfile.id);
+    localStorage.setItem('vhsflix_current_uid', newUser.id);
+    localStorage.setItem('vhsflix_current_pid', defaultProfile.id);
+    localStorage.setItem('vhs_session_logged_in', 'true');
+
+    // Se havia rota de filme/série compartilhado, garante que ele permaneça selecionado e pronto para reprodução
+    const targetId = getContentIdFromUrl();
+    if (targetId) {
+      const found = findMovieById(movies, targetId) || findMovieById(INITIAL_MOVIES, targetId) || selectedMovie;
+      if (found) {
+        setSelectedMovie(found);
+        updateBrowserUrl(found);
+      }
+    }
+
+    return null; // Sucesso
+  };
+
+  const handleAuthSuccess = (userId: string, profileId?: string) => {
+    setCurrentUserId(userId);
+    localStorage.setItem('vhsflix_current_uid', userId);
+    localStorage.setItem('vhs_session_logged_in', 'true');
+
+    if (profileId) {
+      setCurrentProfileId(profileId);
+      localStorage.setItem('vhsflix_current_pid', profileId);
+    } else {
+      const userProfs = allProfiles[userId] || [];
+      if (userProfs.length === 1) {
+        setCurrentProfileId(userProfs[0].id);
+        localStorage.setItem('vhsflix_current_pid', userProfs[0].id);
+      }
+    }
+
+    // Se havia rota de filme/série compartilhado, preserva o filme e rota
+    const targetId = getContentIdFromUrl();
+    if (targetId) {
+      const found = findMovieById(movies, targetId) || findMovieById(INITIAL_MOVIES, targetId) || selectedMovie;
+      if (found) {
+        setSelectedMovie(found);
+        updateBrowserUrl(found);
+      }
+    }
   };
 
   const handleEditUser = (userId: string, name: string, email: string, password?: string, isAdmin?: boolean, avatarUrl?: string, subscriptionExpiresAt?: string): string | null => {
@@ -1981,7 +2077,7 @@ export default function App() {
     <div className="bg-zinc-950 min-h-screen relative text-zinc-100 flex flex-col justify-between overflow-x-hidden">
       
       {/* --- SEÇÃO 1: LOGIN E SELEÇÃO DE PERFIL --- */}
-      {!activeProfile ? (
+      {!isUserAuthenticated ? (
         <ProfileSelector
           users={users}
           currentUserId={currentUserId}
@@ -1991,6 +2087,10 @@ export default function App() {
           onAddProfile={handleAddProfile}
           onDeleteProfile={handleDeleteProfile}
           onEditProfile={handleEditProfile}
+          sharedContent={selectedMovie}
+          targetContentId={getContentIdFromUrl()}
+          onRegisterUser={handleRegisterUser}
+          onAuthSuccess={handleAuthSuccess}
         />
       ) : isUserExpired ? (
         <div className="flex-1 flex flex-col items-center justify-center p-6 text-center select-none min-h-screen relative z-20">
@@ -3541,8 +3641,8 @@ export default function App() {
 
       {/* --- MODAL DE DETALHE UNIVERSAL (DEEP LINKING & COMPARTILHAMENTO INDIVIDUAL) --- */}
       <MovieDetailModal
-        movie={selectedMovie ? (movies.find(m => m.id === selectedMovie.id) || selectedMovie) : null}
-        isOpen={selectedMovie !== null}
+        movie={isUserAuthenticated && selectedMovie ? (movies.find(m => m.id === selectedMovie.id) || selectedMovie) : null}
+        isOpen={Boolean(isUserAuthenticated && selectedMovie !== null)}
         onClose={() => {
           setSelectedMovie(null);
           updateBrowserUrl(null);
