@@ -29,6 +29,7 @@ interface NavbarProps {
   selectedCategory: string | null;
   onSelectCategory: (category: string | null) => void;
   movies: Movie[];
+  onOpenModifyProfile?: () => void;
 }
 
 export default function Navbar({
@@ -49,7 +50,8 @@ export default function Navbar({
   onMarkAllAsRead,
   selectedCategory,
   onSelectCategory,
-  movies
+  movies,
+  onOpenModifyProfile
 }: NavbarProps) {
   const [isScrolled, setIsScrolled] = useState(false);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
@@ -397,17 +399,17 @@ export default function Navbar({
           <div className="relative" ref={dropdownRef}>
             <button
               onClick={() => setShowProfileDropdown(!showProfileDropdown)}
-              className="flex items-center gap-1.5 p-1 rounded-lg hover:bg-zinc-900 transition-colors focus:outline-none"
+              className="flex items-center gap-2 p-1.5 rounded-xl hover:bg-zinc-900 transition-colors focus:outline-none"
               id="navbar-profile-dropdown"
             >
               <img
                 src={activeProfile.avatarUrl}
                 alt={activeProfile.name}
-                className="w-8 h-8 rounded object-cover border border-zinc-800 select-none pointer-events-none"
+                className="w-10 h-10 rounded-xl object-cover border-2 border-zinc-700 shadow-md select-none pointer-events-none hover:border-[#00ff66]/70 transition-colors"
                 referrerPolicy="no-referrer"
                 draggable="false"
               />
-              <ChevronDown className={`w-3.5 h-3.5 text-zinc-500 transition-transform ${showProfileDropdown ? 'rotate-180' : ''}`} />
+              <ChevronDown className={`w-3.5 h-3.5 text-zinc-400 transition-transform ${showProfileDropdown ? 'rotate-180' : ''}`} />
             </button>
 
             {/* Menu Dropdown de Perfil */}
@@ -421,20 +423,24 @@ export default function Navbar({
                 >
                   {user.isAdmin ? (
                     /* Menu Exclusivo para o Administrador (Rafael Gusmão) - Apenas o Painel de Controle */
-                    <div className="p-3 bg-zinc-950 flex flex-col gap-2">
-                      <div className="px-1 py-1 text-[10px] text-zinc-500 font-bold uppercase tracking-wider flex items-center justify-between border-b border-zinc-900 pb-2">
-                        <span>Painel do Administrador</span>
-                        <span className="text-rose-500 bg-rose-500/10 px-1.5 py-0.5 rounded text-[9px] border border-rose-500/20">ADM</span>
+                    <div className="p-3.5 bg-zinc-950 flex flex-col gap-2.5 font-sans">
+                      <div className="px-1 py-1 text-[10px] text-zinc-400 font-mono font-bold uppercase tracking-wider flex items-center justify-between border-b border-zinc-850 pb-2">
+                        <span className="flex items-center gap-1.5 text-zinc-300">
+                          <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+                          Painel do Administrador
+                        </span>
+                        <span className="text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-full text-[9px] border border-rose-500/30 font-bold">ADM</span>
                       </div>
 
+                      {/* Botão Painel de Controle */}
                       <button
                         onClick={() => {
                           onToggleAdminView(!isAdminView);
                           setShowProfileDropdown(false);
                         }}
-                        className={`w-full py-3 px-4 rounded-lg font-bold transition-all flex items-center justify-center gap-2.5 shadow-lg cursor-pointer text-xs font-sans uppercase tracking-wider ${
+                        className={`w-full py-2.5 px-3.5 rounded-xl font-bold transition-all flex items-center justify-center gap-2.5 shadow-lg cursor-pointer text-xs uppercase tracking-wider ${
                           isAdminView
-                            ? 'bg-rose-950/40 text-rose-400 border border-rose-500/40 hover:bg-rose-900/60 shadow-rose-950/20'
+                            ? 'bg-rose-950/50 text-rose-300 border border-rose-500/50 hover:bg-rose-900/60 shadow-rose-950/30'
                             : 'bg-zinc-900 hover:bg-zinc-850 text-white border border-zinc-750 hover:border-rose-500/60 shadow-black'
                         }`}
                         id="nav-admin-panel-link"
@@ -443,20 +449,62 @@ export default function Navbar({
                         <span>{isAdminView ? 'Sair do Painel Admin' : 'Painel de Controle'}</span>
                       </button>
 
+                      {/* Botão Modificar Perfil (Com Foto Maior, Sem Sparkles, Apenas 'Modificar Perfil') */}
                       <button
                         onClick={() => {
-                          onSwitchUser();
+                          if (onOpenModifyProfile) onOpenModifyProfile();
                           setShowProfileDropdown(false);
                         }}
-                        className="w-full text-zinc-500 hover:text-zinc-300 py-1.5 px-2 text-center text-[10px] transition-colors mt-1"
-                        id="btn-switch-account-alt"
+                        className="relative overflow-hidden w-full text-white bg-gradient-to-r from-zinc-900 via-zinc-900/90 to-rose-950/40 hover:to-rose-900/40 py-2.5 px-3 rounded-xl text-xs font-bold transition-all duration-300 flex items-center justify-between border border-zinc-750 hover:border-rose-500 hover:shadow-[0_0_20px_rgba(229,9,20,0.35)] group cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+                        id="btn-modify-profile-admin"
                       >
-                        Mudar de Conta
+                        {/* Shimmer suave no hover */}
+                        <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/10 to-transparent pointer-events-none" />
+
+                        <div className="flex items-center gap-3 relative z-10">
+                          {/* Imagem do Perfil Maior e Limpa (Sem Sparkles) */}
+                          <div className="relative w-11 h-11 rounded-xl overflow-hidden border-2 border-rose-500/70 shadow-[0_0_12px_rgba(229,9,20,0.35)] flex-shrink-0 group-hover:border-rose-400 transition-colors">
+                            <img
+                              src={activeProfile.avatarUrl}
+                              alt={activeProfile.name}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                              referrerPolicy="no-referrer"
+                            />
+                          </div>
+
+                          <span className="font-extrabold text-white text-xs group-hover:text-rose-200 transition-colors">
+                            Modificar Perfil
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-1 text-zinc-400 group-hover:text-rose-400 transition-colors relative z-10">
+                          <span className="text-xs font-mono group-hover:translate-x-0.5 transition-transform">&rarr;</span>
+                        </div>
                       </button>
+
+                      {/* Botão Sair da Conta (ADM) */}
+                      <div className="pt-1 border-t border-zinc-850">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowProfileDropdown(false);
+                            onLogoutProfile();
+                          }}
+                          className="w-full text-rose-400 hover:text-white bg-rose-950/25 hover:bg-rose-600 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 border border-rose-900/60 hover:border-rose-500 shadow-md group cursor-pointer active:scale-[0.98]"
+                          id="btn-logout-admin"
+                        >
+                          <LogOut className="w-4 h-4 text-rose-400 group-hover:text-white group-hover:-translate-x-0.5 transition-transform" />
+                          <span>Sair da Conta</span>
+                        </button>
+                      </div>
+
+                      <div className="text-[10px] text-zinc-500 text-center font-mono truncate pt-1">
+                        Logado como: <strong className="text-zinc-300">{user.name}</strong>
+                      </div>
                     </div>
                   ) : (
                     /* Menu Exclusivo para Usuários - Verde Neon Vibrante com Dias de Acesso */
-                    <div className="p-3.5 bg-zinc-950/95 border border-[#00ff66]/40 rounded-xl shadow-[0_0_25px_rgba(0,255,102,0.18)] flex flex-col font-sans">
+                    <div className="p-3.5 bg-zinc-950/98 border border-[#00ff66]/40 rounded-2xl shadow-[0_0_25px_rgba(0,255,102,0.18)] flex flex-col font-sans">
                       <div className="flex items-center justify-between text-[10px] font-mono font-bold uppercase tracking-wider text-[#00ff66] mb-2 drop-shadow-[0_0_6px_rgba(0,255,102,0.8)] border-b border-[#00ff66]/20 pb-2">
                         <span className="flex items-center gap-1.5">
                           <span className="w-2 h-2 rounded-full bg-[#00ff66] shadow-[0_0_8px_#00ff66] animate-pulse" />
@@ -483,37 +531,56 @@ export default function Navbar({
                         />
                       </div>
 
-                      <div className="mt-3 pt-2.5 border-t border-zinc-900 flex flex-col gap-1.5">
+                      {/* Botão Modificar Perfil (Foto Maior, Sem Sparkles, Apenas 'Modificar Perfil') */}
+                      <div className="mt-3 pt-2.5 border-t border-zinc-900 flex flex-col gap-2">
                         <button
                           onClick={() => {
-                            onLogoutProfile();
+                            if (onOpenModifyProfile) onOpenModifyProfile();
                             setShowProfileDropdown(false);
                           }}
-                          className="w-full text-zinc-400 hover:text-white hover:bg-zinc-900 py-2 px-3 rounded-lg text-xs transition-colors flex items-center justify-between border border-zinc-850"
-                          id="btn-logout-profile"
+                          className="relative overflow-hidden w-full text-white bg-gradient-to-r from-zinc-900 via-zinc-900 to-[#00ff66]/15 hover:to-[#00ff66]/25 py-2.5 px-3 rounded-xl text-xs font-bold transition-all duration-300 flex items-center justify-between border border-zinc-800 hover:border-[#00ff66]/80 hover:shadow-[0_0_20px_rgba(0,255,102,0.35)] group cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+                          id="btn-modify-profile"
                         >
-                          <span className="flex items-center gap-2">
-                            <Sliders className="w-3.5 h-3.5 text-zinc-500" />
-                            <span>Gerenciar Perfis</span>
-                          </span>
+                          {/* Shimmer suave no hover */}
+                          <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/10 to-transparent pointer-events-none" />
+
+                          <div className="flex items-center gap-3 relative z-10">
+                            {/* Imagem do Perfil Maior e Limpa (Sem Sparkles) */}
+                            <div className="relative w-11 h-11 rounded-xl overflow-hidden border-2 border-[#00ff66]/70 shadow-[0_0_12px_rgba(0,255,102,0.35)] flex-shrink-0 group-hover:border-[#00ff66] transition-colors">
+                              <img
+                                src={activeProfile.avatarUrl}
+                                alt={activeProfile.name}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                referrerPolicy="no-referrer"
+                              />
+                            </div>
+
+                            <span className="font-extrabold text-white text-xs group-hover:text-[#00ff66] transition-colors">
+                              Modificar Perfil
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-1 text-zinc-400 group-hover:text-[#00ff66] transition-colors relative z-10">
+                            <span className="text-xs font-mono group-hover:translate-x-0.5 transition-transform">&rarr;</span>
+                          </div>
                         </button>
 
+                        {/* Botão Sair da Conta (Usuário) */}
                         <button
+                          type="button"
                           onClick={() => {
-                            onSwitchUser();
                             setShowProfileDropdown(false);
+                            onLogoutProfile();
                           }}
-                          className="w-full text-zinc-400 hover:text-white hover:bg-zinc-900 py-2 px-3 rounded-lg text-xs transition-colors flex items-center justify-between border border-zinc-850"
-                          id="btn-switch-account-alt"
+                          className="w-full text-rose-400 hover:text-white bg-rose-950/25 hover:bg-rose-600 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 border border-rose-900/60 hover:border-rose-500 shadow-md group cursor-pointer active:scale-[0.98]"
+                          id="btn-logout-user"
                         >
-                          <span className="flex items-center gap-2">
-                            <UserCheck className="w-3.5 h-3.5 text-zinc-500" />
-                            <span>Mudar de Conta</span>
-                          </span>
+                          <LogOut className="w-4 h-4 text-rose-400 group-hover:text-white group-hover:-translate-x-0.5 transition-transform" />
+                          <span>Sair da Conta</span>
                         </button>
                       </div>
 
-                      <div className="mt-2.5 text-[10px] text-zinc-500 text-center font-mono truncate pt-1 border-t border-zinc-900/60">
+                      <div className="mt-2 text-[10px] text-zinc-500 text-center font-mono truncate pt-1 border-t border-zinc-900/60">
                         Logado como: <strong className="text-zinc-300">{user.name}</strong>
                       </div>
                     </div>

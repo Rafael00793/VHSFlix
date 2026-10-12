@@ -9,7 +9,8 @@ import { PROFILE_AVATARS, INITIAL_MOVIES } from '../data';
 import { 
   Plus, Trash, Edit, UserCheck, Shield, ChevronRight, LogOut, Film, 
   Eye, EyeOff, User as UserIcon, Lock as LockIcon, Heart, Tv, ArrowLeft, 
-  Upload, Link, Mail, Sparkles, CheckCircle2, AlertCircle, Clapperboard, Play, Star
+  Upload, Link, Mail, Sparkles, CheckCircle2, AlertCircle, Clapperboard, Play, Star,
+  Send, ExternalLink, HelpCircle, X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 // @ts-ignore
@@ -95,6 +96,7 @@ export default function ProfileSelector({
   const [loginError, setLoginError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
+  const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
 
   // Campos de Cadastro
   const [regName, setRegName] = useState('');
@@ -541,27 +543,39 @@ export default function ProfileSelector({
                   </button>
                 </div>
 
-                {/* CHECKBOXES */}
-                <div className="my-0.5 flex items-center justify-between gap-3 text-xs text-zinc-300 font-sans select-none px-0.5">
-                  <label className="flex items-center gap-2 cursor-pointer hover:text-white transition-colors group">
-                    <input 
-                      type="checkbox" 
-                      checked={rememberMe}
-                      onChange={e => setRememberMe(e.target.checked)}
-                      className="accent-emerald-500 rounded w-4 h-4 cursor-pointer" 
-                    />
-                    <span className="font-medium group-hover:text-white text-zinc-300">Lembrar de mim</span>
-                  </label>
+                {/* CHECKBOXES & ESQUECEU A SENHA */}
+                <div className="my-0.5 flex flex-wrap items-center justify-between gap-2 text-xs text-zinc-300 font-sans select-none px-0.5">
+                  <div className="flex items-center gap-3">
+                    <label className="flex items-center gap-2 cursor-pointer hover:text-white transition-colors group">
+                      <input 
+                        type="checkbox" 
+                        checked={rememberMe}
+                        onChange={e => setRememberMe(e.target.checked)}
+                        className="accent-emerald-500 rounded w-4 h-4 cursor-pointer" 
+                      />
+                      <span className="font-medium group-hover:text-white text-zinc-300">Lembrar de mim</span>
+                    </label>
 
-                  <label className="flex items-center gap-2 cursor-pointer hover:text-white transition-colors group">
-                    <input 
-                      type="checkbox" 
-                      className="accent-emerald-500 rounded w-4 h-4 cursor-pointer" 
-                      checked={showPassword} 
-                      onChange={() => setShowPassword(!showPassword)} 
-                    />
-                    <span className="font-medium group-hover:text-white text-zinc-300">Mostrar senha</span>
-                  </label>
+                    <label className="flex items-center gap-2 cursor-pointer hover:text-white transition-colors group">
+                      <input 
+                        type="checkbox" 
+                        className="accent-emerald-500 rounded w-4 h-4 cursor-pointer" 
+                        checked={showPassword} 
+                        onChange={() => setShowPassword(!showPassword)} 
+                      />
+                      <span className="font-medium group-hover:text-white text-zinc-300">Mostrar</span>
+                    </label>
+                  </div>
+
+                  {/* LINK ESQUECEU A SENHA? */}
+                  <button
+                    type="button"
+                    onClick={() => setShowForgotPasswordModal(true)}
+                    className="text-xs text-zinc-400 hover:text-emerald-400 transition-colors font-medium hover:underline cursor-pointer inline-flex items-center gap-1 ml-auto"
+                    id="btn-forgot-password"
+                  >
+                    <span>Esqueceu a senha?</span>
+                  </button>
                 </div>
 
                 {/* BUTTON ENTRAR */}
@@ -622,6 +636,80 @@ export default function ProfileSelector({
 
           </div>
         </div>
+
+        {/* MODAL DE RECUPERAÇÃO DE SENHA PELO TELEGRAM */}
+        <AnimatePresence>
+          {showForgotPasswordModal && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4"
+              onClick={() => setShowForgotPasswordModal(false)}
+            >
+              <motion.div
+                initial={{ scale: 0.92, opacity: 0, y: 16 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.92, opacity: 0, y: 16 }}
+                transition={{ type: "spring", duration: 0.35, bounce: 0.2 }}
+                onClick={e => e.stopPropagation()}
+                className="w-full max-w-md bg-zinc-900 border border-emerald-500/30 rounded-2xl p-6 sm:p-7 shadow-2xl shadow-black/90 relative overflow-hidden text-center"
+              >
+                {/* Glow decorativo de fundo */}
+                <div className="absolute -top-16 -right-16 w-36 h-36 bg-emerald-500/15 rounded-full blur-2xl pointer-events-none" />
+                <div className="absolute -bottom-16 -left-16 w-36 h-36 bg-[#229ED9]/15 rounded-full blur-2xl pointer-events-none" />
+
+                {/* Botão fechar */}
+                <button
+                  type="button"
+                  onClick={() => setShowForgotPasswordModal(false)}
+                  className="absolute top-4 right-4 text-zinc-400 hover:text-white p-2 rounded-lg hover:bg-zinc-800 transition-colors cursor-pointer"
+                  title="Fechar"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+
+                {/* Ícone estilizado */}
+                <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-emerald-500/20 via-[#229ED9]/20 to-emerald-500/10 border border-emerald-500/40 flex items-center justify-center shadow-lg shadow-emerald-500/10">
+                  <span className="text-3xl select-none" role="img" aria-label="Cadeado">🔐</span>
+                </div>
+
+                {/* Título */}
+                <h3 className="text-xl sm:text-2xl font-black text-white tracking-wide mb-2">
+                  Esqueceu sua senha? 🔐
+                </h3>
+
+                {/* Mensagem explicativa */}
+                <p className="text-sm text-zinc-300 font-sans leading-relaxed mb-6 px-1">
+                  Não se preocupe! Para recuperar o acesso à sua conta, entre em contato com o administrador do <span className="text-emerald-400 font-bold">VHSFLIX</span> pelo Telegram e solicite a alteração da sua senha.
+                </p>
+
+                {/* Botão de contato com Telegram */}
+                <div className="flex flex-col gap-3">
+                  <a
+                    href="https://t.me/VHSFLIX2026"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full inline-flex items-center justify-center gap-2.5 bg-gradient-to-r from-[#229ED9] via-[#0088cc] to-[#179cde] hover:from-[#2ba8e4] hover:to-[#0077b5] active:scale-[0.98] text-white font-bold py-3.5 px-6 rounded-xl shadow-lg shadow-[#0088cc]/30 transition-all text-sm uppercase tracking-wider group cursor-pointer"
+                    id="btn-telegram-recovery"
+                  >
+                    <Send className="w-4 h-4 text-white group-hover:translate-x-0.5 transition-transform" />
+                    <span>📩 Falar com o ADM no Telegram</span>
+                    <ExternalLink className="w-3.5 h-3.5 opacity-80" />
+                  </a>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowForgotPasswordModal(false)}
+                    className="w-full py-2.5 text-xs text-zinc-400 hover:text-white transition-colors cursor-pointer font-medium"
+                  >
+                    Voltar para o login
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     );
   }
@@ -652,8 +740,8 @@ export default function ProfileSelector({
           className="flex items-center gap-2 text-zinc-300 hover:text-white font-semibold transition-colors text-xs sm:text-sm px-4 py-2 rounded-xl bg-black/60 border border-zinc-800 backdrop-blur-md cursor-pointer hover:border-rose-500/50 group shadow-lg"
           id="btn-back-to-login"
         >
-          <ArrowLeft className="w-4 h-4 text-rose-500 group-hover:-translate-x-1 transition-transform" />
-          <span>Trocar de Conta</span>
+          <LogOut className="w-4 h-4 text-rose-500 group-hover:-translate-x-1 transition-transform" />
+          <span>Sair da Conta</span>
         </button>
 
         <div className="bg-black/60 backdrop-blur-md px-4 py-2 rounded-xl border border-zinc-800/80 flex items-center gap-3 shadow-lg">
@@ -712,7 +800,7 @@ export default function ProfileSelector({
                       onSelectProfile(profile.id);
                     }
                   }}
-                  className={`relative w-32 h-32 sm:w-40 sm:h-40 md:w-44 md:h-44 rounded-2xl overflow-hidden border-2 bg-zinc-900 transition-all cursor-pointer focus-visible:ring-4 focus-visible:ring-rose-500 focus-visible:scale-105 focus-visible:outline-none shadow-xl ${
+                  className={`relative w-36 h-36 sm:w-44 sm:h-44 md:w-48 md:h-48 rounded-2xl overflow-hidden border-2 bg-zinc-900 transition-all cursor-pointer focus-visible:ring-4 focus-visible:ring-rose-500 focus-visible:scale-105 focus-visible:outline-none shadow-xl ${
                     isManagingProfiles 
                       ? 'border-dashed border-rose-500 scale-95 hover:border-rose-300 shadow-[0_0_25px_rgba(229,9,20,0.25)]' 
                       : 'border-zinc-800 hover:border-[#E50914] group-hover:scale-105 hover:shadow-[0_0_30px_rgba(229,9,20,0.35)]'
@@ -791,7 +879,7 @@ export default function ProfileSelector({
             >
               <button
                 onClick={() => setShowAddProfileModal(true)}
-                className="w-32 h-32 sm:w-40 sm:h-40 md:w-44 md:h-44 rounded-2xl border-2 border-dashed border-zinc-700 hover:border-rose-500 bg-zinc-900/40 hover:bg-rose-500/10 text-zinc-400 hover:text-white transition-all flex flex-col items-center justify-center cursor-pointer group shadow-lg hover:scale-105"
+                className="w-36 h-36 sm:w-44 sm:h-44 md:w-48 md:h-48 rounded-2xl border-2 border-dashed border-zinc-700 hover:border-rose-500 bg-zinc-900/40 hover:bg-rose-500/10 text-zinc-400 hover:text-white transition-all flex flex-col items-center justify-center cursor-pointer group shadow-lg hover:scale-105"
                 id="btn-add-profile-card"
               >
                 <div className="w-12 h-12 rounded-full bg-zinc-800 group-hover:bg-[#E50914] flex items-center justify-center transition-colors mb-2 shadow-inner">

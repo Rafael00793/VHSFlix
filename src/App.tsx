@@ -11,6 +11,7 @@ import Navbar from './components/Navbar';
 import ProfileSelector from './components/ProfileSelector';
 import MovieRow from './components/MovieRow';
 import MovieDetailModal from './components/MovieDetailModal';
+import ModifyProfileModal from './components/ModifyProfileModal';
 import RecommendationBadge from './components/RecommendationBadge';
 import AdminPanel from './components/AdminPanel';
 import RequestsPanel from './components/RequestsPanel';
@@ -1573,6 +1574,46 @@ export default function App() {
     });
   };
 
+  // --- MODIFICAR PERFIL (FOTO E SENHA - ABA RÁPIDA, BONITA E ANIMADA) ---
+  const [isModifyProfileOpen, setIsModifyProfileOpen] = useState(false);
+
+  const handleModifyProfileSettings = async (newAvatarUrl: string, newPassword?: string): Promise<string | null> => {
+    try {
+      // 1. Atualizar foto do perfil ativo e do usuário
+      if (activeProfile && newAvatarUrl) {
+        handleEditProfile(activeProfile.id, activeProfile.name, newAvatarUrl);
+      }
+
+      // 2. Se informou nova senha, atualiza os dados da conta do usuário
+      if (newPassword && newPassword.trim() !== '') {
+        const trimmed = newPassword.trim();
+        if (trimmed.length < 4) {
+          return 'A nova senha deve ter no mínimo 4 dígitos.';
+        }
+
+        const targetUser = users.find(u => u.id === currentUserId);
+        if (targetUser) {
+          const updatedUser: User = {
+            ...targetUser,
+            password: trimmed,
+            avatarUrl: newAvatarUrl || targetUser.avatarUrl
+          };
+
+          setUsers(prev => {
+            const next = prev.map(u => u.id === currentUserId ? updatedUser : u);
+            saveUsersToFirestore([updatedUser]);
+            return next;
+          });
+        }
+      }
+
+      return null; // Sucesso
+    } catch (err) {
+      console.error('Erro ao modificar perfil:', err);
+      return 'Erro ao atualizar dados do perfil.';
+    }
+  };
+
   const handleLogoutProfile = () => {
     setCurrentProfileId(null);
     setCurrentUserId('');
@@ -2159,6 +2200,7 @@ export default function App() {
             onSelectProfile={handleSelectProfile}
             onLogoutProfile={handleLogoutProfile}
             onSwitchUser={handleLogoutProfile}
+            onOpenModifyProfile={() => setIsModifyProfileOpen(true)}
             searchVal={searchVal}
             onSearchChange={setSearchVal}
             activeTab={activeTab}
@@ -3665,6 +3707,17 @@ export default function App() {
         activeProfile={activeProfile}
         onToggleRecommendation={handleToggleRecommendation}
       />
+
+      {/* --- MODAL RÁPIDO, BONITO E ANIMADO DE MODIFICAR PERFIL (FOTO E SENHA) --- */}
+      {isUserAuthenticated && activeProfile && (
+        <ModifyProfileModal
+          isOpen={isModifyProfileOpen}
+          onClose={() => setIsModifyProfileOpen(false)}
+          user={activeUser}
+          activeProfile={activeProfile}
+          onSave={handleModifyProfileSettings}
+        />
+      )}
     </div>
   );
 }
