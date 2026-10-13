@@ -2261,7 +2261,7 @@ export default function App() {
               
               {/* SEÇÃO HERO SPOTLIGHT (CARROSSEL DINÂMICO EM GRANDE PLANO) */}
               {!searchVal && activeTab === 'all' && featuredMovie && (
-                <div className="relative min-h-[480px] sm:min-h-[560px] h-[66vh] sm:h-[84vh] w-full bg-zinc-950 flex flex-col justify-end select-none border-b border-zinc-900/40 overflow-hidden group pt-20 sm:pt-0">
+                <div className="relative min-h-[460px] xs:min-h-[500px] sm:min-h-[560px] h-auto sm:h-[84vh] w-full bg-zinc-950 flex flex-col justify-end select-none border-b border-zinc-900/40 overflow-hidden group pt-24 sm:pt-0">
                   
                   {/* Container de transição de imagens con AnimatePresence */}
                   <AnimatePresence mode="wait">
@@ -2282,13 +2282,13 @@ export default function App() {
                         onError={handleBackdropError}
                       />
                       {/* Sombras pretas de ambientação suaves */}
-                      <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/30 to-transparent pointer-events-none z-20" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/40 to-transparent pointer-events-none z-20" />
                       <div className="absolute inset-0 bg-gradient-to-r from-zinc-950/80 via-transparent to-transparent pointer-events-none z-20 hidden md:block" />
                     </motion.div>
                   </AnimatePresence>
 
                   {/* Detalhes e botões informativos */}
-                  <div className="relative z-20 max-w-[1400px] w-full mx-auto px-4 sm:px-8 pb-8 sm:pb-24 pt-8 sm:pt-0 flex flex-col items-start text-left">
+                  <div className="relative z-20 max-w-[1400px] w-full mx-auto px-4 sm:px-8 pb-8 sm:pb-24 pt-6 sm:pt-0 flex flex-col items-start text-left">
                     <AnimatePresence mode="wait">
                       <motion.div
                         key={`meta-${featuredMovie.id}`}
@@ -2296,63 +2296,63 @@ export default function App() {
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -15 }}
                         transition={{ duration: 0.45 }}
-                        className="flex flex-col items-start"
+                        className="flex flex-col items-start w-full"
                       >
                         {/* 1. Gênero • 2. Nota (sem estrela, /10) • 3. Ano • 4. Tipo de Produção (Filme, Série de TV, Reality Show, Novela) */}
-                        <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 mb-3 sm:mb-4">
+                        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2.5 mb-2.5 sm:mb-4">
                           {/* Selo Oficial de Indicação do Administrador Rafael */}
                           {featuredMovie.isRecommended && (
                             <RecommendationBadge variant="banner" />
                           )}
 
                           {/* 1. Gênero */}
-                          <span className="bg-zinc-900/90 border border-zinc-700/70 text-zinc-100 font-sans text-[11px] sm:text-xs font-black px-3.5 py-1 rounded-full uppercase tracking-wider shadow-sm flex items-center gap-1.5">
+                          <span className="bg-zinc-900/90 border border-zinc-700/70 text-zinc-100 font-sans text-[10px] sm:text-xs font-black px-2.5 sm:px-3.5 py-1 rounded-full uppercase tracking-wider shadow-sm flex items-center gap-1.5">
                             <span>{featuredMovie.category}</span>
                           </span>
 
                           {/* 2. Nota (sem estrelinha, formato X.X/10) */}
-                          <span className="bg-zinc-900/90 border border-zinc-700/70 text-zinc-100 font-sans text-[11px] sm:text-xs font-bold px-3 py-1 rounded-full shadow-sm">
+                          <span className="bg-zinc-900/90 border border-zinc-700/70 text-zinc-100 font-sans text-[10px] sm:text-xs font-bold px-2.5 sm:px-3 py-1 rounded-full shadow-sm">
                             <span className="font-mono font-black">{featuredMovie.rating}/10</span>
                           </span>
 
                           {/* 3. Ano */}
-                          <span className="bg-zinc-900/90 border border-zinc-700/70 text-zinc-300 font-sans text-[11px] sm:text-xs font-semibold px-3 py-1 rounded-full shadow-sm font-mono">
+                          <span className="bg-zinc-900/90 border border-zinc-700/70 text-zinc-300 font-sans text-[10px] sm:text-xs font-semibold px-2.5 sm:px-3 py-1 rounded-full shadow-sm font-mono">
                             {featuredMovie.year}
                           </span>
 
                           {/* 4. Tipo de Produção */}
-                          <span className="bg-red-600/15 border border-red-500/40 text-red-400 font-sans text-[11px] sm:text-xs font-black px-3.5 py-1 rounded-full uppercase tracking-wider shadow-[0_0_12px_rgba(239,68,68,0.25)] flex items-center gap-1.5">
+                          <span className="bg-red-600/15 border border-red-500/40 text-red-400 font-sans text-[10px] sm:text-xs font-black px-2.5 sm:px-3.5 py-1 rounded-full uppercase tracking-wider shadow-[0_0_12px_rgba(239,68,68,0.25)] flex items-center gap-1.5">
                             <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
                             <span>{getMovieTypeDetailed(featuredMovie)}</span>
                           </span>
                         </div>
                         
-                        {/* Título com Display Typography e espaçamento generoso */}
-                        <h1 className="text-2xl xs:text-3xl sm:text-6xl font-black font-display tracking-wide text-white leading-tight uppercase max-w-2xl text-shadow whitespace-pre-line">
+                        {/* Título com Display Typography e quebra natural */}
+                        <h1 className="text-2xl xs:text-3xl sm:text-5xl md:text-6xl font-black font-display tracking-tight text-white leading-tight uppercase max-w-3xl text-shadow break-words">
                           {featuredMovie.title}
                         </h1>
 
                         {/* Descrição Sinopse curta com efeito line-clamp responsivo */}
-                        <p className="text-xs sm:text-base text-zinc-300 max-w-xl sm:max-w-2xl mt-2.5 sm:mt-4 line-clamp-2 sm:line-clamp-3 leading-relaxed drop-shadow-sm font-light tracking-wide">
+                        <p className="text-xs sm:text-base text-zinc-300 max-w-xl sm:max-w-2xl mt-2 sm:mt-4 line-clamp-2 sm:line-clamp-3 leading-relaxed drop-shadow-sm font-light tracking-wide">
                           {featuredMovie.description}
                         </p>
                       </motion.div>
                     </AnimatePresence>
 
-                    {/* Botões do destaque com animação moderna e destaque em Vermelho Vibrante */}
+                    {/* Botões do destaque com adaptação touch mobile perfeita */}
                     <motion.div
                       key={`hero-btns-${featuredMovie.id}`}
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.5, delay: 0.15 }}
-                      className="flex flex-wrap items-center gap-3 sm:gap-4 mt-5 sm:mt-9"
+                      className="flex flex-col xs:flex-row items-stretch xs:items-center gap-2.5 sm:gap-4 mt-4 sm:mt-8 w-full sm:w-auto"
                     >
                       {/* Botão de Assistir */}
                       <motion.button
                         whileHover={{ scale: 1.05, boxShadow: "0 0 35px rgba(239,68,68,0.75)" }}
                         whileTap={{ scale: 0.95 }}
                         onClick={() => handleFeaturedPlay(featuredMovie)}
-                        className="relative overflow-hidden bg-gradient-to-r from-red-600 via-rose-600 to-red-600 hover:from-red-500 hover:via-rose-500 hover:to-red-500 text-white font-black text-xs sm:text-sm px-6 py-3.5 sm:px-8 sm:py-4 rounded-xl flex items-center gap-2.5 shadow-[0_0_25px_rgba(239,68,68,0.55)] transition-all cursor-pointer tracking-wider border border-red-500/80 group"
+                        className="relative overflow-hidden w-full xs:w-auto bg-gradient-to-r from-red-600 via-rose-600 to-red-600 hover:from-red-500 hover:via-rose-500 hover:to-red-500 text-white font-black text-xs sm:text-sm px-6 py-3.5 sm:px-8 sm:py-4 rounded-xl flex items-center justify-center gap-2.5 shadow-[0_0_25px_rgba(239,68,68,0.55)] transition-all cursor-pointer tracking-wider border border-red-500/80 group min-h-[48px]"
                         id="btn-hero-play"
                       >
                         {/* Efeito de brilho animado (sheen) */}
@@ -2366,7 +2366,7 @@ export default function App() {
                         </span>
                       </motion.button>
 
-                      {/* Botão Salvar na Minha Lista (Substitui Ficha Técnica e descarta o circular) */}
+                      {/* Botão Salvar na Minha Lista */}
                       {(() => {
                         const isHeroSaved = (activeProfile?.myList || []).some(
                           id => String(id) === String(featuredMovie.id) || (featuredMovie.tmdbId && String(id) === `tmdb_${featuredMovie.tmdbId}`)
@@ -2377,7 +2377,7 @@ export default function App() {
                             whileHover={{ scale: 1.04, boxShadow: isHeroSaved ? "0 0 25px rgba(239,68,68,0.4)" : "0 0 20px rgba(255,255,255,0.08)" }}
                             whileTap={{ scale: 0.94 }}
                             onClick={() => handleToggleMyList(featuredMovie.id)}
-                            className={`font-black text-xs sm:text-sm px-5 py-3.5 sm:px-7 sm:py-4 rounded-xl flex items-center gap-2.5 transition-all cursor-pointer tracking-wider border backdrop-blur-md ${
+                            className={`font-black text-xs sm:text-sm px-5 py-3.5 sm:px-7 sm:py-4 rounded-xl flex items-center justify-center gap-2.5 transition-all cursor-pointer tracking-wider border backdrop-blur-md w-full xs:w-auto min-h-[48px] ${
                               isHeroSaved
                                 ? 'bg-red-600/20 border-red-500 text-red-300 shadow-[0_0_20px_rgba(239,68,68,0.3)]'
                                 : 'bg-zinc-900/85 hover:bg-zinc-800 border-zinc-700/80 hover:border-red-500/50 text-zinc-200 hover:text-white'
@@ -2749,12 +2749,12 @@ export default function App() {
                         </div>
 
                         {/* Botões Interativos de Ação em Verde Neon */}
-                        <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 mt-5">
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center md:justify-start gap-2.5 sm:gap-3 mt-4 sm:mt-5 w-full sm:w-auto">
                           <motion.button
                             whileHover={{ scale: 1.05, boxShadow: "0 0 35px rgba(16,185,129,0.8)" }}
                             whileTap={{ scale: 0.95 }}
                             onClick={() => handleSelectMovie(currentTrendingMovie)}
-                            className="relative overflow-hidden bg-emerald-500 hover:bg-emerald-400 text-black font-sans text-xs font-black uppercase tracking-wider px-6 py-3 rounded-xl flex items-center gap-2.5 transition-all cursor-pointer shadow-[0_0_25px_rgba(16,185,129,0.6)] border border-emerald-400 group"
+                            className="relative overflow-hidden w-full sm:w-auto justify-center bg-emerald-500 hover:bg-emerald-400 text-black font-sans text-xs font-black uppercase tracking-wider px-6 py-3.5 rounded-xl flex items-center gap-2.5 transition-all cursor-pointer shadow-[0_0_25px_rgba(16,185,129,0.6)] border border-emerald-400 group min-h-[46px]"
                             id="btn-play-most-desired"
                           >
                             {/* Efeito de brilho animado (sheen) */}
@@ -2775,7 +2775,7 @@ export default function App() {
                               if (!activeProfile) return;
                               handleToggleMyList(currentTrendingMovie.id);
                             }}
-                            className={`border font-sans text-xs font-bold uppercase tracking-wider px-5 py-3 rounded-xl transition-all cursor-pointer flex items-center gap-2 ${
+                            className={`border font-sans text-xs font-bold uppercase tracking-wider px-5 py-3.5 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 w-full sm:w-auto min-h-[46px] ${
                               activeProfile?.myList?.includes(currentTrendingMovie.id)
                                 ? 'bg-emerald-500/20 border-emerald-400 text-emerald-300 shadow-[0_0_12px_rgba(16,185,129,0.4)]'
                                 : 'border-zinc-700 hover:border-emerald-400/60 text-zinc-300 hover:text-white bg-zinc-900/60'
@@ -3437,12 +3437,12 @@ export default function App() {
                         </div>
 
                         {/* Grade de Cards Paginada em 50 por 50 Itens */}
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-y-6 gap-x-4 sm:gap-x-5">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-y-4 sm:gap-y-6 gap-x-2.5 xs:gap-x-3.5 sm:gap-x-5">
                           {paginatedCatalogMovies.map(movie => (
                             <div
                               key={movie.id}
                               onClick={() => handleSelectMovie(movie)}
-                              className={`relative bg-zinc-950 border rounded-lg overflow-hidden transition-all cursor-pointer group ${
+                              className={`relative bg-zinc-950 border rounded-xl overflow-hidden transition-all cursor-pointer group ${
                                 movie.isRecommended
                                   ? 'border-amber-500/50 hover:border-amber-400 hover:shadow-xl hover:shadow-amber-500/20'
                                   : 'border-zinc-900 hover:border-rose-500 hover:shadow-xl hover:shadow-rose-600/10'
@@ -3459,22 +3459,22 @@ export default function App() {
                                   referrerPolicy="no-referrer"
                                   onError={handlePosterError}
                                 />
-                                <div className="absolute top-2 left-2 bg-black/85 border border-zinc-800/80 text-[9px] font-mono font-bold text-zinc-200 px-1.5 py-0.5 rounded shadow z-20">
+                                <div className="absolute top-1.5 sm:top-2 left-1.5 sm:left-2 bg-black/85 border border-zinc-800/80 text-[8px] sm:text-[9px] font-mono font-bold text-zinc-200 px-1.5 py-0.5 rounded shadow z-20">
                                   {movie.year}
                                 </div>
 
                                 {/* Selo Oficial de Recomendação do Administrador Rafael na Capa */}
                                 {movie.isRecommended && (
-                                  <div className="absolute top-2 right-2 z-20">
+                                  <div className="absolute top-1.5 sm:top-2 right-1.5 sm:right-2 z-20">
                                     <RecommendationBadge variant="card" />
                                   </div>
                                 )}
                               </div>
-                              <div className="p-2 sm:p-3 bg-zinc-950 border-t border-zinc-900 h-14 sm:h-16 flex flex-col justify-between">
-                                <span className="font-semibold text-xs sm:text-sm text-zinc-200 truncate group-hover:text-rose-500 block">{movie.title}</span>
-                                <div className="flex justify-between items-center text-[10px] text-zinc-500 font-mono leading-none">
+                              <div className="p-2 sm:p-3 bg-zinc-950 border-t border-zinc-900 min-h-[54px] sm:min-h-[64px] flex flex-col justify-between">
+                                <span className="font-semibold text-xs sm:text-sm text-zinc-200 line-clamp-1 group-hover:text-rose-500 block">{movie.title}</span>
+                                <div className="flex justify-between items-center text-[9px] sm:text-[10px] text-zinc-500 font-mono leading-none pt-1">
                                   <span className="text-yellow-400 font-bold flex items-center gap-0.5"><Star className="w-2.5 h-2.5 fill-yellow-400" /> {movie.rating}</span>
-                                  <span className="text-zinc-400 font-bold truncate max-w-[80px]">{movie.category}</span>
+                                  <span className="text-zinc-400 font-bold truncate max-w-[85px]">{movie.category}</span>
                                 </div>
                               </div>
                             </div>

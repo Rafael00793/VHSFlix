@@ -2509,14 +2509,14 @@ export default function MovieDetailModal({
                   <div className="absolute top-0 inset-x-0 h-28 bg-gradient-to-b from-black/80 via-black/20 to-transparent z-10" />
 
                   {/* Detalhes Rápidos no Banner - Estilo Moderno e Profissional */}
-                  <div className="absolute bottom-6 left-6 sm:bottom-12 sm:left-12 lg:bottom-14 lg:left-16 right-6 sm:right-12 lg:right-16 text-left z-20 flex flex-col items-start max-w-5xl">
+                  <div className="absolute bottom-4 left-4 right-4 sm:bottom-12 sm:left-12 lg:bottom-14 lg:left-16 sm:right-12 lg:right-16 text-left z-20 flex flex-col items-start max-w-5xl">
                     
                     {/* Linha de Badges / Tags Modernas em Vermelho Vibrante */}
-                    <div className="flex items-center flex-wrap gap-2.5 mb-2 sm:mb-4">
+                    <div className="flex items-center flex-wrap gap-2 sm:gap-2.5 mb-2 sm:mb-4">
                       {movie.isRecommended && (
                         <RecommendationBadge variant="detail" />
                       )}
-                      <span className="bg-red-600 text-white font-sans text-xs font-black px-3 py-1 rounded-full tracking-wider uppercase shadow-[0_0_15px_rgba(239,68,68,0.5)] border border-red-500">
+                      <span className="bg-red-600 text-white font-sans text-[11px] sm:text-xs font-black px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full tracking-wider uppercase shadow-[0_0_15px_rgba(239,68,68,0.5)] border border-red-500">
                         {movie.category}
                       </span>
                       {movie.rating && (
@@ -2722,15 +2722,15 @@ export default function MovieDetailModal({
             </div>
 
             {/* --- ÁREA INFERIOR: ABAS DE DETALHES E TRAILER EMBED (WIDE E ESPAÇOSO ESTILO STREAMING) --- */}
-            <div className="w-full px-5 sm:px-10 lg:px-16 xl:px-20 py-8 sm:py-12 text-left bg-[#0f171e] text-zinc-300 font-sans border-t border-zinc-800/80 min-h-[50vh]">
+            <div className="w-full px-3.5 sm:px-10 lg:px-16 xl:px-20 py-6 sm:py-12 text-left bg-[#0f171e] text-zinc-300 font-sans border-t border-zinc-800/80 min-h-[50vh]">
               
               {/* Menu de Abas Estilo Moderno */}
-              <div className="flex items-center justify-between border-b border-zinc-800/80 pb-4 mb-8">
-                <div className="flex gap-8 sm:gap-12 font-sans font-bold text-base sm:text-lg">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-zinc-800/80 pb-3 mb-6 sm:mb-8 gap-3">
+                <div className="flex items-center gap-4 sm:gap-10 font-sans font-bold text-xs sm:text-base overflow-x-auto no-scrollbar py-1">
                   {movie.type === 'series' && (
                     <button
                       onClick={() => setActiveTab('episodes')}
-                      className={`relative pb-3 text-sm sm:text-base transition-all focus:outline-none cursor-pointer ${
+                      className={`relative pb-2.5 transition-all focus:outline-none cursor-pointer whitespace-nowrap ${
                         activeTab === 'episodes' 
                           ? 'text-red-400 font-bold drop-shadow-[0_0_10px_rgba(239,68,68,0.5)]' 
                           : 'text-zinc-400 hover:text-zinc-200'
@@ -2744,7 +2744,7 @@ export default function MovieDetailModal({
                   )}
                   <button
                     onClick={() => setActiveTab('details')}
-                    className={`relative pb-3 text-sm sm:text-base transition-all focus:outline-none cursor-pointer ${
+                    className={`relative pb-2.5 transition-all focus:outline-none cursor-pointer whitespace-nowrap ${
                         activeTab === 'details' 
                           ? 'text-red-400 font-bold drop-shadow-[0_0_10px_rgba(239,68,68,0.5)]' 
                           : 'text-zinc-400 hover:text-zinc-200'
@@ -2757,7 +2757,7 @@ export default function MovieDetailModal({
                   </button>
                   <button
                     onClick={() => setActiveTab('cast')}
-                    className={`relative pb-3 text-sm sm:text-base transition-all focus:outline-none cursor-pointer ${
+                    className={`relative pb-2.5 transition-all focus:outline-none cursor-pointer whitespace-nowrap ${
                         activeTab === 'cast' 
                           ? 'text-red-400 font-bold drop-shadow-[0_0_10px_rgba(239,68,68,0.5)]' 
                           : 'text-zinc-400 hover:text-zinc-200'
@@ -2780,7 +2780,7 @@ export default function MovieDetailModal({
                         setIsShareModalOpen(true);
                       }
                     }}
-                    className="relative pb-3 text-sm sm:text-base transition-all focus:outline-none cursor-pointer text-rose-300 hover:text-white flex items-center gap-2 font-bold group"
+                    className="relative pb-2.5 transition-all focus:outline-none cursor-pointer text-rose-300 hover:text-white flex items-center gap-2 font-bold group whitespace-nowrap"
                     title="Compartilhar link individual deste conteúdo"
                   >
                     <div className="w-5 h-5 rounded-md bg-rose-950/70 border border-rose-600/50 flex items-center justify-center group-hover:border-rose-400 group-hover:bg-rose-900 shadow-[0_0_8px_rgba(225,29,72,0.3)] transition-all">
@@ -2791,8 +2791,8 @@ export default function MovieDetailModal({
                 </div>
 
                 {/* Rating Badge */}
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-sans px-3.5 py-1.5 bg-zinc-900 border border-red-500/30 rounded-lg text-red-400 font-bold flex items-center gap-1.5 shadow-sm">
+                <div className="flex items-center gap-2 self-start sm:self-auto">
+                  <span className="text-xs font-sans px-3 py-1 bg-zinc-900 border border-red-500/30 rounded-lg text-red-400 font-bold flex items-center gap-1.5 shadow-sm">
                     <Star className="w-3.5 h-3.5 fill-current text-yellow-400" /> Nota {movie.rating}
                   </span>
                 </div>

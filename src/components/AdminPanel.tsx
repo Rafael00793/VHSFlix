@@ -6,11 +6,12 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Movie, User, Profile, getSubscriptionDaysLeft, renewSubscription } from '../types';
 import { GENRE_CATEGORIES, searchMoviesTMDB, getMovieDetailsTMDB, PROFILE_AVATARS } from '../data';
-import { Trash, Edit, Plus, Users, Library, Settings, Search, Import, Download, Star, Shield, Film, Tv, Play, AlertTriangle, ShieldAlert, RefreshCw, Check, LayoutDashboard, Activity, Clock, TrendingUp, User as UserIcon, Lock as LockIcon, Eye, EyeOff, Flame, Sparkles, Pin, X, Save, Award, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Trash, Edit, Plus, Users, Library, Settings, Search, Import, Download, Star, Shield, Film, Tv, Play, AlertTriangle, ShieldAlert, RefreshCw, Check, LayoutDashboard, Activity, Clock, TrendingUp, User as UserIcon, Lock as LockIcon, Eye, EyeOff, Flame, Sparkles, Pin, X, Save, Award, ChevronLeft, ChevronRight, Megaphone, Share2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { compressImage, saveMoviesToFirestore } from '../lib/firebase';
 import { DEFAULT_POSTER_FALLBACK, DEFAULT_BACKDROP_FALLBACK, handlePosterError, handleBackdropError, getCleanPosterUrl, getCleanBackdropUrl } from '../lib/imageUtils';
 import { AbyssService } from '../services/abyssService';
+import PromotionCenter from './PromotionCenter';
 
 interface AdminPanelProps {
   movies: any[]; // para maior flexibilidade se houver types
@@ -63,7 +64,7 @@ export default function AdminPanel({
   pinnedMostDesiredId,
   onTogglePinMostDesired
 }: AdminPanelProps) {
-  const [activeAdminTab, setActiveAdminTab] = useState<'dashboard' | 'catalog' | 'users' | 'myaccount' | 'settings'>('dashboard');
+  const [activeAdminTab, setActiveAdminTab] = useState<'dashboard' | 'catalog' | 'promotion' | 'users' | 'myaccount' | 'settings'>('dashboard');
 
   // Estados de Seleção em Lote e Exclusão Coletiva
   const [selectedMovieIds, setSelectedMovieIds] = useState<string[]>([]);
@@ -928,6 +929,19 @@ export default function AdminPanel({
                 </button>
 
                 <button
+                  onClick={() => { setActiveAdminTab('promotion'); setIsFormOpen(false); }}
+                  className={`w-full px-3.5 py-3 rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-start gap-3 transition-all truncate whitespace-nowrap cursor-pointer hover:scale-[1.01] active:scale-[0.98] ${
+                    activeAdminTab === 'promotion'
+                      ? 'bg-gradient-to-r from-rose-600 to-rose-700 text-white shadow-lg shadow-rose-600/25 font-bold translate-x-0.5 border border-rose-500/40'
+                      : 'text-zinc-400 hover:text-white hover:bg-zinc-800/60'
+                  }`}
+                  id="sidebar-btn-promotion"
+                >
+                  <Megaphone className={`w-4.5 h-4.5 ${activeAdminTab === 'promotion' ? 'text-white' : 'text-rose-500'}`} />
+                  <span>Central de Divulgação</span>
+                </button>
+
+                <button
                   onClick={() => { setActiveAdminTab('users'); setIsFormOpen(false); }}
                   className={`w-full px-3.5 py-3 rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-start gap-3 transition-all truncate whitespace-nowrap cursor-pointer hover:scale-[1.01] active:scale-[0.98] ${
                     activeAdminTab === 'users'
@@ -1251,6 +1265,38 @@ export default function AdminPanel({
                   </div>
 
                 </div>
+
+                {/* Banner de Acesso Rápido à Central de Divulgação */}
+                <motion.div
+                  whileHover={{ y: -2 }}
+                  className="bg-gradient-to-r from-rose-950/40 via-zinc-900 to-zinc-950 border border-rose-500/30 p-5 rounded-2xl shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-rose-600/20 border border-rose-500/40 text-rose-400 flex items-center justify-center shrink-0 shadow-inner">
+                      <Megaphone className="w-6 h-6 animate-pulse" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-white uppercase tracking-wide flex items-center gap-2">
+                        Central de Divulgação VHSFLIX
+                        <span className="text-[10px] font-mono bg-rose-600 text-white px-2 py-0.5 rounded-full font-bold">
+                          NOVO
+                        </span>
+                      </h4>
+                      <p className="text-xs text-zinc-400 mt-0.5 font-sans">
+                        Gere postagens completas com notas do TMDB, elenco e link de compartilhamento para WhatsApp, Telegram e redes sociais em segundos.
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setActiveAdminTab('promotion')}
+                    className="px-5 py-2.5 bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 hover:to-rose-600 text-white text-xs font-mono font-bold uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-rose-950/40 cursor-pointer shrink-0 flex items-center gap-2 active:scale-95"
+                  >
+                    <span>Abrir Central de Divulgação</span>
+                    <Share2 className="w-3.5 h-3.5" />
+                  </button>
+                </motion.div>
 
               </motion.div>
             )}
@@ -2663,6 +2709,18 @@ export default function AdminPanel({
               </div>
             )}
           </div>
+        )}
+
+        {/* --- ABA CENTRAL DE DIVULGAÇÃO VHSFLIX --- */}
+        {activeAdminTab === 'promotion' && (
+          <motion.div 
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, ease: "easeOut" }}
+            className="space-y-6"
+          >
+            <PromotionCenter movies={movies} tmdbApiKey={tmdbApiKey} />
+          </motion.div>
         )}
 
         {/* --- ABA 2: USUÁRIOS REGISTRADOS (ANIMAÇÕES PROFISSIONAIS E TIPOGRAFIA DE ALTO CONTRASTE) --- */}

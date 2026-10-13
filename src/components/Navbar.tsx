@@ -419,7 +419,7 @@ export default function Navbar({
                   initial={{ opacity: 0, y: 10, scale: 0.95 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                  className="absolute right-0 mt-2.5 w-64 bg-zinc-950 border border-zinc-800 rounded-xl shadow-2xl z-50 overflow-hidden font-mono text-xs"
+                  className="absolute right-0 mt-2.5 w-64 max-w-[calc(100vw-24px)] bg-zinc-950 border border-zinc-800 rounded-xl shadow-2xl z-50 overflow-hidden font-mono text-xs"
                 >
                   {user.isAdmin ? (
                     /* Menu Exclusivo para o Administrador (Rafael Gusmão) - Apenas o Painel de Controle */
@@ -604,7 +604,7 @@ export default function Navbar({
                 onSelectCategory(null);
                 onTabChange('support');
               }}
-              className={`px-3 py-1.5 rounded-full font-black transition-all text-xs flex-shrink-0 flex items-center gap-1.5 cursor-pointer whitespace-nowrap shadow-md ${
+              className={`px-3.5 py-2 rounded-full font-black transition-all text-xs flex-shrink-0 flex items-center gap-1.5 cursor-pointer whitespace-nowrap shadow-md min-h-[38px] ${
                 activeTab === 'support'
                   ? 'bg-red-600 text-white ring-2 ring-red-500 shadow-[0_0_15px_rgba(239,68,68,0.5)]'
                   : 'bg-zinc-900/90 text-zinc-300 border border-zinc-700/60 hover:border-red-500/50 hover:text-red-400'
@@ -623,7 +623,7 @@ export default function Navbar({
                 onSelectCategory(null);
                 onTabChange('all');
               }}
-              className={`px-3.5 py-1.5 rounded-full font-bold transition-all text-xs flex-shrink-0 cursor-pointer whitespace-nowrap ${
+              className={`px-3.5 py-2 rounded-full font-bold transition-all text-xs flex-shrink-0 cursor-pointer whitespace-nowrap min-h-[38px] flex items-center ${
                 activeTab === 'all' && !selectedCategory
                   ? 'bg-red-600 text-white font-extrabold shadow-[0_0_15px_rgba(239,68,68,0.5)] border border-red-500'
                   : 'bg-zinc-900/90 text-zinc-300 hover:text-white hover:bg-zinc-800 border border-zinc-800'
@@ -640,7 +640,7 @@ export default function Navbar({
                 onSelectCategory(null);
                 onTabChange('releases');
               }}
-              className={`px-3.5 py-1.5 rounded-full font-bold transition-all text-xs flex-shrink-0 cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+              className={`px-3.5 py-2 rounded-full font-bold transition-all text-xs flex-shrink-0 cursor-pointer whitespace-nowrap flex items-center gap-1.5 min-h-[38px] ${
                 activeTab === 'releases'
                   ? 'bg-red-600 text-white font-extrabold shadow-[0_0_15px_rgba(239,68,68,0.5)] border border-red-500'
                   : 'bg-zinc-900/90 text-zinc-300 hover:text-white hover:bg-zinc-800 border border-zinc-800'
@@ -659,7 +659,7 @@ export default function Navbar({
                 onSelectCategory(null);
                 onTabChange('movies');
               }}
-              className={`px-3.5 py-1.5 rounded-full font-bold transition-all text-xs flex-shrink-0 cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+              className={`px-3.5 py-2 rounded-full font-bold transition-all text-xs flex-shrink-0 cursor-pointer whitespace-nowrap flex items-center gap-1.5 min-h-[38px] ${
                 activeTab === 'movies'
                   ? 'bg-red-600 text-white font-extrabold shadow-[0_0_15px_rgba(239,68,68,0.5)] border border-red-500'
                   : 'bg-zinc-900/90 text-zinc-300 hover:text-white hover:bg-zinc-800 border border-zinc-800'
@@ -676,7 +676,7 @@ export default function Navbar({
                 onSelectCategory(null);
                 onTabChange('series');
               }}
-              className={`px-3.5 py-1.5 rounded-full font-bold transition-all text-xs flex-shrink-0 cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+              className={`px-3.5 py-2 rounded-full font-bold transition-all text-xs flex-shrink-0 cursor-pointer whitespace-nowrap flex items-center gap-1.5 min-h-[38px] ${
                 activeTab === 'series'
                   ? 'bg-red-600 text-white font-extrabold shadow-[0_0_15px_rgba(239,68,68,0.5)] border border-red-500'
                   : 'bg-zinc-900/90 text-zinc-300 hover:text-white hover:bg-zinc-800 border border-zinc-800'
@@ -693,7 +693,7 @@ export default function Navbar({
                 onSelectCategory(null);
                 onTabChange('mylist');
               }}
-              className={`px-3.5 py-1.5 rounded-full font-bold transition-all text-xs flex-shrink-0 cursor-pointer whitespace-nowrap ${
+              className={`px-3.5 py-2 rounded-full font-bold transition-all text-xs flex-shrink-0 cursor-pointer whitespace-nowrap min-h-[38px] flex items-center ${
                 activeTab === 'mylist'
                   ? 'bg-red-600 text-white font-extrabold shadow-[0_0_15px_rgba(239,68,68,0.5)] border border-red-500'
                   : 'bg-zinc-900/90 text-zinc-300 hover:text-white hover:bg-zinc-800 border border-zinc-800'
@@ -710,7 +710,7 @@ export default function Navbar({
                 onSelectCategory(null);
                 onTabChange('requests');
               }}
-              className={`px-3.5 py-1.5 rounded-full font-bold transition-all text-xs flex-shrink-0 cursor-pointer whitespace-nowrap ${
+              className={`px-3.5 py-2 rounded-full font-bold transition-all text-xs flex-shrink-0 cursor-pointer whitespace-nowrap min-h-[38px] flex items-center ${
                 activeTab === 'requests'
                   ? 'bg-red-600 text-white font-extrabold shadow-[0_0_15px_rgba(239,68,68,0.5)] border border-red-500'
                   : 'bg-zinc-900/90 text-zinc-300 hover:text-white hover:bg-zinc-800 border border-zinc-800'
@@ -724,7 +724,7 @@ export default function Navbar({
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               onClick={() => setShowGenresDropdown(!showGenresDropdown)}
-              className={`px-3.5 py-1.5 rounded-full font-bold transition-all text-xs flex-shrink-0 flex items-center gap-1 cursor-pointer whitespace-nowrap ${
+              className={`px-3.5 py-2 rounded-full font-bold transition-all text-xs flex-shrink-0 flex items-center gap-1 cursor-pointer whitespace-nowrap min-h-[38px] ${
                 selectedCategory
                   ? 'bg-red-600 text-white font-extrabold shadow-[0_0_15px_rgba(239,68,68,0.5)] border border-red-500'
                   : 'bg-zinc-900/90 text-zinc-300 hover:text-white hover:bg-zinc-800 border border-zinc-800'

@@ -167,7 +167,7 @@ export const MovieRow = React.memo(function MovieRow({
                 key={movie.id}
                 whileHover={{ y: -6, transition: { duration: 0.2 } }}
                 tabIndex={0}
-                className={`relative flex-none w-[125px] xs:w-[145px] sm:w-[185px] md:w-[215px] xl:w-[245px] snap-start group/card rounded-xl overflow-hidden bg-zinc-900 border border-zinc-800/80 ${theme.cardHover} focus-visible:ring-2 focus-visible:outline-none transition-all duration-300 cursor-pointer animate-fade-in`}
+                className={`relative flex-none w-[130px] xs:w-[150px] sm:w-[185px] md:w-[215px] xl:w-[245px] snap-start group/card rounded-xl overflow-hidden bg-zinc-900 border border-zinc-800/80 ${theme.cardHover} focus-visible:ring-2 focus-visible:outline-none transition-all duration-300 cursor-pointer animate-fade-in select-none`}
                 onClick={() => onMovieClick(movie)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' || e.key === ' ') {
@@ -201,7 +201,7 @@ export const MovieRow = React.memo(function MovieRow({
                   {movie.type === 'series' ? 'Série' : 'Filme'}
                 </div>
 
-                {/* Imagem do Poster */}
+                {/* Imagem do Poster com Proporção 2:3 Consistente */}
                 <div className="relative aspect-[2/3] w-full overflow-hidden bg-zinc-950">
                   <img
                     src={getCleanPosterUrl(movie.posterUrl)}
@@ -263,9 +263,9 @@ export const MovieRow = React.memo(function MovieRow({
                   </div>
                 </div>
 
-                {/* Bloco de Texto Inferior Compacto */}
-                <div className="p-2 sm:p-3 bg-zinc-950 border-t border-zinc-900 flex flex-col justify-between h-13 sm:h-18">
-                  <p className={`text-[11px] sm:text-sm font-semibold text-zinc-200 ${theme.cardTitleHover} transition-colors truncate`}>
+                {/* Bloco de Texto Inferior com Espaçamento Adequado */}
+                <div className="p-2 sm:p-3 bg-zinc-950 border-t border-zinc-900 flex flex-col justify-between min-h-[54px] sm:min-h-[64px]">
+                  <p className={`text-[11px] sm:text-sm font-bold text-zinc-200 ${theme.cardTitleHover} transition-colors line-clamp-1`}>
                     {movie.title}
                   </p>
                   
@@ -284,11 +284,11 @@ export const MovieRow = React.memo(function MovieRow({
                       </div>
                     </div>
                   ) : (
-                    <div className="flex items-center justify-between text-[9px] sm:text-[10px] text-zinc-500 font-sans leading-none">
-                      <span className="bg-zinc-900 px-1.5 py-0.5 rounded border border-zinc-800 text-[8px] sm:text-[9px] uppercase font-bold text-zinc-400">
+                    <div className="flex items-center justify-between text-[9px] sm:text-[10px] text-zinc-500 font-sans leading-none pt-1">
+                      <span className="bg-zinc-900 px-1.5 py-0.5 rounded border border-zinc-800 text-[8px] sm:text-[9px] uppercase font-bold text-zinc-400 truncate max-w-[80px]">
                         {movie.category}
                       </span>
-                      <span className="font-mono text-[9px] sm:text-[10px]">{movie.duration}</span>
+                      <span className="font-mono text-[9px] sm:text-[10px] shrink-0">{movie.duration}</span>
                     </div>
                   )}
                 </div>

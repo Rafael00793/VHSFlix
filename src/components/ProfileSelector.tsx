@@ -288,7 +288,7 @@ export default function ProfileSelector({
             initial={{ opacity: 0, y: 20, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             transition={{ duration: 0.35, ease: "easeOut" }}
-            className="w-full max-w-[500px] sm:max-w-[540px] bg-black/92 backdrop-blur-2xl px-6 py-8 sm:px-10 sm:py-10 rounded-2xl border border-emerald-500/40 shadow-[0_0_60px_rgba(16,185,129,0.18)] relative overflow-hidden"
+            className="w-full max-w-[500px] sm:max-w-[540px] bg-black/92 backdrop-blur-2xl px-4 py-6 xs:px-6 xs:py-8 sm:px-10 sm:py-10 rounded-2xl border border-emerald-500/40 shadow-[0_0_60px_rgba(16,185,129,0.18)] relative overflow-hidden"
           >
             {/* Barra superior de neon verde retrô */}
             <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-500 via-[#00ff88] to-emerald-400 shadow-[0_0_20px_rgba(0,255,136,0.6)]" />
@@ -342,7 +342,7 @@ export default function ProfileSelector({
 
             {/* MENSAGEM PRINCIPAL E SUBTÍTULO OBRIGATÓRIOS DO PROMPT */}
             <div className="text-center mb-6 select-none">
-              <h2 className="text-2xl sm:text-3xl font-black font-sans text-white tracking-tight leading-snug">
+              <h2 className="text-xl xs:text-2xl sm:text-3xl font-black font-sans text-white tracking-tight leading-snug">
                 Sua próxima maratona começa aqui!
               </h2>
               <p className="text-xs sm:text-sm text-zinc-300 font-sans mt-2 max-w-sm sm:max-w-md mx-auto leading-relaxed">
@@ -366,7 +366,7 @@ export default function ProfileSelector({
                 }`}
                 id="btn-tab-register"
               >
-                <span>Criar minha conta</span>
+                <span>Criar Conta</span>
               </button>
 
               <button
@@ -383,7 +383,7 @@ export default function ProfileSelector({
                 }`}
                 id="btn-tab-login"
               >
-                <span>Já tenho uma conta — Entrar</span>
+                <span>Entrar</span>
               </button>
             </div>
 
@@ -800,7 +800,7 @@ export default function ProfileSelector({
                       onSelectProfile(profile.id);
                     }
                   }}
-                  className={`relative w-36 h-36 sm:w-44 sm:h-44 md:w-48 md:h-48 rounded-2xl overflow-hidden border-2 bg-zinc-900 transition-all cursor-pointer focus-visible:ring-4 focus-visible:ring-rose-500 focus-visible:scale-105 focus-visible:outline-none shadow-xl ${
+                  className={`relative w-28 h-28 xs:w-36 xs:h-36 sm:w-44 sm:h-44 md:w-48 md:h-48 rounded-2xl overflow-hidden border-2 bg-zinc-900 transition-all cursor-pointer focus-visible:ring-4 focus-visible:ring-rose-500 focus-visible:scale-105 focus-visible:outline-none shadow-xl ${
                     isManagingProfiles 
                       ? 'border-dashed border-rose-500 scale-95 hover:border-rose-300 shadow-[0_0_25px_rgba(229,9,20,0.25)]' 
                       : 'border-zinc-800 hover:border-[#E50914] group-hover:scale-105 hover:shadow-[0_0_30px_rgba(229,9,20,0.35)]'
