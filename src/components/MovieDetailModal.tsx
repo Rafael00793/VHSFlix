@@ -7,7 +7,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Movie, WatchProgress, MovieComment } from '../types';
 import { X, Play, Pause, Plus, Check, Star, RefreshCw, Tv, Clock, HelpCircle, Film, Sparkles, AlertCircle, ExternalLink, Maximize, Minimize, RotateCw, Smartphone, Shield, Sliders, ThumbsUp, ThumbsDown, ChevronDown, ArrowLeft, Settings, Volume2, VolumeX, User, Users, Send, MessageSquare, Trash2, Zap, Server, Clapperboard, Award, Bookmark, History, PlayCircle, Share2, Copy, MessageCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { INITIAL_MOVIES } from '../data';
+import { INITIAL_MOVIES, DEFAULT_USER_AVATAR } from '../data';
 import { handlePosterError, handleBackdropError, getCleanPosterUrl, getCleanBackdropUrl } from '../lib/imageUtils';
 import { AbyssService } from '../services/abyssService';
 import { EmbedPlayService } from '../services/embedPlayService';
@@ -3092,7 +3092,7 @@ export default function MovieDetailModal({
                               <div key={c.id} className="bg-zinc-950/90 border border-zinc-800/80 p-3.5 sm:p-4 rounded-xl flex items-start justify-between gap-3 group hover:border-zinc-700 transition-all">
                                 <div className="flex items-start gap-3">
                                   <img
-                                    src={c.avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80'}
+                                    src={c.avatarUrl || DEFAULT_USER_AVATAR}
                                     alt={c.userName}
                                     className="w-8 h-8 sm:w-9 sm:h-9 rounded-full object-cover border border-zinc-700/60 mt-0.5 flex-shrink-0"
                                   />

@@ -219,7 +219,7 @@ export default function ProfileSelector({
       reader.onloadend = async () => {
         if (typeof reader.result === 'string') {
           try {
-            const compressed = await compressImage(reader.result);
+            const compressed = await compressImage(reader.result, 280, 280);
             if (isEdit) {
               setEditCustomAvatarUrl(compressed);
               setEditUploadedFileName(file.name);
@@ -243,10 +243,15 @@ export default function ProfileSelector({
     }
   };
 
-  const handleCreateProfile = (e: React.FormEvent) => {
+  const handleCreateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newProfileName.trim()) return;
-    const finalAvatarUrl = customAvatarUrl.trim() !== '' ? customAvatarUrl : PROFILE_AVATARS[selectedAvatarIdx].url;
+    let finalAvatarUrl = customAvatarUrl.trim() !== '' ? customAvatarUrl : PROFILE_AVATARS[selectedAvatarIdx].url;
+    if (finalAvatarUrl.startsWith('data:image')) {
+      try {
+        finalAvatarUrl = await compressImage(finalAvatarUrl, 280, 280);
+      } catch {}
+    }
     onAddProfile(newProfileName.trim(), finalAvatarUrl);
     setNewProfileName('');
     setCustomAvatarUrl('');
@@ -254,10 +259,15 @@ export default function ProfileSelector({
     setShowAddProfileModal(false);
   };
 
-  const handleEditProfileSubmit = (e: React.FormEvent) => {
+  const handleEditProfileSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProfile || !editProfileName.trim()) return;
-    const finalAvatarUrl = editCustomAvatarUrl.trim() !== '' ? editCustomAvatarUrl : PROFILE_AVATARS[editSelectedAvatarIdx].url;
+    let finalAvatarUrl = editCustomAvatarUrl.trim() !== '' ? editCustomAvatarUrl : PROFILE_AVATARS[editSelectedAvatarIdx].url;
+    if (finalAvatarUrl.startsWith('data:image')) {
+      try {
+        finalAvatarUrl = await compressImage(finalAvatarUrl, 280, 280);
+      } catch {}
+    }
     onEditProfile(editingProfile.id, editProfileName.trim(), finalAvatarUrl);
     setEditUploadedFileName('');
     setEditingProfile(null);

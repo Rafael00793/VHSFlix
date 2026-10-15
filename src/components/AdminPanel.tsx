@@ -2,10 +2,9 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
-
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Movie, User, Profile, getSubscriptionDaysLeft, renewSubscription } from '../types';
-import { GENRE_CATEGORIES, searchMoviesTMDB, getMovieDetailsTMDB, PROFILE_AVATARS } from '../data';
+import { GENRE_CATEGORIES, searchMoviesTMDB, getMovieDetailsTMDB, PROFILE_AVATARS, DEFAULT_USER_AVATAR, RAFAEL_ADMIN_AVATAR } from '../data';
 import { Trash, Edit, Plus, Users, Library, Settings, Search, Import, Download, Star, Shield, Film, Tv, Play, AlertTriangle, ShieldAlert, RefreshCw, Check, LayoutDashboard, Activity, Clock, TrendingUp, User as UserIcon, Lock as LockIcon, Eye, EyeOff, Flame, Sparkles, Pin, X, Save, Award, ChevronLeft, ChevronRight, Megaphone, Share2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { compressImage, saveMoviesToFirestore } from '../lib/firebase';
@@ -3216,7 +3215,7 @@ export default function AdminPanel({
                         {/* Preview */}
                         <div className="w-14 h-14 rounded-xl bg-zinc-900 border border-zinc-700 overflow-hidden shrink-0 shadow-lg">
                           <img
-                            src={userFormAvatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80'}
+                            src={userFormAvatarUrl || DEFAULT_USER_AVATAR}
                             alt="Avatar"
                             className="w-full h-full object-cover"
                             referrerPolicy="no-referrer"

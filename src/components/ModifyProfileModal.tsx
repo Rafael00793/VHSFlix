@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Camera, KeyRound, Eye, EyeOff, Check, X, Sparkles, AlertCircle, CheckCircle2, Upload, Link as LinkIcon } from 'lucide-react';
 import { User, Profile } from '../types';
 import { PROFILE_AVATARS } from '../data';
+import { compressImage } from '../lib/firebase';
 
 interface ModifyProfileModalProps {
   isOpen: boolean;
@@ -57,7 +58,7 @@ export default function ModifyProfileModal({
 
   if (!isOpen) return null;
 
-  // Upload local de imagem via FileReader (PNG, JPG, WebP)
+  // Upload local de imagem via FileReader (PNG, JPG, WebP) com compressão automática
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -67,18 +68,25 @@ export default function ModifyProfileModal({
       return;
     }
 
-    if (file.size > 5 * 1024 * 1024) {
-      setErrorMessage('A imagem selecionada é muito grande. Escolha uma foto de até 5MB.');
+    if (file.size > 15 * 1024 * 1024) {
+      setErrorMessage('A imagem selecionada é muito grande. Escolha uma foto de até 15MB.');
       return;
     }
 
     const reader = new FileReader();
-    reader.onload = (event) => {
-      if (event.target?.result) {
-        const dataUrl = event.target.result as string;
-        setSelectedAvatarUrl(dataUrl);
-        setCustomAvatarInput(dataUrl);
-        setErrorMessage(null);
+    reader.onload = async (event) => {
+      if (event.target?.result && typeof event.target.result === 'string') {
+        try {
+          // Comprime para avatar otimizado (280x280) que cabe perfeitamente no Firestore e LocalStorage (< 30KB)
+          const compressed = await compressImage(event.target.result, 280, 280);
+          setSelectedAvatarUrl(compressed);
+          setCustomAvatarInput(compressed);
+          setErrorMessage(null);
+        } catch (err) {
+          console.warn('Erro ao comprimir imagem, usando original:', err);
+          setSelectedAvatarUrl(event.target.result);
+          setCustomAvatarInput(event.target.result);
+        }
       }
     };
     reader.onerror = () => {
@@ -119,7 +127,15 @@ export default function ModifyProfileModal({
     setIsSubmitting(true);
     try {
       const passwordToSave = hasPasswordInput ? newPassword.trim() : undefined;
-      const result = await onSave(selectedAvatarUrl, passwordToSave);
+      let finalAvatarToSave = selectedAvatarUrl;
+      if (finalAvatarToSave.startsWith('data:image')) {
+        try {
+          finalAvatarToSave = await compressImage(finalAvatarToSave, 280, 280);
+        } catch (compErr) {
+          console.warn('Erro ao garantir compressão do avatar:', compErr);
+        }
+      }
+      const result = await onSave(finalAvatarToSave, passwordToSave);
 
       if (result) {
         setErrorMessage(result);
@@ -129,7 +145,7 @@ export default function ModifyProfileModal({
         setTimeout(() => {
           setIsSubmitting(false);
           onClose();
-        }, 900);
+        }, 800);
       }
     } catch (err: any) {
       setErrorMessage('Ocorreu um erro ao salvar as alterações. Tente novamente.');

@@ -2,10 +2,9 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Movie, User, Profile, WatchProgress, AppNotification, MovieRequest, MovieComment, getSubscriptionDaysLeft, renewSubscription } from './types';
-import { INITIAL_MOVIES, INITIAL_USERS, DEFAULT_PROFILES, GENRE_CATEGORIES, getMovieDetailsTMDB, getTMDBTrendingMovies, getTMDBTrendingContent } from './data';
+import { INITIAL_MOVIES, INITIAL_USERS, DEFAULT_PROFILES, GENRE_CATEGORIES, getMovieDetailsTMDB, getTMDBTrendingMovies, getTMDBTrendingContent, RAFAEL_ADMIN_AVATAR, DEFAULT_USER_AVATAR, isDefaultStockAvatar } from './data';
 import { DEFAULT_POSTER_FALLBACK, DEFAULT_BACKDROP_FALLBACK, handlePosterError, handleBackdropError, isBrokenImageUrl, getCleanPosterUrl, getCleanBackdropUrl } from './lib/imageUtils';
 import Navbar from './components/Navbar';
 import ProfileSelector from './components/ProfileSelector';
@@ -125,6 +124,9 @@ export default function App() {
       masterAdmin.email = masterAdminEmail;
       masterAdmin.password = '19112016';
       masterAdmin.isAdmin = true;
+      if (!masterAdmin.avatarUrl || isDefaultStockAvatar(masterAdmin.avatarUrl)) {
+        masterAdmin.avatarUrl = RAFAEL_ADMIN_AVATAR;
+      }
     } else {
       parsed.unshift({
         id: 'u1',
@@ -132,6 +134,7 @@ export default function App() {
         email: masterAdminEmail,
         password: '19112016',
         isAdmin: true,
+        avatarUrl: RAFAEL_ADMIN_AVATAR,
         createdAt: '2026-05-10T12:00:00Z'
       });
     }
@@ -161,8 +164,17 @@ export default function App() {
         for (const [uid, profs] of Object.entries(parsed as { [uid: string]: Profile[] })) {
           if (Array.isArray(profs) && profs.length > 0) {
             const valid = profs.filter(p => p.name !== 'Crianças VHS' && p.id !== 'p1_2');
-            cleaned[uid] = valid.length > 0 ? [valid[0]] : [profs[0]];
+            const list = valid.length > 0 ? valid : profs;
+            cleaned[uid] = list.map(p => {
+              if (uid === 'u1' && (!p.avatarUrl || isDefaultStockAvatar(p.avatarUrl))) {
+                return { ...p, avatarUrl: RAFAEL_ADMIN_AVATAR };
+              }
+              return p;
+            });
           }
+        }
+        if (!cleaned['u1']) {
+          cleaned['u1'] = DEFAULT_PROFILES['u1'];
         }
         return cleaned;
       } catch (e) {
@@ -523,6 +535,7 @@ export default function App() {
 
   // --- CENTRAL SYNCHRONIZATION WITH CLOUD FIRESTORE & LOCAL FALLBACKS ---
   const isLoadedRef = useRef(false);
+  const isFirestoreProfilesLoadedRef = useRef(false);
 
   useEffect(() => {
     isLoadedRef.current = true;
@@ -530,19 +543,53 @@ export default function App() {
     // 1. Escuta em tempo real a coleção de usuários
     const unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
       const fetchedUsers: User[] = [];
-      snapshot.forEach((doc) => {
-        fetchedUsers.push(doc.data() as User);
+      snapshot.forEach((docSnap) => {
+        fetchedUsers.push(docSnap.data() as User);
       });
       if (fetchedUsers.length === 0) {
         // Se estiver vazio, popula com os usuários padrão do sistema
         saveUsersToFirestore(INITIAL_USERS);
       } else {
-        setUsers(fetchedUsers);
+        // Garantir que Rafael Gusmão (Master Admin) e usuários com fotos reais nunca percam o avatar
+        setUsers(prev => {
+          const localMap = new Map<string, User>();
+          prev.forEach(u => localMap.set(u.id, u));
+          
+          const updated: User[] = fetchedUsers.map(fu => {
+            const locU = localMap.get(fu.id);
+            let avatar = fu.avatarUrl;
+            
+            // Se o remoto não tem foto ou tem stock antiga de pessoa, mas o local tem foto personalizada válida, preserva
+            if ((!avatar || isDefaultStockAvatar(avatar)) && locU?.avatarUrl && !isDefaultStockAvatar(locU.avatarUrl)) {
+              avatar = locU.avatarUrl;
+            }
+            
+            // Rafael Gusmão (Master Admin) sempre tem sua foto real oficial blindada
+            if (fu.id === 'u1' || fu.email?.toLowerCase() === 'rafaelguaruja09@gmail.com') {
+              if (!avatar || isDefaultStockAvatar(avatar)) {
+                avatar = RAFAEL_ADMIN_AVATAR;
+              }
+            }
+
+            return {
+              ...fu,
+              avatarUrl: avatar
+            };
+          });
+
+          // Se u1 não veio no snapshot por qualquer razão, insere Rafael
+          if (!updated.some(u => u.id === 'u1' || u.email?.toLowerCase() === 'rafaelguaruja09@gmail.com')) {
+            updated.unshift(INITIAL_USERS[0]);
+          }
+
+          return updated;
+        });
       }
     }, (err) => console.warn('[FIRESTORE] users listener warning:', err));
 
     // 2. Escuta em tempo real a coleção de perfis com mesclagem segura
     const unsubProfiles = onSnapshot(collection(db, 'profiles'), (snapshot) => {
+      isFirestoreProfilesLoadedRef.current = true;
       const fetchedProfiles: { [userId: string]: Profile[] } = {};
       let hasData = false;
       snapshot.forEach((docSnap) => {
@@ -551,13 +598,21 @@ export default function App() {
         if (data.userId && data.profiles && Array.isArray(data.profiles) && data.profiles.length > 0) {
           const valid = data.profiles.filter((p: Profile) => p.name !== 'Crianças VHS' && p.id !== 'p1_2');
           const cleanProfs = valid.length > 0 ? valid : data.profiles;
-          fetchedProfiles[data.userId] = cleanProfs.map((p: any) => ({
-            id: String(p.id || 'p_' + Date.now()),
-            name: String(p.name || 'Meu Perfil'),
-            avatarUrl: p.avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
-            myList: Array.isArray(p.myList) ? p.myList.map(String) : [],
-            watchHistory: p.watchHistory || {}
-          }));
+          fetchedProfiles[data.userId] = cleanProfs.map((p: any) => {
+            let avatar = p.avatarUrl;
+            if (data.userId === 'u1' && (!avatar || isDefaultStockAvatar(avatar))) {
+              avatar = RAFAEL_ADMIN_AVATAR;
+            } else if (!avatar || isDefaultStockAvatar(avatar)) {
+              avatar = DEFAULT_USER_AVATAR;
+            }
+            return {
+              id: String(p.id || 'p_' + Date.now()),
+              name: String(p.name || 'Meu Perfil'),
+              avatarUrl: avatar,
+              myList: Array.isArray(p.myList) ? p.myList.map(String) : [],
+              watchHistory: p.watchHistory || {}
+            };
+          });
         }
       });
 
@@ -594,8 +649,18 @@ export default function App() {
                     }
                   }
 
+                  // Preserva sempre a foto personalizada real (nunca rebaixa para stock ou vazia)
+                  let finalAvatar = remP.avatarUrl;
+                  if (isDefaultStockAvatar(remP.avatarUrl) && locP.avatarUrl && !isDefaultStockAvatar(locP.avatarUrl)) {
+                    finalAvatar = locP.avatarUrl;
+                  }
+                  if (uid === 'u1' && (!finalAvatar || isDefaultStockAvatar(finalAvatar))) {
+                    finalAvatar = RAFAEL_ADMIN_AVATAR;
+                  }
+
                   return {
                     ...remP,
+                    avatarUrl: finalAvatar,
                     myList: combined,
                     watchHistory: mergedHistory
                   };
@@ -882,19 +947,28 @@ export default function App() {
     }
   }, [activeUser]);
 
-  // Efeito para garantir que todo usuário tenha ao menos 1 perfil criado
+  // Efeito para garantir que todo usuário tenha ao menos 1 perfil criado (apenas após carregar do Firestore)
   useEffect(() => {
     if (!currentUserId) return;
+    if (!isFirestoreProfilesLoadedRef.current) return;
 
     const userObj = users.find(u => u.id === currentUserId);
     const userProfs = allProfiles[currentUserId] || [];
 
     if (userProfs.length === 0) {
+      let resolvedAvatar = (userObj?.avatarUrl && !isDefaultStockAvatar(userObj.avatarUrl))
+        ? userObj.avatarUrl
+        : DEFAULT_USER_AVATAR;
+
+      if (currentUserId === 'u1' || userObj?.email?.toLowerCase() === 'rafaelguaruja09@gmail.com') {
+        resolvedAvatar = RAFAEL_ADMIN_AVATAR;
+      }
+
       // Cria 1 perfil inicial para o usuário com o nome e avatar da conta
       const newProf: Profile = {
         id: 'p_' + Date.now(),
         name: userObj ? userObj.name.split(' ')[0] : 'Meu Perfil',
-        avatarUrl: userObj?.avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
+        avatarUrl: resolvedAvatar,
         myList: [],
         watchHistory: {}
       };
@@ -1328,7 +1402,7 @@ export default function App() {
       return 'Este e-mail já está sendo utilizado por outra conta.';
     }
 
-    const defaultAvatar = avatarUrl || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80';
+    const defaultAvatar = avatarUrl || DEFAULT_USER_AVATAR;
 
     const thirtyDaysFromNow = new Date();
     thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
@@ -1375,7 +1449,7 @@ export default function App() {
       return 'Este e-mail já está sendo utilizado por outra conta. Acesse a aba "Já tenho uma conta — Entrar".';
     }
 
-    const defaultAvatar = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80';
+    const defaultAvatar = DEFAULT_USER_AVATAR;
     const thirtyDaysFromNow = new Date();
     thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
 
@@ -1409,12 +1483,15 @@ export default function App() {
     saveUsersToFirestore([newUser]);
     saveProfilesToFirestore({ [newUser.id]: [defaultProfile] });
 
-    // Autentica o usuário automaticamente
-    setCurrentUserId(newUser.id);
-    setCurrentProfileId(defaultProfile.id);
-    localStorage.setItem('vhsflix_current_uid', newUser.id);
-    localStorage.setItem('vhsflix_current_pid', defaultProfile.id);
-    localStorage.setItem('vhs_session_logged_in', 'true');
+    // Autentica o usuário automaticamente apenas se for visitante (sem sessão de admin ativa)
+    const isCurrentlyAdmin = activeUser?.isAdmin || currentUserId === 'u1';
+    if (!isCurrentlyAdmin) {
+      setCurrentUserId(newUser.id);
+      setCurrentProfileId(defaultProfile.id);
+      localStorage.setItem('vhsflix_current_uid', newUser.id);
+      localStorage.setItem('vhsflix_current_pid', defaultProfile.id);
+      localStorage.setItem('vhs_session_logged_in', 'true');
+    }
 
     // Se havia rota de filme/série compartilhado, garante que ele permaneça selecionado e pronto para reprodução
     const targetId = getContentIdFromUrl();
@@ -1556,19 +1633,22 @@ export default function App() {
   };
 
   const handleEditProfile = (profileId: string, name: string, avatarUrl: string) => {
+    // Identifica o userId dono do perfil de forma robusta
+    const targetUid = currentUserId || Object.keys(allProfiles).find(uid => allProfiles[uid]?.some(p => p.id === profileId)) || 'u1';
+
     setAllProfiles(prev => {
-      const userList = prev[currentUserId] || [];
+      const userList = prev[targetUid] || [];
       const updatedList = userList.map(p => p.id === profileId ? { ...p, name, avatarUrl } : p);
-      saveProfilesToFirestore({ [currentUserId]: updatedList });
+      saveProfilesToFirestore({ [targetUid]: updatedList });
       return {
         ...prev,
-        [currentUserId]: updatedList
+        [targetUid]: updatedList
       };
     });
 
     // Sincroniza foto e nome do perfil com a conta de usuário
     setUsers(prev => {
-      const updatedUsers = prev.map(u => u.id === currentUserId ? { ...u, avatarUrl, name: name || u.name } : u);
+      const updatedUsers = prev.map(u => u.id === targetUid ? { ...u, avatarUrl, name: name || u.name } : u);
       saveUsersToFirestore(updatedUsers);
       return updatedUsers;
     });

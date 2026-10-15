@@ -7,13 +7,42 @@ import { Movie, Profile, User } from './types';
 import { fetchApi } from './lib/apiClient';
 import { getCleanPosterUrl, getCleanBackdropUrl } from './lib/imageUtils';
 
+import { RAFAEL_ADMIN_AVATAR } from './lib/adminAvatar';
+export { RAFAEL_ADMIN_AVATAR };
+
+// Avatares estilizados e retrô com identidade visual VHS / Neon Cinema (sem fotos de estranhos desconhecidos)
+const makeVhsAvatarSvg = (bgColor: string, accentColor: string, label: string) => 
+  `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120"><rect width="120" height="120" rx="26" fill="%23111113"/><rect x="8" y="8" width="104" height="104" rx="20" fill="%2318181b" stroke="${accentColor}" stroke-width="2.5"/><rect x="20" y="26" width="80" height="50" rx="8" fill="%2309090b" stroke="${accentColor}" stroke-width="1.5"/><circle cx="42" cy="51" r="13" fill="%2327272a" stroke="${accentColor}" stroke-width="2"/><circle cx="78" cy="51" r="13" fill="%2327272a" stroke="${accentColor}" stroke-width="2"/><circle cx="42" cy="51" r="4.5" fill="${accentColor}"/><circle cx="78" cy="51" r="4.5" fill="${accentColor}"/><rect x="47" y="47" width="26" height="8" fill="%2318181b" rx="2"/><rect x="24" y="84" width="72" height="12" rx="4" fill="${bgColor}"/><text x="60" y="93" font-family="sans-serif" font-size="7.5" font-weight="900" fill="%23ffffff" text-anchor="middle" letter-spacing="1">${label}</text></svg>`;
+
+export const DEFAULT_USER_AVATAR = makeVhsAvatarSvg('%23dc2626', '%23ef4444', 'VHSFLIX');
+
 export const PROFILE_AVATARS = [
-  { id: 'av1', name: 'Retro Punk', url: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80', color: 'border-rose-500 text-rose-500' },
-  { id: 'av2', name: 'Cyber Wave', url: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&q=80', color: 'border-cyan-400 text-cyan-400' },
-  { id: 'av3', name: 'VHS Collector', url: 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?auto=format&fit=crop&w=150&q=80', color: 'border-purple-500 text-purple-500' },
-  { id: 'av4', name: '90s Gamer', url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80', color: 'border-yellow-400 text-yellow-400' },
-  { id: 'av5', name: 'Neon Driver', url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&q=80', color: 'border-green-400 text-green-400' },
+  { id: 'av1', name: 'VHSFLIX Clássico', url: DEFAULT_USER_AVATAR, color: 'border-rose-500 text-rose-500' },
+  { id: 'av2', name: 'Cyber Wave', url: makeVhsAvatarSvg('%230891b2', '%2306b6d4', 'CYBER'), color: 'border-cyan-400 text-cyan-400' },
+  { id: 'av3', name: 'VHS Ouro VIP', url: makeVhsAvatarSvg('%23d97706', '%23f59e0b', 'VIP RETRO'), color: 'border-yellow-400 text-yellow-400' },
+  { id: 'av4', name: 'Neon Synthwave', url: makeVhsAvatarSvg('%239333ea', '%23a855f7', 'SYNTH'), color: 'border-purple-500 text-purple-500' },
+  { id: 'av5', name: 'Matrix Emerald', url: makeVhsAvatarSvg('%23059669', '%2310b981', 'MATRIX'), color: 'border-emerald-400 text-emerald-400' },
 ];
+
+export function isDefaultStockAvatar(url?: string): boolean {
+  if (!url || typeof url !== 'string' || url.trim() === '') return true;
+  // URLs de fotos de desconhecidos antigas do Unsplash
+  if (
+    url.includes('photo-1535713875002-d1d0cf377fde') ||
+    url.includes('photo-1494790108377-be9c29b29330') ||
+    url.includes('photo-1599566150163-29194dcaad36') ||
+    url.includes('photo-1534528741775-53994a69daeb') ||
+    url.includes('photo-1507003211169-0a1dd7228f2d')
+  ) {
+    return true;
+  }
+  // Se for qualquer um dos avatares padrão SVG
+  if (PROFILE_AVATARS.some(av => av.url === url)) return true;
+  if (url.startsWith('data:image/svg+xml') && (url.includes('VHSFLIX') || url.includes('CYBER') || url.includes('VIP') || url.includes('SYNTH') || url.includes('MATRIX'))) {
+    return true;
+  }
+  return false;
+}
 
 export const INITIAL_MOVIES: Movie[] = [
   {
@@ -284,6 +313,7 @@ export const INITIAL_USERS: User[] = [
     email: 'rafaelguaruja09@gmail.com',
     password: '19112016',
     isAdmin: true,
+    avatarUrl: RAFAEL_ADMIN_AVATAR,
     createdAt: '2026-05-10T12:00:00Z',
   },
   {
@@ -292,6 +322,7 @@ export const INITIAL_USERS: User[] = [
     email: 'usuario@streamflix.cor',
     password: 'user',
     isAdmin: false,
+    avatarUrl: DEFAULT_USER_AVATAR,
     createdAt: '2026-05-15T15:30:00Z',
   },
   {
@@ -300,6 +331,7 @@ export const INITIAL_USERS: User[] = [
     email: 'carlos@retro.com',
     password: 'user',
     isAdmin: false,
+    avatarUrl: PROFILE_AVATARS[1].url,
     createdAt: '2026-05-18T18:45:00Z',
   }
 ];
@@ -309,7 +341,7 @@ export const DEFAULT_PROFILES: { [userId: string]: Profile[] } = {
     {
       id: 'p1_1',
       name: 'Rafael (Admin)',
-      avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80',
+      avatarUrl: RAFAEL_ADMIN_AVATAR,
       myList: ['m1', 'm3', 'm4'],
       watchHistory: {
         'm1': { movieId: 'm1', progress: 45, currentTime: 3132, duration: 6960, updatedAt: '2026-05-29T10:00:00Z', isFinished: false },
@@ -321,7 +353,7 @@ export const DEFAULT_PROFILES: { [userId: string]: Profile[] } = {
     {
       id: 'p2_1',
       name: 'Ana Main',
-      avatarUrl: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&q=80',
+      avatarUrl: DEFAULT_USER_AVATAR,
       myList: ['m2', 'm4'],
       watchHistory: {
         'm4': { movieId: 'm4', progress: 85, currentTime: 2550, duration: 3000, updatedAt: '2026-05-29T11:00:00Z', isFinished: false }
@@ -332,7 +364,7 @@ export const DEFAULT_PROFILES: { [userId: string]: Profile[] } = {
     {
       id: 'p3_1',
       name: 'Carlos VHS',
-      avatarUrl: 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?auto=format&fit=crop&w=150&q=80',
+      avatarUrl: PROFILE_AVATARS[1].url,
       myList: ['m5', 'm6', 'm7'],
       watchHistory: {}
     }
