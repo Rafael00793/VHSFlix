@@ -3,9 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Movie, User, Profile, getSubscriptionDaysLeft, renewSubscription } from '../types';
+import { Movie, User, Profile, MovieRequest, MovieComment, getSubscriptionDaysLeft, renewSubscription } from '../types';
 import { GENRE_CATEGORIES, searchMoviesTMDB, getMovieDetailsTMDB, PROFILE_AVATARS, DEFAULT_USER_AVATAR, RAFAEL_ADMIN_AVATAR } from '../data';
-import { Trash, Edit, Plus, Users, Library, Settings, Search, Import, Download, Star, Shield, Film, Tv, Play, AlertTriangle, ShieldAlert, RefreshCw, Check, LayoutDashboard, Activity, Clock, TrendingUp, User as UserIcon, Lock as LockIcon, Eye, EyeOff, Flame, Sparkles, Pin, X, Save, Award, ChevronLeft, ChevronRight, Megaphone, Share2 } from 'lucide-react';
+import { Trash, Edit, Plus, Users, Library, Settings, Search, Import, Download, Star, Shield, Film, Tv, Play, AlertTriangle, ShieldAlert, RefreshCw, Check, LayoutDashboard, Activity, Clock, TrendingUp, User as UserIcon, Lock as LockIcon, Eye, EyeOff, Flame, Sparkles, Pin, X, Save, Award, ChevronLeft, ChevronRight, Megaphone, Share2, Bell, MessageSquare, CheckCircle2, Send, ExternalLink } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { compressImage, saveMoviesToFirestore } from '../lib/firebase';
 import { DEFAULT_POSTER_FALLBACK, DEFAULT_BACKDROP_FALLBACK, handlePosterError, handleBackdropError, getCleanPosterUrl, getCleanBackdropUrl } from '../lib/imageUtils';
@@ -36,6 +36,12 @@ interface AdminPanelProps {
   onPublishUpdate?: () => void;
   pinnedMostDesiredId?: string | null;
   onTogglePinMostDesired?: (movieId: string | null) => void;
+  requests?: MovieRequest[];
+  comments?: MovieComment[];
+  onFulfillRequest?: (requestId: string) => void;
+  onDeleteRequest?: (requestId: string) => void;
+  onDeleteComment?: (commentId: string) => void;
+  onSelectMovie?: (movie: Movie) => void;
 }
 
 export default function AdminPanel({
@@ -61,9 +67,15 @@ export default function AdminPanel({
   onToggleAdguardEnabled,
   onPublishUpdate,
   pinnedMostDesiredId,
-  onTogglePinMostDesired
+  onTogglePinMostDesired,
+  requests = [],
+  comments = [],
+  onFulfillRequest,
+  onDeleteRequest,
+  onDeleteComment,
+  onSelectMovie
 }: AdminPanelProps) {
-  const [activeAdminTab, setActiveAdminTab] = useState<'dashboard' | 'catalog' | 'promotion' | 'users' | 'myaccount' | 'settings'>('dashboard');
+  const [activeAdminTab, setActiveAdminTab] = useState<'dashboard' | 'catalog' | 'notifications' | 'promotion' | 'users' | 'myaccount' | 'settings'>('dashboard');
 
   // Estados de Seleção em Lote e Exclusão Coletiva
   const [selectedMovieIds, setSelectedMovieIds] = useState<string[]>([]);
@@ -121,6 +133,124 @@ export default function AdminPanel({
       u.id.toLowerCase().includes(q)
     );
   }, [users, userSearchQuery]);
+
+  // Estados da Central de Avisos e Notificações em Tempo Real
+  const [noticeFilter, setNoticeFilter] = useState<'all' | 'requests' | 'comments' | 'users'>('all');
+  const [noticeSearch, setNoticeSearch] = useState('');
+
+  const formatAlertTime = (isoString?: string) => {
+    if (!isoString) return 'Recentemente';
+    try {
+      const d = new Date(isoString);
+      const now = new Date();
+      const diffMs = now.getTime() - d.getTime();
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMins / 60);
+      const diffDays = Math.floor(diffHours / 24);
+
+      if (diffMins < 1) return 'Agora mesmo';
+      if (diffMins < 60) return `Há ${diffMins} min`;
+      if (diffHours < 24) return `Há ${diffHours} h`;
+      if (diffDays === 1) return 'Ontem';
+      if (diffDays < 7) return `Há ${diffDays} dias`;
+      return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    } catch {
+      return 'Recentemente';
+    }
+  };
+
+  // Notificações e Avisos consolidados em tempo real
+  const consolidatedAlerts = useMemo(() => {
+    const list: Array<{
+      id: string;
+      type: 'request' | 'comment' | 'user';
+      title: string;
+      subtitle: string;
+      date: string;
+      userAvatar?: string;
+      userName: string;
+      profileName?: string;
+      status?: string;
+      posterUrl?: string;
+      rawRequest?: MovieRequest;
+      rawComment?: MovieComment;
+      rawUser?: User;
+      movie?: Movie;
+    }> = [];
+
+    // 1. Pedidos de filmes e séries
+    (requests || []).forEach(req => {
+      const relatedMovie = movies.find(m => m.title.toLowerCase() === (req.title || '').toLowerCase());
+      list.push({
+        id: req.id,
+        type: 'request',
+        title: `Pedido de ${req.type === 'series' ? 'Série' : 'Filme'}: ${req.title}`,
+        subtitle: `${req.userName || 'Usuário'}${req.profileName ? ` (Perfil: ${req.profileName})` : ''} solicitou a inclusão no catálogo`,
+        date: req.createdAt,
+        userName: req.userName || 'Usuário',
+        profileName: req.profileName,
+        status: req.status || 'pending',
+        posterUrl: req.posterUrl || relatedMovie?.posterUrl,
+        rawRequest: req,
+        movie: relatedMovie
+      });
+    });
+
+    // 2. Comentários em filmes e séries
+    (comments || []).forEach(comm => {
+      const movie = movies.find(m => m.id === comm.movieId);
+      list.push({
+        id: comm.id,
+        type: 'comment',
+        title: `Comentou em "${movie?.title || 'Título do Acervo'}"`,
+        subtitle: `"${comm.text}"`,
+        date: comm.createdAt,
+        userAvatar: comm.avatarUrl,
+        userName: comm.userName || comm.profileName || 'Usuário',
+        profileName: comm.profileName,
+        posterUrl: movie?.posterUrl,
+        rawComment: comm,
+        movie: movie
+      });
+    });
+
+    // 3. Usuários recém-registrados
+    (users || []).forEach(u => {
+      list.push({
+        id: `user_reg_${u.id}`,
+        type: 'user',
+        title: `Novo Usuário: ${u.name}`,
+        subtitle: `${u.email} • ${u.isAdmin ? 'Administrador' : 'Assinante 30 Dias'}`,
+        date: u.createdAt || '2026-05-10T12:00:00Z',
+        userAvatar: u.avatarUrl,
+        userName: u.name,
+        rawUser: u
+      });
+    });
+
+    // Ordena os alertas: mais recentes no topo
+    return list.sort((a, b) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
+  }, [requests, comments, users, movies]);
+
+  const pendingRequestsCount = useMemo(() => {
+    return (requests || []).filter(r => r.status === 'pending').length;
+  }, [requests]);
+
+  const filteredAlerts = useMemo(() => {
+    let result = consolidatedAlerts;
+    if (noticeFilter !== 'all') {
+      result = result.filter(a => a.type === noticeFilter);
+    }
+    if (noticeSearch.trim()) {
+      const q = noticeSearch.toLowerCase().trim();
+      result = result.filter(a => 
+        a.title.toLowerCase().includes(q) || 
+        a.subtitle.toLowerCase().includes(q) || 
+        a.userName.toLowerCase().includes(q)
+      );
+    }
+    return result;
+  }, [consolidatedAlerts, noticeFilter, noticeSearch]);
 
   // Estados para "Minha Conta"
   const currentUser = users.find(u => u.id === currentUserId) || { id: '', name: 'Admin', email: '', password: '' };
@@ -889,13 +1019,36 @@ export default function AdminPanel({
           {/* COLUNA DA ESQUERDA: SIDEBAR PROFISSIONAL */}
           <div className="w-full lg:w-64 flex-shrink-0">
             <div className="bg-zinc-900/80 border border-zinc-800/90 rounded-2xl p-4 sticky top-28 space-y-4 backdrop-blur-md shadow-xl">
-              <div className="px-2 py-0.5 border-b border-zinc-800/80 pb-3 flex justify-between items-center">
+              {/* Header Navegação Rápida interativo que abre a Central de Avisos Completa */}
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveAdminTab('notifications');
+                  setIsFormOpen(false);
+                }}
+                className="w-full px-3 py-2.5 rounded-xl bg-gradient-to-r from-rose-950/40 via-zinc-900 to-rose-950/30 hover:from-rose-900/60 hover:to-rose-800/40 border border-rose-500/30 hover:border-rose-500/70 flex justify-between items-center transition-all group cursor-pointer text-left shadow-md hover:shadow-rose-950/40"
+                title="Clique para abrir a página completa da Central de Avisos"
+                id="btn-navegacao-rapida-avisos"
+              >
                 <div>
-                  <span className="text-[10px] text-rose-500 font-mono font-bold tracking-widest uppercase">Navegação Rápida</span>
-                  <p className="text-[11px] text-zinc-400 mt-0.5 font-sans">Controles da Plataforma</p>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] text-rose-400 group-hover:text-rose-300 font-mono font-bold tracking-widest uppercase flex items-center gap-1">
+                      <Bell className="w-3 h-3 text-rose-500 animate-pulse" />
+                      Navegação Rápida
+                    </span>
+                    <span className="text-[9px] font-mono bg-rose-500/20 text-rose-300 px-1.5 py-0.2 rounded border border-rose-500/30">
+                      Abrir Avisos &rarr;
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-zinc-400 group-hover:text-zinc-200 mt-0.5 font-sans">
+                    Central de Pedidos e Comentários
+                  </p>
                 </div>
-                <div className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
-              </div>
+                <div className="relative flex items-center justify-center">
+                  <div className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping absolute" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-rose-500" />
+                </div>
+              </button>
 
               {/* Menu de Abas na Sidebar com animações de toque e hover */}
               <nav className="flex flex-row lg:flex-col overflow-x-auto lg:overflow-x-visible pb-2 lg:pb-0 gap-2 scrollbar-none">
@@ -925,6 +1078,24 @@ export default function AdminPanel({
                   <span className={`ml-auto text-[10px] font-mono px-2 py-0.5 rounded-full ${activeAdminTab === 'catalog' ? 'bg-white/20 text-white' : 'bg-zinc-800 text-zinc-400'}`}>
                     {movies.length}
                   </span>
+                </button>
+
+                <button
+                  onClick={() => { setActiveAdminTab('notifications'); setIsFormOpen(false); }}
+                  className={`w-full px-3.5 py-3 rounded-xl text-xs sm:text-sm font-semibold flex items-center justify-start gap-3 transition-all truncate whitespace-nowrap cursor-pointer hover:scale-[1.01] active:scale-[0.98] ${
+                    activeAdminTab === 'notifications'
+                      ? 'bg-gradient-to-r from-rose-600 to-rose-700 text-white shadow-lg shadow-rose-600/25 font-bold translate-x-0.5 border border-rose-500/40'
+                      : 'text-zinc-400 hover:text-white hover:bg-zinc-800/60'
+                  }`}
+                  id="sidebar-btn-notifications"
+                >
+                  <Bell className={`w-4.5 h-4.5 ${activeAdminTab === 'notifications' ? 'text-white' : 'text-rose-500'}`} />
+                  <span>Central de Avisos</span>
+                  {(pendingRequestsCount + comments.length) > 0 && (
+                    <span className={`ml-auto text-[10px] font-mono px-2 py-0.5 rounded-full font-bold ${activeAdminTab === 'notifications' ? 'bg-white/20 text-white' : 'bg-rose-500 text-white animate-pulse shadow-md shadow-rose-600/50'}`}>
+                      {pendingRequestsCount + comments.length}
+                    </span>
+                  )}
                 </button>
 
                 <button
@@ -1170,6 +1341,329 @@ export default function AdminPanel({
                   </motion.div>
                 )}
 
+                {/* --- CENTRAL DE AVISOS EM TEMPO REAL NO DASHBOARD --- */}
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3 }}
+                  className="bg-gradient-to-b from-zinc-900/95 via-zinc-900/90 to-zinc-950 border border-zinc-800/90 hover:border-rose-500/40 p-5 sm:p-6 rounded-2xl shadow-2xl relative overflow-hidden space-y-4"
+                  id="dashboard-notifications-widget"
+                >
+                  {/* Cabeçalho da Central de Avisos */}
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-zinc-800/80 pb-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="bg-rose-500/15 border border-rose-500/30 text-rose-400 font-mono text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase flex items-center gap-1.5">
+                          <Bell className="w-3.5 h-3.5 text-rose-500 animate-pulse" /> Central de Avisos & Atividades
+                        </span>
+                        <span className="text-[10px] font-mono bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-md font-bold uppercase flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" /> Tempo Real
+                        </span>
+                      </div>
+                      <h3 className="font-bold text-lg text-white font-display tracking-tight flex items-center gap-2">
+                        Pedidos de Filmes & Séries e Comentários Recentes
+                      </h3>
+                      <p className="text-xs text-zinc-400 font-sans">
+                        Fique por dentro das solicitações de novos títulos e opiniões postadas pelos espectadores.
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveAdminTab('notifications');
+                          setIsFormOpen(false);
+                        }}
+                        className="px-4 py-2 bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 hover:to-rose-600 text-white text-xs font-mono font-bold uppercase tracking-wider rounded-xl transition-all shadow-md shadow-rose-950/40 flex items-center gap-2 cursor-pointer active:scale-95"
+                      >
+                        <span>Abrir Central de Avisos Completa</span>
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Pílulas de Resumo Métrico */}
+                  <div className="grid grid-cols-1 xs:grid-cols-3 gap-2.5 pt-1">
+                    <div className="p-3 bg-zinc-950/70 border border-zinc-800/80 rounded-xl flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-lg bg-sky-500/15 text-sky-400 border border-sky-500/30 flex items-center justify-center">
+                          <Film className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-zinc-400 font-mono uppercase">Pedidos de Filmes/Séries</p>
+                          <p className="text-sm font-bold text-white font-mono">{requests.length} pedidos ({pendingRequestsCount} pendentes)</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="p-3 bg-zinc-950/70 border border-zinc-800/80 rounded-xl flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-lg bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center justify-center">
+                          <MessageSquare className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-zinc-400 font-mono uppercase">Comentários nos Títulos</p>
+                          <p className="text-sm font-bold text-white font-mono">{comments.length} comentários</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="p-3 bg-zinc-950/70 border border-zinc-800/80 rounded-xl flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-lg bg-purple-500/15 text-purple-400 border border-purple-500/30 flex items-center justify-center">
+                          <Users className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-zinc-400 font-mono uppercase">Usuários Cadastrados</p>
+                          <p className="text-sm font-bold text-white font-mono">{users.length} contas</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Filtros Rápidos */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setNoticeFilter('all')}
+                      className={`px-3 py-1.5 rounded-lg font-mono font-semibold transition-all cursor-pointer ${
+                        noticeFilter === 'all'
+                          ? 'bg-rose-600 text-white shadow-md'
+                          : 'bg-zinc-800/70 text-zinc-400 hover:text-white hover:bg-zinc-800'
+                      }`}
+                    >
+                      Todos os Avisos ({consolidatedAlerts.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNoticeFilter('requests')}
+                      className={`px-3 py-1.5 rounded-lg font-mono font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                        noticeFilter === 'requests'
+                          ? 'bg-sky-600 text-white shadow-md'
+                          : 'bg-zinc-800/70 text-zinc-400 hover:text-white hover:bg-zinc-800'
+                      }`}
+                    >
+                      <span>🎬 Pedidos ({requests.length})</span>
+                      {pendingRequestsCount > 0 && (
+                        <span className="px-1.5 py-0.2 bg-rose-500 text-white rounded-full text-[9px]">
+                          {pendingRequestsCount}
+                        </span>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNoticeFilter('comments')}
+                      className={`px-3 py-1.5 rounded-lg font-mono font-semibold transition-all cursor-pointer ${
+                        noticeFilter === 'comments'
+                          ? 'bg-emerald-600 text-white shadow-md'
+                          : 'bg-zinc-800/70 text-zinc-400 hover:text-white hover:bg-zinc-800'
+                      }`}
+                    >
+                      💬 Comentários ({comments.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNoticeFilter('users')}
+                      className={`px-3 py-1.5 rounded-lg font-mono font-semibold transition-all cursor-pointer ${
+                        noticeFilter === 'users'
+                          ? 'bg-purple-600 text-white shadow-md'
+                          : 'bg-zinc-800/70 text-zinc-400 hover:text-white hover:bg-zinc-800'
+                      }`}
+                    >
+                      👤 Novos Usuários ({users.length})
+                    </button>
+                  </div>
+
+                  {/* Lista de Alertas Recentes (mostra os primeiros 6) */}
+                  <div className="space-y-2.5 pt-1">
+                    {filteredAlerts.length === 0 ? (
+                      <div className="p-8 text-center bg-zinc-950/50 border border-zinc-850 rounded-2xl">
+                        <Bell className="w-8 h-8 text-zinc-600 mx-auto mb-2" />
+                        <p className="text-zinc-400 font-medium text-sm">Nenhum aviso ou notificação no momento.</p>
+                        <p className="text-zinc-500 text-xs mt-0.5">Quando os usuários solicitarem títulos ou comentarem em filmes/séries, eles aparecerão aqui instantaneamente.</p>
+                      </div>
+                    ) : (
+                      filteredAlerts.slice(0, 6).map((alert) => (
+                        <div
+                          key={alert.id}
+                          className="p-3.5 sm:p-4 bg-zinc-950/80 hover:bg-zinc-900/90 border border-zinc-850 hover:border-zinc-700 rounded-xl transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 group"
+                        >
+                          <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
+                            {/* Avatar ou Poster */}
+                            <div className="relative shrink-0">
+                              {alert.type === 'request' ? (
+                                <div className="w-11 h-14 rounded-lg bg-zinc-900 border border-sky-500/40 overflow-hidden shadow-md flex items-center justify-center">
+                                  {alert.posterUrl ? (
+                                    <img src={alert.posterUrl} alt="Poster" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                  ) : (
+                                    <Film className="w-5 h-5 text-sky-400" />
+                                  )}
+                                </div>
+                              ) : alert.type === 'comment' ? (
+                                <div className="w-11 h-14 rounded-lg bg-zinc-900 border border-emerald-500/40 overflow-hidden shadow-md flex items-center justify-center">
+                                  {alert.posterUrl ? (
+                                    <img src={alert.posterUrl} alt="Poster" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                  ) : (
+                                    <MessageSquare className="w-5 h-5 text-emerald-400" />
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="w-11 h-11 rounded-full bg-zinc-900 border border-purple-500/40 overflow-hidden shadow-md flex items-center justify-center">
+                                  {alert.userAvatar ? (
+                                    <img src={alert.userAvatar} alt="Avatar" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                  ) : (
+                                    <Users className="w-5 h-5 text-purple-400" />
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Badge de tipo de alerta */}
+                              <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-[10px] shadow-sm ${
+                                alert.type === 'request'
+                                  ? 'bg-sky-500 text-white'
+                                  : alert.type === 'comment'
+                                  ? 'bg-emerald-500 text-black'
+                                  : 'bg-purple-500 text-white'
+                              }`}>
+                                {alert.type === 'request' ? '🎬' : alert.type === 'comment' ? '💬' : '👤'}
+                              </div>
+                            </div>
+
+                            {/* Conteúdo do Alerta */}
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className={`text-[10px] font-mono px-2 py-0.5 rounded-md font-bold uppercase ${
+                                  alert.type === 'request'
+                                    ? alert.status === 'fulfilled'
+                                      ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                                      : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                                    : alert.type === 'comment'
+                                    ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                                    : 'bg-purple-500/15 text-purple-400 border border-purple-500/30'
+                                }`}>
+                                  {alert.type === 'request'
+                                    ? (alert.status === 'fulfilled' ? 'Pedido Atendido ✅' : 'Pedido Pendente ⏳')
+                                    : alert.type === 'comment'
+                                    ? 'Comentário em Mídia'
+                                    : 'Novo Cadastro'}
+                                </span>
+                                <span className="text-[11px] font-mono text-zinc-500">
+                                  {formatAlertTime(alert.date)}
+                                </span>
+                              </div>
+
+                              <h4 className="text-sm font-bold text-white truncate mt-1">
+                                {alert.title}
+                              </h4>
+                              <p className="text-xs text-zinc-300 font-sans line-clamp-2 mt-0.5">
+                                {alert.subtitle}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Ações Rápidas por Tipo */}
+                          <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                            {alert.type === 'request' && alert.rawRequest && (
+                              <>
+                                {alert.status === 'pending' && onFulfillRequest && (
+                                  <button
+                                    type="button"
+                                    onClick={() => onFulfillRequest(alert.rawRequest!.id)}
+                                    className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-mono font-bold transition-all flex items-center gap-1 cursor-pointer shadow-sm"
+                                    title="Marcar pedido como atendido"
+                                  >
+                                    <Check className="w-3.5 h-3.5" />
+                                    <span>Atender</span>
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setTmdbSearchQuery(alert.rawRequest!.title);
+                                    setActiveAdminTab('catalog');
+                                    setIsFormOpen(true);
+                                  }}
+                                  className="px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-[11px] font-mono transition-all flex items-center gap-1 cursor-pointer"
+                                  title="Buscar título no TMDB para adicionar ao catálogo"
+                                >
+                                  <Search className="w-3.5 h-3.5 text-sky-400" />
+                                  <span>Buscar TMDB</span>
+                                </button>
+                                {onDeleteRequest && (
+                                  <button
+                                    type="button"
+                                    onClick={() => onDeleteRequest(alert.rawRequest!.id)}
+                                    className="p-1.5 rounded-lg bg-zinc-900 hover:bg-rose-900/50 text-zinc-400 hover:text-rose-400 border border-zinc-800 transition-colors cursor-pointer"
+                                    title="Excluir pedido"
+                                  >
+                                    <Trash className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                              </>
+                            )}
+
+                            {alert.type === 'comment' && alert.rawComment && (
+                              <>
+                                {alert.movie && onSelectMovie && (
+                                  <button
+                                    type="button"
+                                    onClick={() => onSelectMovie(alert.movie!)}
+                                    className="px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-[11px] font-mono transition-all flex items-center gap-1 cursor-pointer"
+                                    title="Abrir detalhes e reprodução da fita"
+                                  >
+                                    <Play className="w-3.5 h-3.5 text-emerald-400 fill-current" />
+                                    <span>Ver Mídia</span>
+                                  </button>
+                                )}
+                                {onDeleteComment && (
+                                  <button
+                                    type="button"
+                                    onClick={() => onDeleteComment(alert.rawComment!.id)}
+                                    className="p-1.5 rounded-lg bg-zinc-900 hover:bg-rose-900/50 text-zinc-400 hover:text-rose-400 border border-zinc-800 transition-colors cursor-pointer"
+                                    title="Excluir este comentário"
+                                  >
+                                    <Trash className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                              </>
+                            )}
+
+                            {alert.type === 'user' && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setActiveAdminTab('users');
+                                  setIsFormOpen(false);
+                                }}
+                                className="px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-[11px] font-mono transition-all flex items-center gap-1 cursor-pointer"
+                              >
+                                <Users className="w-3.5 h-3.5 text-purple-400" />
+                                <span>Ver Contas</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  {filteredAlerts.length > 6 && (
+                    <div className="pt-2 text-center">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveAdminTab('notifications');
+                          setIsFormOpen(false);
+                        }}
+                        className="text-xs font-mono font-bold text-rose-400 hover:text-white underline cursor-pointer"
+                      >
+                        Ver todos os {filteredAlerts.length} avisos na Central de Avisos &rarr;
+                      </button>
+                    </div>
+                  )}
+                </motion.div>
+
                 {/* Grid Duplo Resumido: Distribuição de Prateleiras e Integridade Operacional */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   
@@ -1297,6 +1791,379 @@ export default function AdminPanel({
                   </button>
                 </motion.div>
 
+              </motion.div>
+            )}
+
+            {/* --- ABA DEDICADA: CENTRAL DE AVISOS E ATIVIDADES DOS USUÁRIOS --- */}
+            {activeAdminTab === 'notifications' && (
+              <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, ease: "easeOut" }}
+                className="space-y-6"
+                id="central-de-avisos-full-page"
+              >
+                {/* Banner de Cabeçalho da Central de Avisos */}
+                <div className="bg-gradient-to-r from-zinc-950 via-zinc-900 to-rose-950/30 border border-zinc-800 p-6 rounded-2xl shadow-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-mono bg-rose-500/20 text-rose-400 border border-rose-500/40 px-2.5 py-0.5 rounded-full font-bold uppercase flex items-center gap-1.5">
+                        <Bell className="w-3.5 h-3.5 text-rose-500 animate-pulse" /> Central de Avisos
+                      </span>
+                      <span className="text-zinc-500 font-mono text-xs">•</span>
+                      <span className="text-xs text-emerald-400 font-mono font-bold flex items-center gap-1">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" /> Sincronização em Tempo Real
+                      </span>
+                    </div>
+                    <h2 className="text-2xl font-black text-white font-display uppercase tracking-tight">
+                      Avisos de Pedidos e Comentários
+                    </h2>
+                    <p className="text-xs text-zinc-400 max-w-2xl font-sans leading-relaxed">
+                      Gerencie e atenda os pedidos de filmes e séries enviados pelos espectadores, modere comentários e acompanhe os novos usuários cadastrados na plataforma.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 self-stretch sm:self-auto">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveAdminTab('dashboard');
+                      }}
+                      className="px-4 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white text-xs font-mono font-semibold transition-all cursor-pointer flex items-center justify-center gap-2 w-full sm:w-auto"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                      <span>Voltar ao Dashboard</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Métricas e Estatísticas Rápidas da Central de Avisos */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="p-4 bg-gradient-to-b from-zinc-900 to-zinc-950 border border-amber-500/30 rounded-2xl shadow-lg relative overflow-hidden">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <span className="text-[10px] text-amber-400 font-mono uppercase font-bold tracking-wider">Aguardando Inclusão</span>
+                        <p className="text-3xl font-black font-display text-white mt-1">{pendingRequestsCount}</p>
+                        <p className="text-xs text-amber-400/90 font-mono mt-0.5">Pedidos Pendentes</p>
+                      </div>
+                      <div className="p-2.5 bg-amber-500/15 border border-amber-500/30 text-amber-400 rounded-xl">
+                        <Clock className="w-5 h-5" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-gradient-to-b from-zinc-900 to-zinc-950 border border-sky-500/30 rounded-2xl shadow-lg relative overflow-hidden">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <span className="text-[10px] text-sky-400 font-mono uppercase font-bold tracking-wider">Total de Pedidos</span>
+                        <p className="text-3xl font-black font-display text-white mt-1">{requests.length}</p>
+                        <p className="text-xs text-sky-400/90 font-mono mt-0.5">Filmes e Séries</p>
+                      </div>
+                      <div className="p-2.5 bg-sky-500/15 border border-sky-500/30 text-sky-400 rounded-xl">
+                        <Film className="w-5 h-5" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-gradient-to-b from-zinc-900 to-zinc-950 border border-emerald-500/30 rounded-2xl shadow-lg relative overflow-hidden">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <span className="text-[10px] text-emerald-400 font-mono uppercase font-bold tracking-wider">Interações e Opiniões</span>
+                        <p className="text-3xl font-black font-display text-white mt-1">{comments.length}</p>
+                        <p className="text-xs text-emerald-400/90 font-mono mt-0.5">Comentários Postados</p>
+                      </div>
+                      <div className="p-2.5 bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 rounded-xl">
+                        <MessageSquare className="w-5 h-5" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-gradient-to-b from-zinc-900 to-zinc-950 border border-purple-500/30 rounded-2xl shadow-lg relative overflow-hidden">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <span className="text-[10px] text-purple-400 font-mono uppercase font-bold tracking-wider">Espectadores Registrados</span>
+                        <p className="text-3xl font-black font-display text-white mt-1">{users.length}</p>
+                        <p className="text-xs text-purple-400/90 font-mono mt-0.5">Contas de Acesso</p>
+                      </div>
+                      <div className="p-2.5 bg-purple-500/15 border border-purple-500/30 text-purple-400 rounded-xl">
+                        <Users className="w-5 h-5" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Barra de Filtros e Busca de Avisos */}
+                <div className="p-4 bg-zinc-900/90 border border-zinc-800 rounded-2xl shadow-xl flex flex-col md:flex-row justify-between items-stretch md:items-center gap-3">
+                  {/* Busca */}
+                  <div className="relative flex-1">
+                    <Search className="w-4 h-4 text-zinc-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      placeholder="Pesquisar aviso por nome de usuário, filme ou texto..."
+                      value={noticeSearch}
+                      onChange={(e) => setNoticeSearch(e.target.value)}
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder-zinc-500 outline-none focus:border-rose-500 transition-colors"
+                    />
+                    {noticeSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setNoticeSearch('')}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white text-xs"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Filtro por categoria */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setNoticeFilter('all')}
+                      className={`px-3 py-2 rounded-xl font-mono font-bold transition-all cursor-pointer whitespace-nowrap ${
+                        noticeFilter === 'all'
+                          ? 'bg-rose-600 text-white shadow-md'
+                          : 'bg-zinc-800/80 text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      Todos ({consolidatedAlerts.length})
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setNoticeFilter('requests')}
+                      className={`px-3 py-2 rounded-xl font-mono font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${
+                        noticeFilter === 'requests'
+                          ? 'bg-sky-600 text-white shadow-md'
+                          : 'bg-zinc-800/80 text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      <span>🎬 Pedidos ({requests.length})</span>
+                      {pendingRequestsCount > 0 && (
+                        <span className="px-1.5 py-0.2 bg-rose-500 text-white rounded-full text-[9px]">
+                          {pendingRequestsCount}
+                        </span>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setNoticeFilter('comments')}
+                      className={`px-3 py-2 rounded-xl font-mono font-bold transition-all cursor-pointer whitespace-nowrap ${
+                        noticeFilter === 'comments'
+                          ? 'bg-emerald-600 text-white shadow-md'
+                          : 'bg-zinc-800/80 text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      💬 Comentários ({comments.length})
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setNoticeFilter('users')}
+                      className={`px-3 py-2 rounded-xl font-mono font-bold transition-all cursor-pointer whitespace-nowrap ${
+                        noticeFilter === 'users'
+                          ? 'bg-purple-600 text-white shadow-md'
+                          : 'bg-zinc-800/80 text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      👤 Usuários ({users.length})
+                    </button>
+                  </div>
+                </div>
+
+                {/* Lista Completa de Alertas */}
+                <div className="space-y-3">
+                  {filteredAlerts.length === 0 ? (
+                    <div className="p-12 text-center bg-zinc-900/60 border border-zinc-800 rounded-2xl">
+                      <Bell className="w-12 h-12 text-zinc-700 mx-auto mb-3 animate-bounce" />
+                      <h4 className="text-white font-bold text-base font-display uppercase tracking-wide">
+                        Nenhum registro encontrado
+                      </h4>
+                      <p className="text-zinc-400 text-xs mt-1 max-w-md mx-auto">
+                        Não encontramos nenhum aviso para o filtro selecionado. Quando houver novos pedidos ou comentários, eles aparecerão aqui em tempo real.
+                      </p>
+                    </div>
+                  ) : (
+                    filteredAlerts.map((alert) => (
+                      <motion.div
+                        key={alert.id}
+                        initial={{ opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="p-4 sm:p-5 bg-gradient-to-r from-zinc-900 via-zinc-900/90 to-zinc-950 border border-zinc-800/90 hover:border-zinc-700 rounded-2xl shadow-xl transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 group"
+                      >
+                        <div className="flex items-start sm:items-center gap-4 min-w-0 flex-1">
+                          {/* Thumbnail / Foto */}
+                          <div className="relative shrink-0">
+                            {alert.type === 'request' ? (
+                              <div className="w-14 h-18 rounded-xl bg-zinc-950 border border-sky-500/40 overflow-hidden shadow-lg flex items-center justify-center">
+                                {alert.posterUrl ? (
+                                  <img src={alert.posterUrl} alt="Poster" className="w-full h-full object-cover group-hover:scale-105 transition-transform" referrerPolicy="no-referrer" />
+                                ) : (
+                                  <Film className="w-6 h-6 text-sky-400" />
+                                )}
+                              </div>
+                            ) : alert.type === 'comment' ? (
+                              <div className="w-14 h-18 rounded-xl bg-zinc-950 border border-emerald-500/40 overflow-hidden shadow-lg flex items-center justify-center">
+                                {alert.posterUrl ? (
+                                  <img src={alert.posterUrl} alt="Poster" className="w-full h-full object-cover group-hover:scale-105 transition-transform" referrerPolicy="no-referrer" />
+                                ) : (
+                                  <MessageSquare className="w-6 h-6 text-emerald-400" />
+                                )}
+                              </div>
+                            ) : (
+                              <div className="w-14 h-14 rounded-2xl bg-zinc-950 border border-purple-500/40 overflow-hidden shadow-lg flex items-center justify-center">
+                                {alert.userAvatar ? (
+                                  <img src={alert.userAvatar} alt="Avatar" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                ) : (
+                                  <Users className="w-6 h-6 text-purple-400" />
+                                )}
+                              </div>
+                            )}
+
+                            <div className={`absolute -bottom-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center text-xs shadow-md ${
+                              alert.type === 'request'
+                                ? 'bg-sky-500 text-white'
+                                : alert.type === 'comment'
+                                ? 'bg-emerald-500 text-black'
+                                : 'bg-purple-500 text-white'
+                            }`}>
+                              {alert.type === 'request' ? '🎬' : alert.type === 'comment' ? '💬' : '👤'}
+                            </div>
+                          </div>
+
+                          {/* Textos e Detalhes */}
+                          <div className="min-w-0 flex-1 space-y-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className={`text-[10px] font-mono px-2.5 py-0.5 rounded-full font-bold uppercase ${
+                                alert.type === 'request'
+                                  ? alert.status === 'fulfilled'
+                                    ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                                    : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                                  : alert.type === 'comment'
+                                  ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                                  : 'bg-purple-500/15 text-purple-400 border border-purple-500/30'
+                              }`}>
+                                {alert.type === 'request'
+                                  ? (alert.status === 'fulfilled' ? 'Pedido Atendido ✅' : 'Pedido Pendente ⏳')
+                                  : alert.type === 'comment'
+                                  ? 'Comentário em Filme/Série'
+                                  : 'Novo Usuário na Plataforma'}
+                              </span>
+
+                              <span className="text-xs font-mono text-zinc-500 flex items-center gap-1">
+                                <Clock className="w-3 h-3" />
+                                {formatAlertTime(alert.date)}
+                              </span>
+
+                              <span className="text-[11px] font-mono text-zinc-400">
+                                Por: <strong className="text-zinc-200">{alert.userName}</strong>
+                                {alert.profileName && <span className="text-zinc-400"> (Perfil: {alert.profileName})</span>}
+                              </span>
+                            </div>
+
+                            <h3 className="text-base font-bold text-white tracking-tight">
+                              {alert.title}
+                            </h3>
+
+                            {alert.type === 'comment' ? (
+                              <div className="p-3 bg-zinc-950/80 rounded-xl border border-zinc-850 text-xs text-zinc-300 font-sans italic leading-relaxed">
+                                {alert.subtitle}
+                              </div>
+                            ) : (
+                              <p className="text-xs text-zinc-300 font-sans leading-relaxed">
+                                {alert.subtitle}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Botões de Ação na Direita */}
+                        <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                          {alert.type === 'request' && alert.rawRequest && (
+                            <>
+                              {alert.status === 'pending' && onFulfillRequest && (
+                                <button
+                                  type="button"
+                                  onClick={() => onFulfillRequest(alert.rawRequest!.id)}
+                                  className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-mono font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-md shadow-emerald-950/40"
+                                  title="Marcar pedido como atendido"
+                                >
+                                  <Check className="w-4 h-4" />
+                                  <span>Marcar como Atendido</span>
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setCatalogSearchQuery(alert.rawRequest!.title);
+                                  setTmdbSearchQuery(alert.rawRequest!.title);
+                                  setActiveAdminTab('catalog');
+                                  setIsFormOpen(false);
+                                }}
+                                className="px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-mono transition-all flex items-center gap-1.5 cursor-pointer border border-zinc-700"
+                                title="Buscar título no TMDB para adicionar ao catálogo"
+                              >
+                                <Search className="w-4 h-4 text-sky-400" />
+                                <span>Buscar no TMDB</span>
+                              </button>
+                              {onDeleteRequest && (
+                                <button
+                                  type="button"
+                                  onClick={() => onDeleteRequest(alert.rawRequest!.id)}
+                                  className="p-2 rounded-xl bg-zinc-900 hover:bg-rose-900/50 text-zinc-400 hover:text-rose-400 border border-zinc-800 transition-colors cursor-pointer"
+                                  title="Excluir pedido"
+                                >
+                                  <Trash className="w-4 h-4" />
+                                </button>
+                              )}
+                            </>
+                          )}
+
+                          {alert.type === 'comment' && alert.rawComment && (
+                            <>
+                              {alert.movie && onSelectMovie && (
+                                <button
+                                  type="button"
+                                  onClick={() => onSelectMovie(alert.movie!)}
+                                  className="px-3 py-2 rounded-xl bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-500/40 text-xs font-mono font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
+                                  title="Abrir detalhes e assistir"
+                                >
+                                  <Play className="w-4 h-4 fill-current" />
+                                  <span>Ver Mídia / Detalhes</span>
+                                </button>
+                              )}
+                              {onDeleteComment && (
+                                <button
+                                  type="button"
+                                  onClick={() => onDeleteComment(alert.rawComment!.id)}
+                                  className="p-2 rounded-xl bg-zinc-900 hover:bg-rose-900/50 text-zinc-400 hover:text-rose-400 border border-zinc-800 transition-colors cursor-pointer"
+                                  title="Excluir este comentário"
+                                >
+                                  <Trash className="w-4 h-4" />
+                                </button>
+                              )}
+                            </>
+                          )}
+
+                          {alert.type === 'user' && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveAdminTab('users');
+                                setIsFormOpen(false);
+                              }}
+                              className="px-3 py-2 rounded-xl bg-purple-600/20 hover:bg-purple-600 text-purple-300 hover:text-white border border-purple-500/40 text-xs font-mono font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                            >
+                              <Users className="w-4 h-4" />
+                              <span>Gerenciar Conta</span>
+                            </button>
+                          )}
+                        </div>
+                      </motion.div>
+                    ))
+                  )}
+                </div>
               </motion.div>
             )}
 
@@ -3927,6 +4794,18 @@ export default function AdminPanel({
                       }}
                       className="w-full text-xs text-zinc-500 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[10px] file:font-semibold file:bg-zinc-850 file:text-zinc-300 hover:file:bg-zinc-800 cursor-pointer text-ellipsis overflow-hidden"
                     />
+                  </div>
+
+                  <div className="pt-2 border-t border-zinc-800/80 flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAdminCustomAvatarUrl(RAFAEL_ADMIN_AVATAR);
+                      }}
+                      className="w-full px-3 py-2 rounded-lg bg-rose-600/20 hover:bg-rose-600/35 border border-rose-500/50 text-rose-300 hover:text-white text-xs font-mono font-bold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm"
+                    >
+                      <span>Restaurar Minha Foto Oficial (Rafael Gusmão)</span>
+                    </button>
                   </div>
                 </div>
 

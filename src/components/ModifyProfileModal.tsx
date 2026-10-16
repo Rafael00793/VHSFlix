@@ -5,7 +5,7 @@
 
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Camera, KeyRound, Eye, EyeOff, Check, X, Sparkles, AlertCircle, CheckCircle2, Upload, Link as LinkIcon } from 'lucide-react';
+import { Camera, KeyRound, Eye, EyeOff, Check, X, Sparkles, AlertCircle, CheckCircle2, Upload, Link as LinkIcon, Send, ExternalLink } from 'lucide-react';
 import { User, Profile } from '../types';
 import { PROFILE_AVATARS } from '../data';
 import { compressImage } from '../lib/firebase';
@@ -452,6 +452,36 @@ export default function ModifyProfileModal({
                 </div>
               </div>
             </div>
+
+            {/* ============================================================== */}
+            {/* CONTATO COM ADMINISTRADOR VIA TELEGRAM (USUÁRIOS) */}
+            {/* ============================================================== */}
+            {!user?.isAdmin && (
+              <div className="pt-2">
+                <a
+                  href="https://t.me/VHSFLIX2026"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-zinc-900 via-zinc-900 to-[#229ED9]/15 border border-[#229ED9]/40 hover:border-[#229ED9] text-white hover:text-white transition-all shadow-md group cursor-pointer"
+                  id="btn-telegram-modify-modal"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-lg bg-[#229ED9] flex items-center justify-center text-white shadow-md shadow-[#229ED9]/30">
+                      <Send className="w-4 h-4 text-white group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                    </div>
+                    <div className="flex flex-col text-left">
+                      <span className="font-extrabold text-xs text-white group-hover:text-cyan-200 transition-colors">
+                        Falar com o Administrador - VHS Flix
+                      </span>
+                      <span className="text-[10px] text-[#229ED9]">
+                        Dúvidas, renovação ou suporte via Telegram
+                      </span>
+                    </div>
+                  </div>
+                  <ExternalLink className="w-3.5 h-3.5 text-[#229ED9] group-hover:text-white transition-colors" />
+                </a>
+              </div>
+            )}
 
             {/* ============================================================== */}
             {/* RODAPÉ E BOTÕES DE AÇÃO */}

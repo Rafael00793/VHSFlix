@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Bell, Shield, LogOut, RefreshCw, UserCheck, Film, Tv, List, Sliders, ChevronDown, MessageSquare, Heart, Sparkles, Clock } from 'lucide-react';
+import { Search, Bell, Shield, LogOut, RefreshCw, UserCheck, Film, Tv, List, Sliders, ChevronDown, MessageSquare, Heart, Sparkles, Clock, Send, ExternalLink } from 'lucide-react';
 import { User, Profile, AppNotification, Movie, getSubscriptionDaysLeft } from '../types';
 import { GENRE_CATEGORIES } from '../data';
 import { motion, AnimatePresence } from 'motion/react';
@@ -564,6 +564,36 @@ export default function Navbar({
                             <span className="text-xs font-mono group-hover:translate-x-0.5 transition-transform">&rarr;</span>
                           </div>
                         </button>
+
+                        {/* Botão Falar com o Administrador - VHS Flix (Exclusivo para Usuários) */}
+                        <a
+                          href="https://t.me/VHSFLIX2026"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="relative overflow-hidden w-full text-white bg-gradient-to-r from-zinc-900 via-zinc-900 to-[#229ED9]/20 hover:to-[#229ED9]/35 py-2.5 px-3 rounded-xl text-xs font-bold transition-all duration-300 flex items-center justify-between border border-zinc-800 hover:border-[#229ED9]/80 hover:shadow-[0_0_20px_rgba(34,158,217,0.35)] group cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+                          id="btn-contact-admin-telegram-navbar"
+                        >
+                          <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/10 to-transparent pointer-events-none" />
+
+                          <div className="flex items-center gap-3 relative z-10">
+                            <div className="relative w-11 h-11 rounded-xl overflow-hidden bg-gradient-to-br from-[#229ED9] to-[#0088cc] flex items-center justify-center text-white shadow-[0_0_12px_rgba(34,158,217,0.4)] flex-shrink-0 group-hover:scale-105 transition-transform duration-300">
+                              <Send className="w-5 h-5 text-white group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                            </div>
+
+                            <div className="flex flex-col text-left">
+                              <span className="font-extrabold text-white text-xs group-hover:text-cyan-200 transition-colors">
+                                Falar com o Administrador - VHS Flix
+                              </span>
+                              <span className="text-[10px] text-[#229ED9] font-medium">
+                                Atendimento direto pelo Telegram
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1 text-zinc-400 group-hover:text-[#229ED9] transition-colors relative z-10">
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </div>
+                        </a>
 
                         {/* Botão Sair da Conta (Usuário) */}
                         <button

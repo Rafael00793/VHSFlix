@@ -26,19 +26,19 @@ export const PROFILE_AVATARS = [
 
 export function isDefaultStockAvatar(url?: string): boolean {
   if (!url || typeof url !== 'string' || url.trim() === '') return true;
-  // URLs de fotos de desconhecidos antigas do Unsplash
-  if (
-    url.includes('photo-1535713875002-d1d0cf377fde') ||
-    url.includes('photo-1494790108377-be9c29b29330') ||
-    url.includes('photo-1599566150163-29194dcaad36') ||
-    url.includes('photo-1534528741775-53994a69daeb') ||
-    url.includes('photo-1507003211169-0a1dd7228f2d')
-  ) {
+  const lower = url.toLowerCase().trim();
+  // Qualquer foto do Unsplash em avatar é foto antiga de pessoas desconhecidas / aleatórias
+  if (lower.includes('unsplash.com') || lower.includes('images.unsplash.com')) {
     return true;
   }
-  // Se for qualquer um dos avatares padrão SVG
-  if (PROFILE_AVATARS.some(av => av.url === url)) return true;
-  if (url.startsWith('data:image/svg+xml') && (url.includes('VHSFLIX') || url.includes('CYBER') || url.includes('VIP') || url.includes('SYNTH') || url.includes('MATRIX'))) {
+  // Geradores externos de fotos aleatórias de pessoas
+  if (
+    lower.includes('pravatar.cc') ||
+    lower.includes('randomuser.me') ||
+    lower.includes('thispersondoesnotexist') ||
+    lower.includes('xsgames.co/randomusers') ||
+    lower.includes('ui-avatars.com')
+  ) {
     return true;
   }
   return false;

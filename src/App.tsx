@@ -21,7 +21,7 @@ import { AnimatedFilmReelIcon } from './components/AnimatedFilmReelIcon';
 import { AnimatedTvIcon } from './components/AnimatedTvIcon';
 import { AnimatedResumeIcon } from './components/AnimatedResumeIcon';
 import { AnimatedNeonFlameIcon } from './components/AnimatedNeonFlameIcon';
-import { Play, Info, Sparkles, Star, Plus, Check, Shield, HelpCircle, AlertCircle, Heart, HeartOff, Volume1, Volume2, VolumeX, Bell, X, Flame, LayoutGrid, List, Trash2, ChevronLeft, ChevronRight, Film, Tv, Clock, Award, Bookmark } from 'lucide-react';
+import { Play, Info, Sparkles, Star, Plus, Check, Shield, HelpCircle, AlertCircle, Heart, HeartOff, Volume1, Volume2, VolumeX, Bell, X, Flame, LayoutGrid, List, Trash2, ChevronLeft, ChevronRight, Film, Tv, Clock, Award, Bookmark, Send, ExternalLink } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { db, saveUsersToFirestore, deleteUserFromFirestore, saveProfilesToFirestore, saveMoviesToFirestore, saveSingleMovieToFirestore, deleteMovieFromFirestore, saveSettingsToFirestore, saveRequestsToFirestore, saveSingleRequestToFirestore, deleteRequestFromFirestore, handleFirestoreError, OperationType, saveSingleNotificationToFirestore, deleteNotificationFromFirestore, saveSingleCommentToFirestore, deleteCommentFromFirestore } from './lib/firebase';
 import { onSnapshot, collection, doc, setDoc, getDoc } from 'firebase/firestore';
@@ -139,17 +139,33 @@ export default function App() {
       });
     }
 
-    // Inicializar assinaturas de 30 dias para usuários normais que não possuem o campo definido
+    // Inicializar assinaturas de 30 dias para usuários normais e sanitizar avatares
     parsed = parsed.map(u => {
+      const isMaster = u.id === 'u1' || u.email?.toLowerCase() === masterAdminEmail.toLowerCase();
+      let avatar = u.avatarUrl;
+      if (isMaster) {
+        if (!avatar || isDefaultStockAvatar(avatar)) {
+          avatar = RAFAEL_ADMIN_AVATAR;
+        }
+      } else {
+        if (!avatar || isDefaultStockAvatar(avatar)) {
+          avatar = DEFAULT_USER_AVATAR;
+        }
+      }
+
       if (!u.isAdmin && !u.subscriptionExpiresAt) {
         const thirtyDaysFromNow = new Date();
         thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
         return {
           ...u,
+          avatarUrl: avatar,
           subscriptionExpiresAt: thirtyDaysFromNow.toISOString()
         };
       }
-      return u;
+      return {
+        ...u,
+        avatarUrl: avatar
+      };
     });
 
     return parsed;
@@ -166,8 +182,13 @@ export default function App() {
             const valid = profs.filter(p => p.name !== 'Crianças VHS' && p.id !== 'p1_2');
             const list = valid.length > 0 ? valid : profs;
             cleaned[uid] = list.map(p => {
-              if (uid === 'u1' && (!p.avatarUrl || isDefaultStockAvatar(p.avatarUrl))) {
-                return { ...p, avatarUrl: RAFAEL_ADMIN_AVATAR };
+              const isAdminProfile = uid === 'u1' || (p.name && (p.name.includes('Admin') || p.name.includes('Rafael')));
+              if (isAdminProfile) {
+                if (!p.avatarUrl || isDefaultStockAvatar(p.avatarUrl)) {
+                  return { ...p, avatarUrl: RAFAEL_ADMIN_AVATAR };
+                }
+              } else if (!p.avatarUrl || isDefaultStockAvatar(p.avatarUrl)) {
+                return { ...p, avatarUrl: DEFAULT_USER_AVATAR };
               }
               return p;
             });
@@ -600,7 +621,8 @@ export default function App() {
           const cleanProfs = valid.length > 0 ? valid : data.profiles;
           fetchedProfiles[data.userId] = cleanProfs.map((p: any) => {
             let avatar = p.avatarUrl;
-            if (data.userId === 'u1' && (!avatar || isDefaultStockAvatar(avatar))) {
+            const isAdminProfile = data.userId === 'u1' || (p.name && (p.name.includes('Admin') || p.name.includes('Rafael')));
+            if (isAdminProfile && (!avatar || isDefaultStockAvatar(avatar))) {
               avatar = RAFAEL_ADMIN_AVATAR;
             } else if (!avatar || isDefaultStockAvatar(avatar)) {
               avatar = DEFAULT_USER_AVATAR;
@@ -654,8 +676,11 @@ export default function App() {
                   if (isDefaultStockAvatar(remP.avatarUrl) && locP.avatarUrl && !isDefaultStockAvatar(locP.avatarUrl)) {
                     finalAvatar = locP.avatarUrl;
                   }
-                  if (uid === 'u1' && (!finalAvatar || isDefaultStockAvatar(finalAvatar))) {
+                  const isAdminTarget = uid === 'u1' || (remP.name && (remP.name.includes('Admin') || remP.name.includes('Rafael')));
+                  if (isAdminTarget && (!finalAvatar || isDefaultStockAvatar(finalAvatar))) {
                     finalAvatar = RAFAEL_ADMIN_AVATAR;
+                  } else if (!finalAvatar || isDefaultStockAvatar(finalAvatar)) {
+                    finalAvatar = DEFAULT_USER_AVATAR;
                   }
 
                   return {
@@ -937,7 +962,7 @@ export default function App() {
         if (!alreadyWarned) {
           triggerNotification(
             '⚠️ Assinatura Vencendo!',
-            `Faltam apenas ${daysLeft} ${daysLeft === 1 ? 'dia' : 'dias'} para o vencimento do seu sinal VHSFLIX! Entre em contato com Rafael Gusmão para renovar e não perder o acesso.`,
+            `Faltam apenas ${daysLeft} ${daysLeft === 1 ? 'dia' : 'dias'} para o vencimento do seu sinal VHSFLIX! Entre em contato com o administrador VHS Flix para renovar e não perder o acesso.`,
             '',
             'system'
           );
@@ -2232,7 +2257,7 @@ export default function App() {
               </p>
             </div>
             <p className="text-sm text-zinc-300 font-sans leading-relaxed">
-              A assinatura desta conta de 30 dias chegou ao fim. Para continuar assistindo aos seus filmes e séries retrô favoritos, entre em contato com o administrador Rafael Gusmão para renovar o seu sinal por mais 30 dias.
+              A assinatura desta conta de 30 dias chegou ao fim. Para continuar assistindo aos seus filmes e séries retrô favoritos, entre em contato com o administrador VHS Flix para renovar o seu sinal por mais 30 dias.
             </p>
             <div className="w-full bg-zinc-900 rounded-lg p-3 border border-zinc-800 text-left font-mono text-xs text-zinc-400 flex flex-col gap-1">
               <div className="flex justify-between">
@@ -2251,12 +2276,15 @@ export default function App() {
             
             <div className="flex flex-col gap-3 w-full">
               <a 
-                href="https://wa.me/5513997148555" 
+                href="https://t.me/VHSFLIX2026" 
                 target="_blank" 
                 rel="noopener noreferrer"
-                className="w-full bg-[#22c55e] hover:bg-[#16a34a] text-white font-bold py-3 px-4 rounded-lg text-sm uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-emerald-600/10 text-center"
+                className="w-full bg-gradient-to-r from-[#229ED9] via-[#0088cc] to-[#179cde] hover:from-[#2ba8e4] hover:to-[#0077b5] text-white font-bold py-3.5 px-4 rounded-xl text-sm uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-[#0088cc]/30 text-center group active:scale-[0.98]"
+                id="btn-telegram-blocked-screen"
               >
-                💬 Falar com Rafael Gusmão
+                <Send className="w-4 h-4 text-white group-hover:translate-x-0.5 transition-transform" />
+                <span>Entrar em contato com o administrador</span>
+                <ExternalLink className="w-3.5 h-3.5 opacity-80" />
               </a>
               <button
                 onClick={() => {
@@ -2321,6 +2349,15 @@ export default function App() {
               onPublishUpdate={handlePublishUpdate}
               pinnedMostDesiredId={pinnedMostDesiredMovieId}
               onTogglePinMostDesired={handleTogglePinMostDesired}
+              requests={requests}
+              comments={comments}
+              onFulfillRequest={handleFulfillRequest}
+              onDeleteRequest={handleDeleteRequest}
+              onDeleteComment={handleDeleteComment}
+              onSelectMovie={(movie) => {
+                setSelectedMovie(movie);
+                updateBrowserUrl(movie);
+              }}
             />
           ) : activeTab === 'requests' ? (
             <RequestsPanel

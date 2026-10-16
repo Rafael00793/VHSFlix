@@ -129,12 +129,14 @@ export default function ProfileSelector({
   const [editSelectedAvatarIdx, setEditSelectedAvatarIdx] = useState(0);
   const [editCustomAvatarUrl, setEditCustomAvatarUrl] = useState('');
   const [editUploadedFileName, setEditUploadedFileName] = useState('');
+  const [isSubscriptionBlocked, setIsSubscriptionBlocked] = useState(false);
 
   const activeUser = users.find(u => u.id === currentUserId) || users[0];
 
   const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
+    setIsSubscriptionBlocked(false);
 
     const emailInput = loginEmail.trim().toLowerCase();
     const passwordInput = loginPassword.trim();
@@ -158,7 +160,8 @@ export default function ProfileSelector({
 
     const daysLeft = getSubscriptionDaysLeft(matchedUser);
     if (!matchedUser.isAdmin && daysLeft <= 0) {
-      setLoginError('Acesso bloqueado! Sua assinatura de 30 dias expirou. Entre em contato com o administrador Rafael Gusmão para renovar.');
+      setLoginError('Acesso bloqueado! Sua assinatura de 30 dias expirou. Entre em contato com o administrador VHS Flix para renovar.');
+      setIsSubscriptionBlocked(true);
       return;
     }
 
@@ -507,9 +510,26 @@ export default function ProfileSelector({
             {authMode === 'login' && (
               <form onSubmit={handleLoginSubmit} className="flex flex-col gap-3.5">
                 {loginError && (
-                  <div className="bg-rose-600/15 border border-rose-500/40 text-rose-300 text-xs px-3.5 py-2.5 rounded-lg font-medium flex items-center gap-2 shadow-sm">
-                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-                    <span>{loginError}</span>
+                  <div className="flex flex-col gap-2">
+                    <div className="bg-rose-600/15 border border-rose-500/40 text-rose-300 text-xs px-3.5 py-2.5 rounded-lg font-medium flex items-center gap-2 shadow-sm">
+                      <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                      <span>{loginError}</span>
+                    </div>
+                    {(isSubscriptionBlocked || loginError.includes('expirou') || loginError.includes('bloqueado')) && (
+                      <motion.a
+                        initial={{ opacity: 0, y: 4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        href="https://t.me/VHSFLIX2026"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full inline-flex items-center justify-center gap-2.5 bg-gradient-to-r from-[#229ED9] via-[#0088cc] to-[#179cde] hover:from-[#2ba8e4] hover:to-[#0077b5] active:scale-[0.98] text-white font-extrabold py-3.5 px-4 rounded-xl shadow-lg shadow-[#0088cc]/35 transition-all text-xs uppercase tracking-wider group cursor-pointer border border-[#229ED9]/50 mt-1"
+                        id="btn-telegram-login-blocked"
+                      >
+                        <Send className="w-4 h-4 text-white group-hover:translate-x-0.5 transition-transform" />
+                        <span>Entrar em contato com o administrador</span>
+                        <ExternalLink className="w-3.5 h-3.5 opacity-80" />
+                      </motion.a>
+                    )}
                   </div>
                 )}
 
@@ -928,6 +948,32 @@ export default function ProfileSelector({
             </button>
           )}
         </div>
+
+        {/* BOTÃO FALAR COM ADMINISTRADOR NO TELEGRAM (USUÁRIOS NORMAIS) */}
+        {!activeUser?.isAdmin && (
+          <div className="flex justify-center mt-3">
+            <a
+              href="https://t.me/VHSFLIX2026"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2.5 px-6 py-3 rounded-xl bg-gradient-to-r from-[#229ED9]/20 via-[#229ED9]/30 to-[#0088cc]/30 hover:from-[#2ba8e4] hover:to-[#0077b5] border border-[#229ED9]/50 hover:border-[#229ED9] text-white font-bold text-xs uppercase tracking-wider transition-all duration-300 shadow-lg shadow-[#0088cc]/20 group cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+              id="btn-contact-admin-telegram-selector"
+            >
+              <div className="w-7 h-7 rounded-lg bg-[#229ED9] flex items-center justify-center text-white shadow-sm shadow-[#229ED9]/40">
+                <Send className="w-3.5 h-3.5 text-white group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+              </div>
+              <div className="flex flex-col text-left">
+                <span className="font-extrabold text-white text-xs group-hover:text-cyan-200 transition-colors">
+                  Falar com o Administrador - VHS Flix
+                </span>
+                <span className="text-[10px] text-[#229ED9] normal-case font-medium">
+                  Atendimento direto pelo Telegram
+                </span>
+              </div>
+              <ExternalLink className="w-3.5 h-3.5 text-[#229ED9] group-hover:text-white transition-colors ml-1" />
+            </a>
+          </div>
+        )}
       </div>
 
       {/* BOTTOM FOOTER BAR */}
