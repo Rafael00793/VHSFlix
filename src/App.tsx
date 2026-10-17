@@ -2369,6 +2369,10 @@ export default function App() {
               onFulfillRequest={handleFulfillRequest}
               onDeleteRequest={handleDeleteRequest}
               tmdbApiKey={tmdbApiKey}
+              onSelectMovie={(movie) => {
+                setSelectedMovie(movie);
+                updateBrowserUrl(movie);
+              }}
             />
           ) : activeTab === 'support' ? (
             <SupportPanel onClose={() => setActiveTab('all')} />

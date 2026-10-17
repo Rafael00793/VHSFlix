@@ -1,9 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { MessageSquare, Film, Tv, Play, AlertTriangle, Check, Plus, Trash, Search, ArrowRight, Clock, MessageCircle, AlertCircle, Sparkles, X, Star, RefreshCw } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { 
+  Film, Tv, Play, Check, Plus, Trash, Search, ArrowRight, Clock, 
+  MessageCircle, AlertCircle, Sparkles, X, Star, RefreshCw, 
+  Grid, List, CheckCircle2, Clapperboard, Send, Layers, Eye
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Movie, MovieRequest, Profile } from '../types';
 import { searchMoviesTMDB, getMovieDetailsTMDB } from '../data';
-import { handlePosterError, DEFAULT_POSTER_FALLBACK, getCleanPosterUrl, getCleanBackdropUrl } from '../lib/imageUtils';
+import { handlePosterError, DEFAULT_POSTER_FALLBACK, getCleanPosterUrl } from '../lib/imageUtils';
 
 interface RequestsPanelProps {
   movies: Movie[];
@@ -14,6 +18,7 @@ interface RequestsPanelProps {
   onFulfillRequest: (requestId: string) => void;
   onDeleteRequest: (requestId: string) => void;
   tmdbApiKey?: string;
+  onSelectMovie?: (movie: Movie) => void;
 }
 
 export default function RequestsPanel({
@@ -25,28 +30,90 @@ export default function RequestsPanel({
   onFulfillRequest,
   onDeleteRequest,
   tmdbApiKey,
+  onSelectMovie,
 }: RequestsPanelProps) {
+  // Aba ativa: 'new_request' (busca e solicitação) ou 'community_wall' (mural de pedidos)
+  const [activeTab, setActiveTab] = useState<'new_request' | 'community_wall'>('new_request');
+
+  // Modo de visualização dos resultados da busca: 'grid' (capas grandes estilo Netflix) ou 'list' (detalhado)
+  const [resultsViewMode, setResultsViewMode] = useState<'grid' | 'list'>('grid');
+
+  // Filtro de tipo na busca TMDB: 'all' | 'movie' | 'series'
+  const [mediaTypeFilter, setMediaTypeFilter] = useState<'all' | 'movie' | 'series'>('all');
+
+  // Input de pesquisa e estados do formulário
   const [title, setTitle] = useState('');
-  const [type, setType] = useState<'movie' | 'series'>('movie');
+  const [manualType, setManualType] = useState<'movie' | 'series'>('movie');
+  const [isManualMode, setIsManualMode] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
 
-  // Estados da pesquisa rica no TMDB
+  // Estados de busca no TMDB
   const [tmdbResults, setTmdbResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
   const [selectedTmdb, setSelectedTmdb] = useState<any | null>(null);
   const [isFetchingDetails, setIsFetchingDetails] = useState(false);
 
-  // Normaliza string para melhor correspondência local
-  const normalize = (str: string) => str.toLowerCase().trim().replace(/[\s\-\:]/g, '');
+  // Filtros do Mural de Pedidos
+  const [muralSearch, setMuralSearch] = useState('');
+  const [muralFilter, setMuralFilter] = useState<'all' | 'pending' | 'fulfilled' | 'mine'>('all');
 
-  // Verifica se o título inserido já existe localmente no acervo
-  const checkIfExists = (inputTitle: string) => {
-    if (!inputTitle.trim()) return null;
+  // Normalização para checagem local
+  const normalize = (str: string) => str.toLowerCase().trim().replace(/[\s\-\:\.\,]/g, '');
+
+  // Checa se o título já existe no acervo
+  const checkIfExists = (inputTitle: string): Movie | undefined => {
+    if (!inputTitle.trim()) return undefined;
     const normalizedInput = normalize(inputTitle);
     return movies.find(m => normalize(m.title) === normalizedInput);
   };
+
+  // Disparo manual ou debounced da busca
+  const executeSearch = async (queryText: string) => {
+    const trimmed = queryText.trim();
+    if (!trimmed || trimmed.length < 2) {
+      setTmdbResults([]);
+      setHasSearched(false);
+      return;
+    }
+
+    setIsSearching(true);
+    setHasSearched(true);
+    setError(null);
+
+    try {
+      const cleanedApiKey = tmdbApiKey === 'MY_GEMINI_API_KEY' ? '' : (tmdbApiKey || '');
+      const rawResults = await searchMoviesTMDB(trimmed, cleanedApiKey);
+      const filtered = (rawResults || []).filter((item: any) => 
+        (item.media_type === 'movie' || item.media_type === 'tv') && 
+        (item.title || item.name)
+      );
+      setTmdbResults(filtered);
+    } catch (err) {
+      console.error('Erro ao buscar sugestões TMDB no painel de pedidos:', err);
+      setTmdbResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  // Auto-pesquisa TMDB com debounce enquanto o usuário digita
+  useEffect(() => {
+    if (!title.trim() || title.trim().length < 2 || selectedTmdb || isManualMode) {
+      if (!title.trim()) {
+        setTmdbResults([]);
+        setHasSearched(false);
+      }
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      executeSearch(title);
+    }, 450);
+
+    return () => clearTimeout(timer);
+  }, [title, tmdbApiKey, selectedTmdb, isManualMode]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
@@ -54,49 +121,19 @@ export default function RequestsPanel({
     setError(null);
     setSuccess(null);
 
-    // Se o usuário começar a digitar um título livre, limpamos o selecionado do TMDB
-    // a menos que o título digitado coincida exatamente com o selecionado
     if (selectedTmdb && selectedTmdb.title !== val) {
       setSelectedTmdb(null);
     }
 
     const match = checkIfExists(val);
     if (match) {
-      setError(`O título "${match.title}" já existe no acervo como ${match.type === 'movie' ? 'Filme' : 'Série'}.`);
+      setError(`O título "${match.title}" já está disponível no acervo como ${match.type === 'movie' ? 'Filme' : 'Série'}.`);
     }
   };
 
-  // Auto-pesquisa TMDB conforme digita (Debounced)
-  useEffect(() => {
-    if (!title.trim() || title.trim().length < 2 || selectedTmdb) {
-      setTmdbResults([]);
-      return;
-    }
-
-    const delayDebounce = setTimeout(async () => {
-      setIsSearching(true);
-      try {
-        const cleanedApiKey = tmdbApiKey === 'MY_GEMINI_API_KEY' ? '' : (tmdbApiKey || '');
-        const results = await searchMoviesTMDB(title.trim(), cleanedApiKey);
-        // Filtrar apenas resultados que sejam filmes ou séries/tv e limitar a 35 resultados para listar pesquisas completas
-        const filtered = results
-          .filter((item: any) => item.media_type === 'movie' || item.media_type === 'tv')
-          .slice(0, 35);
-        setTmdbResults(filtered);
-      } catch (err) {
-        console.error('Erro ao buscar sugestões TMDB no painel de pedidos:', err);
-      } finally {
-        setIsSearching(false);
-      }
-    }, 550);
-
-    return () => clearTimeout(delayDebounce);
-  }, [title, tmdbApiKey, selectedTmdb]);
-
-  // Busca detalhes ricos do título TMDB selecionado
+  // Busca detalhes ricos do item TMDB selecionado
   const handleSelectTmdbItem = async (id: number, mediaType: 'movie' | 'tv') => {
     setIsFetchingDetails(true);
-    setTmdbResults([]);
     setError(null);
     try {
       const cleanedApiKey = tmdbApiKey === 'MY_GEMINI_API_KEY' ? '' : (tmdbApiKey || '');
@@ -104,563 +141,989 @@ export default function RequestsPanel({
       if (details) {
         setSelectedTmdb(details);
         setTitle(details.title || '');
-        setType(details.type === 'series' ? 'series' : 'movie');
+        setManualType(details.type === 'series' ? 'series' : 'movie');
 
-        // Dupla checagem: se o título detalhado já existe no catálogo do site
         const match = checkIfExists(details.title || '');
         if (match) {
           setError(`O título "${match.title}" já existe no acervo como ${match.type === 'movie' ? 'Filme' : 'Série'}.`);
         }
       }
     } catch (err) {
-      console.error('Erro ao obter detalhes completos TMDB para o pedido', err);
+      console.error('Erro ao obter detalhes completos TMDB:', err);
     } finally {
       setIsFetchingDetails(false);
     }
   };
 
-  // Limpa o item do TMDB selecionado para fazer busca livre ou re-digitar
+  // Limpa a seleção e volta para a busca
   const handleClearSelection = () => {
     setSelectedTmdb(null);
-    setTitle('');
-    setTmdbResults([]);
     setError(null);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  // Submissão do pedido
+  const handleConfirmSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     setError(null);
     setSuccess(null);
 
-    if (!title.trim()) {
-      setError('Por favor, digite o título do filme ou da série desejada.');
+    const finalTitle = (selectedTmdb?.title || title).trim();
+
+    if (!finalTitle) {
+      setError('Por favor, informe o título do filme ou da série desejada.');
       return;
     }
 
-    const match = checkIfExists(title);
+    const match = checkIfExists(finalTitle);
     if (match) {
-      setError(`Esse título ("${match.title}") já está no acervo. Caso seja uma versão diferente, especifique o ano no título (ex: "${title.trim()} (1998)").`);
+      setError(`Esse título ("${match.title}") já está no acervo. Caso seja uma versão diferente, especifique o ano no título (ex: "${finalTitle} (1998)").`);
       return;
     }
 
-    // Criar metadados ricos do TMDB para salvar na requisição pública
     const richData: Partial<MovieRequest> = {};
     if (selectedTmdb) {
-      if (selectedTmdb.posterUrl !== undefined && selectedTmdb.posterUrl !== null) {
-        richData.posterUrl = selectedTmdb.posterUrl;
-      }
-      if (selectedTmdb.backdropUrl !== undefined && selectedTmdb.backdropUrl !== null) {
-        richData.backdropUrl = selectedTmdb.backdropUrl;
-      }
-      if (selectedTmdb.description !== undefined && selectedTmdb.description !== null) {
-        richData.overview = selectedTmdb.description;
-      }
-      if (selectedTmdb.rating !== undefined && selectedTmdb.rating !== null) {
-        richData.rating = selectedTmdb.rating;
-      }
-      if (selectedTmdb.tmdbId !== undefined && selectedTmdb.tmdbId !== null) {
-        richData.tmdbId = selectedTmdb.tmdbId;
-      }
-      if (selectedTmdb.year !== undefined && selectedTmdb.year !== null) {
-        richData.year = selectedTmdb.year;
-      }
-      if (selectedTmdb.category) {
-        richData.genres = [selectedTmdb.category];
-      }
+      if (selectedTmdb.posterUrl) richData.posterUrl = selectedTmdb.posterUrl;
+      if (selectedTmdb.backdropUrl) richData.backdropUrl = selectedTmdb.backdropUrl;
+      if (selectedTmdb.description) richData.overview = selectedTmdb.description;
+      if (selectedTmdb.rating) richData.rating = selectedTmdb.rating;
+      if (selectedTmdb.tmdbId) richData.tmdbId = selectedTmdb.tmdbId;
+      if (selectedTmdb.year) richData.year = selectedTmdb.year;
+      if (selectedTmdb.category) richData.genres = [selectedTmdb.category];
       if (selectedTmdb.type === 'series') {
-        const seasons = parseInt(selectedTmdb.duration) || 1;
-        if (!isNaN(seasons)) {
-          richData.seasonsCount = seasons;
-        }
+        const seasons = parseInt(String(selectedTmdb.duration || '1')) || 1;
+        richData.seasonsCount = seasons;
       }
     }
 
-    onAddRequest(title.trim(), type, richData);
-    
-    // Resetar campos
+    const requestType = selectedTmdb ? (selectedTmdb.type === 'series' ? 'series' : 'movie') : manualType;
+
+    onAddRequest(finalTitle, requestType, richData);
+
+    // Limpa estado e exibe mensagem de sucesso
     setTitle('');
     setSelectedTmdb(null);
     setTmdbResults([]);
-    setSuccess(`Pedido de "📼 ${title.trim()}" enviado com sucesso à videoteca do vhsflix!`);
-    setTimeout(() => setSuccess(null), 5000);
+    setHasSearched(false);
+    setIsManualMode(false);
+    setSuccess(`Pedido de "📼 ${finalTitle}" enviado com sucesso! Nossa equipe foi notificada.`);
+    setTimeout(() => setSuccess(null), 6000);
   };
 
-  const filteredRequests = requests.filter(req =>
-    req.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    req.profileName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (req.genres && req.genres.some(g => g.toLowerCase().includes(searchTerm.toLowerCase())))
-  );
+  // Filtragem dos resultados de busca conforme o filtro de tipo (Todos, Filmes, Séries)
+  const filteredTmdbResults = useMemo(() => {
+    return tmdbResults.filter(item => {
+      if (mediaTypeFilter === 'all') return true;
+      if (mediaTypeFilter === 'movie') return item.media_type === 'movie';
+      if (mediaTypeFilter === 'series') return item.media_type === 'tv';
+      return true;
+    });
+  }, [tmdbResults, mediaTypeFilter]);
+
+  // Filtragem dos pedidos do Mural da Comunidade
+  const filteredMuralRequests = useMemo(() => {
+    return requests.filter(req => {
+      // Filtro de texto
+      const term = muralSearch.toLowerCase().trim();
+      const matchesSearch = !term ||
+        req.title.toLowerCase().includes(term) ||
+        req.profileName.toLowerCase().includes(term) ||
+        (req.genres && req.genres.some(g => g.toLowerCase().includes(term)));
+
+      if (!matchesSearch) return false;
+
+      // Filtro de aba
+      if (muralFilter === 'pending') return req.status !== 'fulfilled';
+      if (muralFilter === 'fulfilled') return req.status === 'fulfilled';
+      if (muralFilter === 'mine') return req.profileName === activeProfile.name;
+      return true;
+    });
+  }, [requests, muralSearch, muralFilter, activeProfile.name]);
+
+  // Contadores rápidos para o mural
+  const pendingCount = requests.filter(r => r.status !== 'fulfilled').length;
+  const fulfilledCount = requests.filter(r => r.status === 'fulfilled').length;
+  const myRequestsCount = requests.filter(r => r.profileName === activeProfile.name).length;
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white font-sans pt-28 pb-16 px-4 sm:px-8 max-w-[1400px] mx-auto select-none">
-      {/* Cabeçalho */}
-      <div className="mb-8 text-center md:text-left">
-        <span className="text-xs font-mono uppercase tracking-widest text-red-500 font-black block mb-1">
-          Espaço do Espectador vhsflix
-        </span>
-        <h1 className="text-3xl sm:text-4xl font-black font-display uppercase tracking-wider text-white">
-          Pedidos de <span className="text-red-600 drop-shadow-[0_0_15px_rgba(239,68,68,0.6)]">Filmes e Séries</span>
-        </h1>
-      </div>
+    <div className="min-h-screen bg-zinc-950 text-white font-sans pt-24 sm:pt-28 pb-20 px-4 sm:px-6 lg:px-8 max-w-[1440px] mx-auto select-none">
+      
+      {/* ============================================================== */}
+      {/* 1. CABEÇALHO DA CENTRAL DE PEDIDOS */}
+      {/* ============================================================== */}
+      <motion.div 
+        initial={{ opacity: 0, y: -15 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        className="mb-6 sm:mb-8 text-center sm:text-left flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b border-zinc-900 pb-5"
+      >
+        <div>
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-600/10 border border-red-500/25 text-red-400 text-[11px] font-mono font-bold tracking-wider uppercase mb-2">
+            <Sparkles className="w-3.5 h-3.5 text-red-500" />
+            <span>Videoteca & Atendimento VHSFLIX</span>
+          </div>
+          <h1 className="text-2xl sm:text-4xl font-black font-display uppercase tracking-tight text-white flex items-center justify-center sm:justify-start gap-2.5">
+            <Clapperboard className="w-7 h-7 sm:w-9 sm:h-9 text-red-600 drop-shadow-[0_0_15px_rgba(239,68,68,0.7)]" />
+            <span>Pedidos de <span className="text-transparent bg-clip-text bg-gradient-to-r from-red-500 via-rose-400 to-amber-400">Filmes & Séries</span></span>
+          </h1>
+          <p className="text-xs sm:text-sm text-zinc-400 font-sans mt-1 max-w-2xl">
+            Pesquise capas do catálogo mundial em alta resolução, solicite novidades para o acervo e acompanhe o status em tempo real.
+          </p>
+        </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* Formulário de Envio (Lado Esquerdo) */}
-        <div className="lg:col-span-5 bg-zinc-900/80 border border-red-600/25 hover:border-red-600/45 transition-all duration-300 rounded-2xl p-6 relative overflow-hidden backdrop-blur-md shadow-2xl shadow-red-950/20">
-          <div className="absolute top-0 left-0 w-full h-[3px] bg-gradient-to-r from-red-700 via-red-500 to-red-700 shadow-[0_0_10px_rgba(239,68,68,0.8)]" />
-          
-          <h2 className="text-lg font-black uppercase tracking-wider text-red-500 mb-5 flex items-center gap-2">
-            <Plus className="w-5 h-5 text-red-500 stroke-[3]" />
-            <span>Fazer Novo Pedido</span>
-          </h2>
+        {/* NAVEGAÇÃO SEGMENTADA EM ABAS (ESTILO STREAMING PREMIUM) */}
+        <div className="flex items-center p-1 bg-zinc-900/90 rounded-xl border border-zinc-800 self-center sm:self-auto shadow-inner">
+          <button
+            type="button"
+            onClick={() => setActiveTab('new_request')}
+            className={`px-4 py-2 sm:py-2.5 rounded-lg text-xs font-bold font-mono tracking-wider uppercase transition-all flex items-center gap-2 cursor-pointer ${
+              activeTab === 'new_request'
+                ? 'bg-red-600 text-white shadow-lg shadow-red-950/60 font-black'
+                : 'text-zinc-400 hover:text-white hover:bg-zinc-850'
+            }`}
+          >
+            <Plus className="w-3.5 h-3.5 stroke-[3]" />
+            <span>Fazer Pedido</span>
+          </button>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Seletor de Tipo (Apenas visível se NÃO tiver selecionado um título TMDB) */}
-            {!selectedTmdb && (
-              <div>
-                <label className="block text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-widest mb-1.5">
-                  Tipo do Pedido
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setType('movie')}
-                    className={`py-2 px-3 rounded-lg border text-xs font-black font-mono tracking-wider flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer ${
-                      type === 'movie'
-                        ? 'bg-red-600 border-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.45)]'
-                        : 'bg-zinc-950/60 border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-white'
-                    }`}
-                  >
-                    <Film className="w-3.5 h-3.5" />
-                    <span>FILME</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setType('series')}
-                    className={`py-2 px-3 rounded-lg border text-xs font-black font-mono tracking-wider flex items-center justify-center gap-2 transition-all duration-200 cursor-pointer ${
-                      type === 'series'
-                        ? 'bg-red-600 border-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.45)]'
-                        : 'bg-zinc-950/60 border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-white'
-                    }`}
-                  >
-                    <Tv className="w-3.5 h-3.5" />
-                    <span>SÉRIE</span>
-                  </button>
-                </div>
-              </div>
-            )}
+          <button
+            type="button"
+            onClick={() => setActiveTab('community_wall')}
+            className={`px-4 py-2 sm:py-2.5 rounded-lg text-xs font-bold font-mono tracking-wider uppercase transition-all flex items-center gap-2 cursor-pointer ${
+              activeTab === 'community_wall'
+                ? 'bg-red-600 text-white shadow-lg shadow-red-950/60 font-black'
+                : 'text-zinc-400 hover:text-white hover:bg-zinc-850'
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5" />
+            <span>Mural de Pedidos</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+              activeTab === 'community_wall' ? 'bg-white/20 text-white' : 'bg-zinc-800 text-zinc-300'
+            }`}>
+              {requests.length}
+            </span>
+          </button>
+        </div>
+      </motion.div>
 
-            {/* Input Campo de Título Digital ou Carregável */}
-            <div className="relative">
-              <label className="block text-[10px] font-mono font-bold text-zinc-400 uppercase tracking-widest mb-1.5 flex justify-between items-center">
-                <span>Título do Vídeo</span>
-                {isSearching && (
-                  <span className="text-[10px] text-red-400 flex items-center gap-1 font-mono uppercase animate-pulse">
-                    <RefreshCw className="w-3 h-3 animate-spin text-red-500" /> buscando TMDB...
-                  </span>
-                )}
-              </label>
-              
-              <div className="relative">
-                <input
-                  type="text"
-                  value={title}
-                  onChange={handleInputChange}
-                  disabled={isFetchingDetails}
-                  placeholder="Ex: De Volta Para o Futuro, Twin Peaks..."
-                  className="w-full bg-zinc-950 border border-zinc-800 focus:border-red-500/80 rounded-lg pl-3.5 pr-10 py-2.5 text-xs text-white placeholder-zinc-650 focus:outline-none focus:ring-1 focus:ring-red-500/40 disabled:opacity-50 transition-all"
-                />
-                
-                {selectedTmdb && (
-                  <button
-                    type="button"
-                    onClick={handleClearSelection}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-red-500 transition-colors p-1"
-                    title="Limpar e pesquisar de novo"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
+      {/* AVISOS GERAIS DE SUCESSO OU ERRO */}
+      <AnimatePresence>
+        {success && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="mb-6 p-4 rounded-xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 flex items-center gap-3 shadow-lg shadow-emerald-950/30"
+          >
+            <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+            <span className="text-xs sm:text-sm font-semibold font-sans">{success}</span>
+          </motion.div>
+        )}
 
-              {/* Lista de Sugestões Rápidas TMDB (Dropdown Inteligente) */}
-              <AnimatePresence>
-                {tmdbResults.length > 0 && !selectedTmdb && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -8 }}
-                    className="absolute left-0 right-0 mt-1.5 bg-zinc-950 border border-zinc-800 rounded-lg shadow-2xl z-40 max-h-[380px] overflow-y-auto"
-                    style={{ scrollbarWidth: 'thin' }}
-                  >
-                    <div className="p-2 border-b border-zinc-900 bg-zinc-900/40 text-[9px] font-mono font-bold text-zinc-500 uppercase tracking-wider">
-                      Fitas correspondentes encontradas na rede TMDB:
-                    </div>
-                    {tmdbResults.map((item) => {
-                      const itemTitle = item.title || item.name || 'Título sem Nome';
-                      const itemYear = (item.release_date || item.first_air_date || '----').substring(0, 4);
-                      const isTv = item.media_type === 'tv';
-                      const posterPic = getCleanPosterUrl(item.poster_path);
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="mb-6 p-4 rounded-xl bg-red-600/15 border border-red-500/40 text-red-300 flex items-center gap-3 shadow-lg shadow-red-950/30"
+          >
+            <AlertCircle className="w-5 h-5 text-red-400 shrink-0" />
+            <span className="text-xs sm:text-sm font-semibold font-sans">{error}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-                      return (
-                        <div
-                          key={item.id}
-                          onClick={() => handleSelectTmdbItem(item.id, item.media_type)}
-                          className="flex items-center gap-3 p-2.5 hover:bg-zinc-900/90 border-b border-zinc-900 last:border-0 cursor-pointer select-none group transition-all"
-                        >
-                          <img 
-                            src={posterPic} 
-                            alt={itemTitle} 
-                            referrerPolicy="no-referrer"
-                            className="w-7 h-10 object-cover rounded border border-zinc-800 group-hover:border-zinc-650 shrink-0 select-none"
-                            loading="lazy"
-                            onError={handlePosterError}
-                          />
-                          <div className="flex-1 min-w-0">
-                            <h4 className="text-xs font-bold text-zinc-200 group-hover:text-white truncate font-sans">
-                              {itemTitle}
-                            </h4>
-                            <div className="flex items-center gap-2 mt-0.5 text-[10px] text-zinc-500 font-mono">
-                              <span className="text-zinc-400">{itemYear}</span>
-                              <span>•</span>
-                              <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold ${
-                                isTv ? 'bg-indigo-950 text-indigo-400 border border-indigo-900/50' : 'bg-rose-950 text-rose-400 border border-rose-900/50'
-                              }`}>
-                                {isTv ? 'SÉRIE' : 'FILME'}
-                              </span>
-                              {item.vote_average > 0 && (
-                                <>
-                                  <span>•</span>
-                                  <span className="text-yellow-500 font-bold">★ {item.vote_average.toFixed(1)}</span>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                          <ArrowRight className="w-3.5 h-3.5 text-zinc-600 group-hover:text-rose-500 transition-colors shrink-0" />
-                        </div>
-                      );
-                    })}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
+      {/* ============================================================== */}
+      {/* 2. ABA 1: FAZER NOVO PEDIDO (BUSCA VISUAL EXPANSIVA) */}
+      {/* ============================================================== */}
+      {activeTab === 'new_request' && (
+        <div className="space-y-6">
 
-            {/* Spinner de Carregamento dos Detalhes Completos */}
-            {isFetchingDetails && (
-              <div className="py-8 text-center flex flex-col items-center justify-center gap-2 border border-dashed border-zinc-800 bg-zinc-950/20 rounded-xl">
-                <RefreshCw className="w-6 h-6 animate-spin text-rose-500" />
-                <p className="text-[11px] font-mono text-zinc-400 uppercase animate-pulse">
-                  Alinhando cabeçotes e sintonizando fita TMDB...
-                </p>
-              </div>
-            )}
-
-            {/* VISUALIZAÇÃO DA FITA VHS DO PEDIDO (BENTO CARD ESTILIZADO) */}
-            <AnimatePresence>
-              {selectedTmdb && !isFetchingDetails && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.98 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="bg-zinc-950 border border-rose-500/25 rounded-xl p-4 relative overflow-hidden shadow-2xl"
-                >
-                  {/* Backdrop estético borrado */}
+          {/* CARD SPOTLIGHT CASO UM TÍTULO ESTEJA SELECIONADO */}
+          <AnimatePresence>
+            {selectedTmdb && !isFetchingDetails && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.98, y: 15 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.98 }}
+                className="relative overflow-hidden rounded-2xl border-2 border-red-600/70 bg-gradient-to-r from-zinc-950 via-zinc-900 to-zinc-950 p-5 sm:p-7 shadow-[0_0_50px_rgba(220,38,38,0.25)]"
+              >
+                {/* Backdrop cinematográfico de fundo */}
+                {selectedTmdb.backdropUrl && (
                   <div 
-                    className="absolute inset-0 opacity-15 bg-cover bg-center filter blur-xl select-none"
-                    style={{ backgroundImage: `url(${selectedTmdb.backdropUrl || selectedTmdb.posterUrl})` }}
+                    className="absolute inset-0 opacity-20 bg-cover bg-center filter blur-lg pointer-events-none select-none"
+                    style={{ backgroundImage: `url(${selectedTmdb.backdropUrl})` }}
                   />
+                )}
+                <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/90 to-transparent pointer-events-none" />
 
-                  {/* Fita Adesiva VHS Aesthetic */}
-                  <div className="absolute top-0 right-4 bg-zinc-900/80 border-x border-b border-zinc-800 text-zinc-500 font-mono text-[8px] px-2 py-0.5 uppercase font-bold tracking-widest select-none z-10 shadow-md">
-                    PEDIDO VHS DE CAPA
-                  </div>
-
-                  <div className="relative flex gap-4 z-10">
+                <div className="relative z-10 flex flex-col md:flex-row items-center md:items-start gap-6">
+                  {/* Capa Gigante de Cinema */}
+                  <div className="relative w-36 sm:w-44 md:w-52 aspect-[2/3] rounded-xl overflow-hidden border-2 border-red-500 shadow-2xl shrink-0 group">
                     <img
                       src={getCleanPosterUrl(selectedTmdb.posterUrl)}
                       alt={selectedTmdb.title}
                       referrerPolicy="no-referrer"
-                      className="w-16 sm:w-20 aspect-[2/3] object-cover rounded-lg border border-zinc-800 shadow-lg shrink-0 select-none"
-                      loading="lazy"
+                      className="w-full h-full object-cover select-none group-hover:scale-105 transition-transform duration-300"
                       onError={handlePosterError}
                     />
-
-                    <div className="flex-1 min-w-0 flex flex-col justify-between">
-                      <div>
-                        {/* Tipo e Nota */}
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className={`text-[8px] font-mono font-bold uppercase border px-1.5 py-0.5 rounded tracking-wide ${
-                            selectedTmdb.type === 'series'
-                              ? 'bg-indigo-950/80 border-indigo-700/50 text-indigo-400'
-                              : 'bg-rose-950/80 border-rose-750/50 text-rose-450'
-                          }`}>
-                            {selectedTmdb.type === 'series' ? `SÉRIE (${selectedTmdb.duration})` : 'FILME RETRO'}
-                          </span>
-                          
-                          {selectedTmdb.year && (
-                            <span className="text-[10px] text-zinc-400 font-mono">{selectedTmdb.year}</span>
-                          )}
-
-                          {selectedTmdb.rating > 0 && (
-                            <span className="text-[10px] text-yellow-500 font-bold font-mono flex items-center gap-0.5 select-none bg-yellow-500/10 px-1 py-0.5 rounded border border-yellow-500/10">
-                              ★ {selectedTmdb.rating.toFixed(1)}
-                            </span>
-                          )}
-                        </div>
-
-                        <h3 className="font-extrabold text-white text-sm sm:text-base mt-2 font-display uppercase tracking-wide leading-tight truncate">
-                          {selectedTmdb.title}
-                        </h3>
-
-                        {selectedTmdb.category && (
-                          <span className="text-[9px] text-rose-400 font-mono uppercase mt-1 inline-block bg-rose-500/10 border border-rose-500/20 px-1.5 py-0.5 rounded">
-                            {selectedTmdb.category}
-                          </span>
-                        )}
-                      </div>
+                    <div className="absolute top-2 left-2 bg-red-600 text-white font-mono font-black text-[10px] px-2 py-0.5 rounded shadow uppercase">
+                      {selectedTmdb.type === 'series' ? 'Série' : 'Filme'}
                     </div>
                   </div>
 
-                  {/* Sinopse da Pré-visualização */}
-                  {selectedTmdb.description && (
-                    <div className="mt-3.5 pt-3.5 border-t border-zinc-900 relative z-10 text-[11px] leading-relaxed text-zinc-400 font-sans line-clamp-3 select-none">
-                      <span className="text-zinc-500 font-bold uppercase font-mono mr-1">Sinopse:</span> {selectedTmdb.description}
+                  {/* Informações Completas */}
+                  <div className="flex-1 min-w-0 text-center md:text-left space-y-3">
+                    <div className="flex flex-wrap items-center justify-center md:justify-start gap-2">
+                      <span className="text-[11px] font-mono font-bold text-red-400 bg-red-950/60 border border-red-800/60 px-2.5 py-0.5 rounded-full uppercase">
+                        TÍTULO SELECIONADO DO TMDB
+                      </span>
+                      {selectedTmdb.year && (
+                        <span className="text-xs font-mono font-bold text-zinc-300 bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded">
+                          {selectedTmdb.year}
+                        </span>
+                      )}
+                      {selectedTmdb.rating > 0 && (
+                        <span className="text-xs font-mono font-black text-amber-400 bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded flex items-center gap-1">
+                          <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                          <span>{selectedTmdb.rating.toFixed(1)}</span>
+                        </span>
+                      )}
+                      {selectedTmdb.category && (
+                        <span className="text-xs font-mono text-zinc-300 bg-zinc-900 border border-zinc-800 px-2 py-0.5 rounded">
+                          {selectedTmdb.category}
+                        </span>
+                      )}
                     </div>
+
+                    <h2 className="text-2xl sm:text-3xl md:text-4xl font-black font-display uppercase tracking-tight text-white leading-tight">
+                      {selectedTmdb.title}
+                    </h2>
+
+                    {selectedTmdb.description && (
+                      <p className="text-xs sm:text-sm text-zinc-300 font-sans leading-relaxed line-clamp-4 max-w-3xl">
+                        {selectedTmdb.description}
+                      </p>
+                    )}
+
+                    {/* Botões de Ação do Spotlight */}
+                    <div className="pt-2 flex flex-col sm:flex-row items-center justify-center md:justify-start gap-3">
+                      <button
+                        type="button"
+                        onClick={() => handleConfirmSubmit()}
+                        className="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-gradient-to-r from-red-600 via-red-500 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-mono font-black text-xs sm:text-sm uppercase tracking-wider shadow-[0_0_30px_rgba(239,68,68,0.6)] hover:shadow-[0_0_40px_rgba(239,68,68,0.85)] flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95"
+                        id="btn-confirm-selected-request"
+                      >
+                        <Check className="w-4 h-4 stroke-[3]" />
+                        <span>Confirmar Pedido Deste {selectedTmdb.type === 'series' ? 'Série' : 'Filme'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleClearSelection}
+                        className="w-full sm:w-auto px-4 py-3 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 hover:text-white font-mono text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer flex items-center justify-center gap-2"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        <span>Escolher Outro Título</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* BARRA DE PESQUISA PRINCIPAL */}
+          {!selectedTmdb && (
+            <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-4 sm:p-6 shadow-2xl backdrop-blur-md relative space-y-4">
+              <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+                <div className="space-y-0.5">
+                  <h2 className="text-base sm:text-lg font-black uppercase tracking-wide text-white flex items-center gap-2 font-display">
+                    <Search className="w-5 h-5 text-red-500" />
+                    <span>Buscar Título no Catálogo Mundial</span>
+                  </h2>
+                  <p className="text-xs text-zinc-400 font-sans">
+                    Digite o nome de qualquer filme ou série (ex: <strong className="text-zinc-200">O Poderoso Chefão</strong>, <strong className="text-zinc-200">De Volta Para o Futuro</strong>, <strong className="text-zinc-200">Breaking Bad</strong>).
+                  </p>
+                </div>
+
+                {/* Filtro por Tipo de Mídia */}
+                <div className="flex items-center gap-1.5 p-1 bg-zinc-950 rounded-xl border border-zinc-850 self-start md:self-auto">
+                  <button
+                    type="button"
+                    onClick={() => setMediaTypeFilter('all')}
+                    className={`px-3 py-1.5 rounded-lg text-[11px] font-mono font-bold uppercase transition-all cursor-pointer ${
+                      mediaTypeFilter === 'all'
+                        ? 'bg-red-600 text-white shadow-sm'
+                        : 'text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    Todos
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMediaTypeFilter('movie')}
+                    className={`px-3 py-1.5 rounded-lg text-[11px] font-mono font-bold uppercase transition-all cursor-pointer flex items-center gap-1 ${
+                      mediaTypeFilter === 'movie'
+                        ? 'bg-red-600 text-white shadow-sm'
+                        : 'text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    <Film className="w-3 h-3" />
+                    <span>Filmes</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMediaTypeFilter('series')}
+                    className={`px-3 py-1.5 rounded-lg text-[11px] font-mono font-bold uppercase transition-all cursor-pointer flex items-center gap-1 ${
+                      mediaTypeFilter === 'series'
+                        ? 'bg-red-600 text-white shadow-sm'
+                        : 'text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    <Tv className="w-3 h-3" />
+                    <span>Séries</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* INPUT DE BUSCA ULTRA VISÍVEL */}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  executeSearch(title);
+                }}
+                className="relative flex items-center"
+              >
+                <div className="relative flex-1">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-red-500 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={title}
+                    onChange={handleInputChange}
+                    placeholder="Digite o título do filme ou da série aqui..."
+                    className="w-full bg-zinc-950 border-2 border-zinc-800 focus:border-red-500 rounded-xl pl-12 pr-12 py-3.5 sm:py-4 text-sm sm:text-base text-white placeholder-zinc-500 focus:outline-none focus:ring-4 focus:ring-red-500/20 transition-all font-sans font-semibold shadow-inner"
+                    id="input-movie-request-search"
+                    autoFocus
+                  />
+                  {title && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTitle('');
+                        setTmdbResults([]);
+                        setHasSearched(false);
+                      }}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition-colors cursor-pointer"
+                      title="Limpar busca"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
                   )}
-                </motion.div>
-              )}
-            </AnimatePresence>
+                </div>
 
-            {/* Avisos Dinâmicos de Erro ou Disponibilidade */}
-            <AnimatePresence mode="wait">
-              {error && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="bg-rose-500/10 border border-rose-500/30 rounded-lg p-3 flex gap-2 text-rose-400"
+                <button
+                  type="submit"
+                  disabled={isSearching || !title.trim()}
+                  className="ml-2.5 px-5 sm:px-7 py-3.5 sm:py-4 rounded-xl bg-red-600 hover:bg-red-500 disabled:bg-zinc-800 text-white disabled:text-zinc-500 font-mono font-black text-xs sm:text-sm uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shadow-lg shadow-red-950/50 shrink-0"
                 >
-                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                  <span className="text-[11px] leading-relaxed font-mono">{error}</span>
-                </motion.div>
-              )}
+                  {isSearching ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin text-white" />
+                      <span className="hidden sm:inline">Buscando...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Buscar</span>
+                      <ArrowRight className="w-4 h-4 stroke-[3]" />
+                    </>
+                  )}
+                </button>
+              </form>
 
-              {success && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-3 flex gap-2 text-emerald-400"
-                >
-                  <Check className="w-4 h-4 shrink-0 mt-0.5 animate-bounce" />
-                  <span className="text-[11px] leading-relaxed font-mono">{success}</span>
-                </motion.div>
-              )}
-            </AnimatePresence>
+              {/* BARRA DE CONTROLE DE EXIBIÇÃO CASO HAJA RESULTADOS */}
+              {filteredTmdbResults.length > 0 && (
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pt-2 border-t border-zinc-800/80">
+                  <span className="text-xs font-mono font-bold text-zinc-400 uppercase">
+                    {filteredTmdbResults.length} títulos encontrados no catálogo:
+                  </span>
 
-            <button
-              type="submit"
-              disabled={!!error || !title.trim() || isFetchingDetails}
-              className={`w-full py-3.5 rounded-xl text-xs font-black uppercase tracking-widest font-mono flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                !!error || !title.trim() || isFetchingDetails
-                  ? 'bg-zinc-800/80 text-zinc-500 border border-zinc-800 cursor-not-allowed'
-                  : 'bg-red-600 hover:bg-red-500 text-white shadow-[0_0_25px_rgba(239,68,68,0.5)] hover:shadow-[0_0_35px_rgba(239,68,68,0.8)] active:scale-95 border border-red-500'
-              }`}
+                  <div className="flex items-center gap-1.5 self-end sm:self-auto">
+                    <span className="text-[10px] font-mono text-zinc-500 uppercase mr-1">Exibição:</span>
+                    <button
+                      type="button"
+                      onClick={() => setResultsViewMode('grid')}
+                      className={`p-1.5 rounded-lg border text-xs font-mono transition-colors cursor-pointer ${
+                        resultsViewMode === 'grid'
+                          ? 'bg-zinc-800 border-red-500/50 text-white'
+                          : 'bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-white'
+                      }`}
+                      title="Grade de Capas Grandes"
+                    >
+                      <Grid className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setResultsViewMode('list')}
+                      className={`p-1.5 rounded-lg border text-xs font-mono transition-colors cursor-pointer ${
+                        resultsViewMode === 'list'
+                          ? 'bg-zinc-800 border-red-500/50 text-white'
+                          : 'bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-white'
+                      }`}
+                      title="Lista Detalhada"
+                    >
+                      <List className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* SPINNER DE CARREGAMENTO */}
+          {isFetchingDetails && (
+            <div className="p-12 text-center rounded-2xl bg-zinc-900/60 border border-zinc-800 flex flex-col items-center justify-center gap-3">
+              <RefreshCw className="w-8 h-8 animate-spin text-red-500" />
+              <p className="text-xs font-mono text-zinc-300 uppercase tracking-widest animate-pulse">
+                Carregando dados completos e capa em alta resolução...
+              </p>
+            </div>
+          )}
+
+          {/* ============================================================== */}
+          {/* RESULTADOS DA BUSCA (CAPAS GIGANTES, LEGÍVEIS E SEM CORTE) */}
+          {/* ============================================================== */}
+          {!selectedTmdb && !isFetchingDetails && filteredTmdbResults.length > 0 && (
+            <div className="space-y-4">
+              
+              {/* MODO GRADE: CAPAS GRANDES ESTILO NETFLIX / PRIME VIDEO */}
+              {resultsViewMode === 'grid' ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3.5 sm:gap-5">
+                  {filteredTmdbResults.map((item, idx) => {
+                    const itemTitle = item.title || item.name || 'Título sem nome';
+                    const itemYear = (item.release_date || item.first_air_date || '----').substring(0, 4);
+                    const isTv = item.media_type === 'tv';
+                    const posterPic = getCleanPosterUrl(item.poster_path);
+                    const alreadyExists = checkIfExists(itemTitle);
+
+                    return (
+                      <motion.div
+                        key={item.id}
+                        initial={{ opacity: 0, y: 15 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.25, delay: Math.min(idx * 0.04, 0.4) }}
+                        whileHover={{ y: -6, transition: { duration: 0.2 } }}
+                        onClick={() => handleSelectTmdbItem(item.id, item.media_type)}
+                        className="group relative flex flex-col bg-zinc-900/90 border border-zinc-800/90 hover:border-red-500 rounded-xl overflow-hidden shadow-lg hover:shadow-[0_0_25px_rgba(239,68,68,0.35)] transition-all cursor-pointer"
+                        id={`tmdb-result-${item.id}`}
+                      >
+                        {/* Box de Capa de Cinema Proporcional (2/3) */}
+                        <div className="relative aspect-[2/3] w-full bg-zinc-950 overflow-hidden">
+                          <img
+                            src={posterPic}
+                            alt={itemTitle}
+                            referrerPolicy="no-referrer"
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 select-none"
+                            loading="lazy"
+                            onError={handlePosterError}
+                          />
+
+                          {/* Gradiente escuro no rodapé da capa para legibilidade */}
+                          <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-transparent to-black/30 pointer-events-none" />
+
+                          {/* Tag de Tipo no Topo */}
+                          <div className="absolute top-2 left-2 flex items-center gap-1 z-10">
+                            <span className={`text-[9px] font-mono font-black uppercase px-2 py-0.5 rounded shadow ${
+                              isTv ? 'bg-indigo-600 text-white' : 'bg-red-600 text-white'
+                            }`}>
+                              {isTv ? 'SÉRIE' : 'FILME'}
+                            </span>
+                          </div>
+
+                          {/* Ano e Nota no Canto */}
+                          <div className="absolute top-2 right-2 flex items-center gap-1 z-10">
+                            {item.vote_average > 0 && (
+                              <span className="text-[10px] font-mono font-bold bg-black/85 text-amber-400 px-1.5 py-0.5 rounded border border-amber-500/30 flex items-center gap-0.5 shadow">
+                                <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                                <span>{item.vote_average.toFixed(1)}</span>
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Overlay de Hover para Ação Rápida */}
+                          <div className="absolute inset-0 bg-red-600/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center p-3">
+                            <span className="px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-mono font-black uppercase tracking-wider shadow-lg flex items-center gap-1.5">
+                              <span>Pedir Este</span>
+                              <ArrowRight className="w-3.5 h-3.5" />
+                            </span>
+                          </div>
+
+                          {alreadyExists && (
+                            <div className="absolute bottom-2 left-2 right-2 bg-emerald-600/90 backdrop-blur-xs text-white text-[10px] font-mono font-bold px-2 py-0.5 rounded text-center shadow">
+                              Já no Acervo ✅
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Dados textuais do título */}
+                        <div className="p-3 flex-1 flex flex-col justify-between space-y-1.5">
+                          <h3 className="font-bold text-xs sm:text-sm text-white group-hover:text-red-400 transition-colors line-clamp-2 leading-snug font-sans">
+                            {itemTitle}
+                          </h3>
+
+                          <div className="flex items-center justify-between text-[11px] font-mono text-zinc-400 pt-1 border-t border-zinc-800/60">
+                            <span className="font-semibold">{itemYear}</span>
+                            <span className="text-red-400 font-bold group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5">
+                              Pedir &rarr;
+                            </span>
+                          </div>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              ) : (
+                /* MODO LISTA: CARDS HORIZONTAIS DETALHADOS COM SINOPSE */
+                <div className="space-y-3">
+                  {filteredTmdbResults.map((item, idx) => {
+                    const itemTitle = item.title || item.name || 'Título sem nome';
+                    const itemYear = (item.release_date || item.first_air_date || '----').substring(0, 4);
+                    const isTv = item.media_type === 'tv';
+                    const posterPic = getCleanPosterUrl(item.poster_path);
+                    const alreadyExists = checkIfExists(itemTitle);
+
+                    return (
+                      <motion.div
+                        key={item.id}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.2, delay: Math.min(idx * 0.03, 0.3) }}
+                        onClick={() => handleSelectTmdbItem(item.id, item.media_type)}
+                        className="group bg-zinc-900/90 border border-zinc-800 hover:border-red-500 rounded-xl p-3 sm:p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition-all hover:bg-zinc-850 hover:shadow-xl hover:shadow-red-950/20 cursor-pointer"
+                      >
+                        <div className="flex items-start gap-4 min-w-0 flex-1">
+                          <img
+                            src={posterPic}
+                            alt={itemTitle}
+                            referrerPolicy="no-referrer"
+                            className="w-16 sm:w-20 aspect-[2/3] object-cover rounded-lg border border-zinc-800 group-hover:border-red-500 shrink-0 select-none shadow-md"
+                            loading="lazy"
+                            onError={handlePosterError}
+                          />
+
+                          <div className="min-w-0 flex-1 space-y-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className={`text-[9px] font-mono font-black uppercase px-2 py-0.5 rounded shadow ${
+                                isTv ? 'bg-indigo-600 text-white' : 'bg-red-600 text-white'
+                              }`}>
+                                {isTv ? 'SÉRIE' : 'FILME'}
+                              </span>
+                              <span className="text-xs font-mono font-bold text-zinc-400">
+                                {itemYear}
+                              </span>
+                              {item.vote_average > 0 && (
+                                <span className="text-xs font-mono font-bold text-amber-400 flex items-center gap-1">
+                                  <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                                  <span>{item.vote_average.toFixed(1)}</span>
+                                </span>
+                              )}
+                              {alreadyExists && (
+                                <span className="text-[10px] font-mono text-emerald-400 font-bold bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/60">
+                                  Já no Acervo
+                                </span>
+                              )}
+                            </div>
+
+                            <h3 className="font-bold text-sm sm:text-base text-white group-hover:text-red-400 transition-colors font-sans">
+                              {itemTitle}
+                            </h3>
+
+                            {item.overview && (
+                              <p className="text-xs text-zinc-400 font-sans line-clamp-2 leading-relaxed">
+                                {item.overview}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="shrink-0 self-end sm:self-center">
+                          <button
+                            type="button"
+                            className="px-4 py-2 rounded-xl bg-red-600 group-hover:bg-red-500 text-white font-mono font-bold text-xs uppercase tracking-wider flex items-center gap-1.5 shadow-md shadow-red-950/40 transition-colors"
+                          >
+                            <span>Selecionar</span>
+                            <ArrowRight className="w-3.5 h-3.5 stroke-[3]" />
+                          </button>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* NENHUM RESULTADO ENCONTRADO NO TMDB / OPÇÃO DE DIGITAÇÃO MANUAL LIVRE */}
+          {!selectedTmdb && !isFetchingDetails && hasSearched && filteredTmdbResults.length === 0 && (
+            <div className="p-8 sm:p-12 text-center rounded-2xl bg-zinc-900/60 border border-zinc-800 space-y-4">
+              <Film className="w-10 h-10 text-zinc-600 mx-auto" />
+              <div className="space-y-1">
+                <h3 className="text-base font-bold text-white font-display uppercase tracking-wide">
+                  Nenhum título encontrado com "{title}"
+                </h3>
+                <p className="text-xs text-zinc-400 max-w-md mx-auto font-sans leading-relaxed">
+                  Não se preocupe! Você pode enviar este pedido manualmente com digitação livre caso seja um título raro, clássico nacional ou fita independente.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsManualMode(true)}
+                className="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-mono font-bold text-xs uppercase tracking-wider transition-colors inline-flex items-center gap-2 cursor-pointer shadow-lg shadow-red-950/50"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Enviar como Pedido Manual Livre</span>
+              </button>
+            </div>
+          )}
+
+          {/* FORMULÁRIO DE PEDIDO MANUAL LIVRE (SE ATIVADO OU CASO O USUÁRIO QUEIRA) */}
+          {isManualMode && !selectedTmdb && (
+            <motion.div
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-zinc-900/95 border-2 border-red-600/40 rounded-2xl p-6 shadow-2xl space-y-4 max-w-xl mx-auto"
             >
-              <span>{selectedTmdb ? 'Confirmar Envio do Pedido' : 'Enviar Pedido Manual'}</span>
-              <ArrowRight className="w-4 h-4 stroke-[3]" />
-            </button>
-          </form>
-        </div>
+              <div className="flex justify-between items-center border-b border-zinc-800 pb-3">
+                <h3 className="text-sm font-bold font-mono uppercase tracking-wider text-red-500 flex items-center gap-2">
+                  <Clapperboard className="w-4 h-4 text-red-500" />
+                  <span>Pedido Manual Livre</span>
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setIsManualMode(false)}
+                  className="text-zinc-500 hover:text-white p-1"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
 
-        {/* Lista Pública de Pedidos (Lado Direito) */}
-        <div className="lg:col-span-7 space-y-4">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-zinc-900/60 p-3.5 rounded-xl border border-red-600/20 shadow-md">
-            <div className="flex items-center gap-2 font-black text-red-500 font-display text-sm sm:text-base tracking-wide uppercase">
-              <MessageSquare className="w-4 h-4 text-red-500" />
-              <span>Pedidos dos Usuários ({filteredRequests.length})</span>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-[10px] font-mono uppercase text-zinc-400 font-bold mb-1">
+                    Tipo de Mídia
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setManualType('movie')}
+                      className={`py-2 px-3 rounded-lg border text-xs font-mono font-bold uppercase transition-all ${
+                        manualType === 'movie'
+                          ? 'bg-red-600 border-red-500 text-white shadow-md'
+                          : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      Filme
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setManualType('series')}
+                      className={`py-2 px-3 rounded-lg border text-xs font-mono font-bold uppercase transition-all ${
+                        manualType === 'series'
+                          ? 'bg-red-600 border-red-500 text-white shadow-md'
+                          : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      Série
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-mono uppercase text-zinc-400 font-bold mb-1">
+                    Título Completo do Pedido
+                  </label>
+                  <input
+                    type="text"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder="Ex: O Poderoso Chefão (1972)"
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg p-3 text-sm text-white focus:outline-none focus:border-red-500 font-sans"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleConfirmSubmit()}
+                  disabled={!title.trim()}
+                  className="w-full py-3 rounded-xl bg-red-600 hover:bg-red-500 disabled:bg-zinc-800 text-white font-mono font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-red-950/40"
+                >
+                  <Send className="w-4 h-4" />
+                  <span>Enviar Pedido Manual</span>
+                </button>
+              </div>
+            </motion.div>
+          )}
+
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* 3. ABA 2: MURAL DE PEDIDOS DA COMUNIDADE */}
+      {/* ============================================================== */}
+      {activeTab === 'community_wall' && (
+        <div className="space-y-6">
+
+          {/* BARRA DE FILTROS E PESQUISA NO MURAL */}
+          <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-4 sm:p-5 shadow-xl flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
+            
+            {/* Filtros por Status */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 no-scrollbar">
+              <button
+                type="button"
+                onClick={() => setMuralFilter('all')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold uppercase transition-all whitespace-nowrap cursor-pointer ${
+                  muralFilter === 'all'
+                    ? 'bg-red-600 text-white shadow-sm'
+                    : 'bg-zinc-950 text-zinc-400 hover:text-white border border-zinc-800'
+                }`}
+              >
+                Todos ({requests.length})
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setMuralFilter('pending')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold uppercase transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
+                  muralFilter === 'pending'
+                    ? 'bg-amber-600 text-white shadow-sm'
+                    : 'bg-zinc-950 text-zinc-400 hover:text-white border border-zinc-800'
+                }`}
+              >
+                <Clock className="w-3.5 h-3.5" />
+                <span>Pendentes ({pendingCount})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setMuralFilter('fulfilled')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold uppercase transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 ${
+                  muralFilter === 'fulfilled'
+                    ? 'bg-emerald-600 text-white shadow-sm'
+                    : 'bg-zinc-950 text-zinc-400 hover:text-white border border-zinc-800'
+                }`}
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>Atendidos ({fulfilledCount})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setMuralFilter('mine')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-mono font-bold uppercase transition-all whitespace-nowrap cursor-pointer ${
+                  muralFilter === 'mine'
+                    ? 'bg-purple-600 text-white shadow-sm'
+                    : 'bg-zinc-950 text-zinc-400 hover:text-white border border-zinc-800'
+                }`}
+              >
+                Meus Pedidos ({myRequestsCount})
+              </button>
             </div>
 
-            {/* Barra de Busca de Pedido */}
-            <div className="relative w-full sm:w-64">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" />
+            {/* Barra de Pesquisa Rápida no Mural */}
+            <div className="relative w-full md:w-72">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
               <input
                 type="text"
-                placeholder="Filtrar pedidos..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-zinc-950 border border-zinc-800 focus:border-red-500/80 rounded-lg pl-8 pr-3 py-1.5 text-xs text-white placeholder-zinc-650 focus:outline-none focus:ring-1 focus:ring-red-500/30 transition-all"
+                value={muralSearch}
+                onChange={(e) => setMuralSearch(e.target.value)}
+                placeholder="Filtrar por título ou usuário..."
+                className="w-full bg-zinc-950 border border-zinc-800 focus:border-red-500 rounded-xl pl-10 pr-3.5 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none transition-colors font-sans"
               />
+              {muralSearch && (
+                <button
+                  type="button"
+                  onClick={() => setMuralSearch('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white p-1"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
           </div>
 
-          <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1 no-scrollbar-y">
-            <AnimatePresence initial={false}>
-              {filteredRequests.length === 0 ? (
-                <div className="text-center py-24 border border-zinc-900 rounded-2xl bg-zinc-950/40">
-                  <MessageCircle className="w-10 h-10 text-zinc-600 mx-auto mb-2.5" />
-                  <p className="text-xs text-zinc-400 font-mono">Nenhum pedido encontrado no catálogo no momento.</p>
-                </div>
-              ) : (
-                filteredRequests.map((req) => (
+          {/* LISTA RESPONSIVA DE PEDIDOS NO MURAL */}
+          {filteredMuralRequests.length === 0 ? (
+            <div className="p-16 text-center rounded-2xl bg-zinc-900/40 border border-zinc-900 space-y-3">
+              <MessageCircle className="w-10 h-10 text-zinc-600 mx-auto" />
+              <h3 className="text-base font-bold text-white font-display uppercase tracking-wide">
+                Nenhum pedido encontrado nesta seção
+              </h3>
+              <p className="text-xs text-zinc-400 max-w-sm mx-auto font-sans">
+                {muralSearch 
+                  ? 'Tente buscar com outros termos ou limpe o filtro de busca.' 
+                  : 'Seja o primeiro a solicitar um filme ou série retro para nosso acervo!'}
+              </p>
+              <button
+                type="button"
+                onClick={() => setActiveTab('new_request')}
+                className="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-mono font-bold text-xs uppercase tracking-wider inline-flex items-center gap-2 cursor-pointer shadow-lg shadow-red-950/50"
+              >
+                <Plus className="w-4 h-4 stroke-[3]" />
+                <span>Fazer um Pedido Agora</span>
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {filteredMuralRequests.map((req, idx) => {
+                const existingMovie = checkIfExists(req.title);
+                const isFulfilled = req.status === 'fulfilled' || Boolean(existingMovie);
+
+                return (
                   <motion.div
                     key={req.id}
                     initial={{ opacity: 0, y: 15 }}
                     animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    whileHover={{ y: -2 }}
-                    className="bg-zinc-900/60 border border-zinc-800/80 hover:border-red-600/40 rounded-xl p-4 relative overflow-hidden transition-all duration-300 hover:bg-zinc-900/90 hover:shadow-xl hover:shadow-red-950/25 group"
+                    transition={{ duration: 0.25, delay: Math.min(idx * 0.04, 0.4) }}
+                    className="bg-zinc-900/90 border border-zinc-800/90 hover:border-red-600/50 rounded-2xl p-4 sm:p-5 relative overflow-hidden transition-all duration-300 hover:shadow-xl hover:shadow-red-950/25 flex flex-col justify-between group"
                   >
-                    {/* Linha vermelha no topo ao passar o mouse */}
-                    <div className="absolute top-0 left-0 w-full h-[2px] bg-red-600 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                    {/* VHS FITA ESTANTE GRID DESIGN */}
-                    <div className="flex flex-col sm:flex-row items-start gap-4">
-                      {/* Capa Pôster da Fita de Pedido */}
-                      <div className="w-16 sm:w-20 aspect-[2/3] bg-zinc-950 rounded-lg border border-zinc-800 overflow-hidden shrink-0 select-none relative shadow-lg shadow-black/60">
-                        {req.posterUrl ? (
-                          <img 
-                            src={getCleanPosterUrl(req.posterUrl)} 
-                            alt={req.title} 
-                            referrerPolicy="no-referrer"
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 select-none"
-                            loading="lazy"
-                            onError={handlePosterError}
-                          />
-                        ) : (
-                          /* Fallback de fita VHS retro */
-                          <div className="absolute inset-0 bg-gradient-to-br from-zinc-900 via-zinc-950 to-zinc-900 flex flex-col justify-between p-1.5 font-mono select-none">
-                            <div className="text-[6px] text-zinc-550 border-b border-zinc-850 pb-0.5 truncate uppercase">vhsflix</div>
-                            <div className="text-center py-1 text-rose-500/50">
-                              <Film className="w-6 h-6 mx-auto opacity-70" />
-                            </div>
-                            <div className="text-[6px] text-zinc-500 text-center uppercase tracking-wide truncate bg-zinc-900 px-0.5 border border-zinc-800">
-                              REQUISITADA
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Adesivo Aesthetic de Tipo se tiver pôster */}
-                        {req.posterUrl && (
-                          <div className={`absolute top-1 left-1 text-[7px] font-mono font-black uppercase text-zinc-950 px-1 py-0.5 rounded leading-none select-none z-10 ${
-                            req.type === 'movie' ? 'bg-rose-500' : 'bg-indigo-400'
-                          }`}>
-                            {req.type === 'movie' ? 'M' : 'S'}
-                          </div>
-                        )}
+                    <div className="flex items-start gap-4">
+                      {/* Pôster com proporção adequada */}
+                      <div className="relative w-20 sm:w-24 aspect-[2/3] rounded-xl overflow-hidden bg-zinc-950 border border-zinc-800 shrink-0 shadow-lg select-none">
+                        <img
+                          src={getCleanPosterUrl(req.posterUrl)}
+                          alt={req.title}
+                          referrerPolicy="no-referrer"
+                          className="w-full h-full object-cover select-none group-hover:scale-105 transition-transform duration-300"
+                          onError={handlePosterError}
+                          loading="lazy"
+                        />
+                        <div className={`absolute top-1 left-1 text-[8px] font-mono font-black uppercase text-white px-1.5 py-0.5 rounded shadow ${
+                          req.type === 'series' ? 'bg-indigo-600' : 'bg-red-600'
+                        }`}>
+                          {req.type === 'series' ? 'S' : 'M'}
+                        </div>
                       </div>
 
-                      {/* Dados ricos do pedido */}
-                      <div className="flex-1 min-w-0 space-y-1 sm:space-y-1.5">
+                      {/* Informações da fita solicitada */}
+                      <div className="flex-1 min-w-0 space-y-1.5">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className="font-bold text-sm sm:text-base text-zinc-100 group-hover:text-white uppercase tracking-normal leading-tight font-sans">
-                            {req.title}
-                          </h3>
-                          
-                          <span className={`text-[9px] font-mono font-black uppercase tracking-wider px-2 py-0.5 rounded-md border ${
-                            req.type === 'movie' 
-                              ? 'bg-red-600/20 border-red-500/40 text-red-400' 
-                              : 'bg-indigo-600/20 border-indigo-500/40 text-indigo-400'
+                          <span className={`text-[9px] font-mono font-black uppercase px-2 py-0.5 rounded border ${
+                            req.type === 'series'
+                              ? 'bg-indigo-950 text-indigo-400 border-indigo-800/60'
+                              : 'bg-red-950 text-red-400 border-red-800/60'
                           }`}>
-                            {req.type === 'movie' ? 'Filme' : 'Série'}
+                            {req.type === 'series' ? 'Série' : 'Filme'}
                           </span>
 
                           {req.year && (
-                            <span className="text-[11px] text-zinc-400 font-mono font-bold bg-zinc-950 px-2 py-0.5 rounded border border-zinc-800">{req.year}</span>
+                            <span className="text-[11px] font-mono font-bold text-zinc-400">
+                              {req.year}
+                            </span>
                           )}
 
                           {req.rating && req.rating > 0 && (
-                            <span className="text-[10px] text-amber-400 font-black font-mono flex items-center gap-1 select-none bg-amber-500/15 px-2 py-0.5 rounded border border-amber-500/30 shadow-sm">
-                              ★ {req.rating.toFixed(1)}
+                            <span className="text-[11px] font-mono font-bold text-amber-400 flex items-center gap-0.5">
+                              <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                              <span>{req.rating.toFixed(1)}</span>
                             </span>
                           )}
                         </div>
 
-                        {/* Sinopse da Fita na Lista */}
-                        {req.overview ? (
-                          <p className="text-[11px] sm:text-xs text-zinc-300 font-sans leading-relaxed line-clamp-2 sm:line-clamp-3 hover:text-white transition-colors select-none font-normal">
+                        <h3 className="font-bold text-base sm:text-lg text-white group-hover:text-red-400 transition-colors leading-tight font-sans">
+                          {req.title}
+                        </h3>
+
+                        {req.overview && (
+                          <p className="text-xs text-zinc-400 font-sans line-clamp-2 leading-relaxed">
                             {req.overview}
                           </p>
-                        ) : (
-                          <p className="text-[11px] sm:text-xs text-zinc-500 font-sans italic leading-relaxed select-none">
-                            Sem sinopse anexada. Este título foi pedido manualmente com formulário livre.
-                          </p>
                         )}
 
-                        {/* Gêneros da fita requisitada */}
-                        {req.genres && req.genres.length > 0 && (
-                          <div className="flex items-center gap-1.5 flex-wrap pt-0.5 select-none">
-                            {req.genres.map((g, idx) => (
-                              <span 
-                                key={idx} 
-                                className="bg-red-950/40 border border-red-600/30 text-[9px] text-red-400 font-mono font-bold tracking-wide px-2 py-0.5 rounded uppercase"
-                              >
-                                {g}
-                              </span>
-                            ))}
-                            {req.seasonsCount && req.seasonsCount > 0 && (
-                              <span className="bg-indigo-950/40 border border-indigo-500/30 text-[9px] text-indigo-400 font-mono font-bold tracking-wide px-2 py-0.5 rounded uppercase">
-                                {req.seasonsCount} Temporada{req.seasonsCount > 1 ? 's' : ''}
-                              </span>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Rodapé com Quem Pediu e Data */}
-                        <div className="flex items-center gap-2 text-[10px] text-zinc-400 font-mono pt-1 flex-wrap select-none">
-                          <span className="flex items-center gap-1.5 font-bold text-zinc-300 bg-zinc-950 border border-zinc-800 px-2 py-0.5 rounded">
-                            <Plus className="w-2.5 h-2.5 text-red-500 stroke-[3]" /> Pedido de <span className="text-white font-extrabold">{req.profileName}</span>
-                          </span>
-                          <span className="text-zinc-700 font-black">•</span>
-                          <span>{new Date(req.createdAt).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                        <div className="pt-1 flex items-center gap-2 text-[11px] font-mono text-zinc-400">
+                          <span>Pedido de: <strong className="text-zinc-200">{req.profileName}</strong></span>
+                          <span>•</span>
+                          <span>{new Date(req.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}</span>
                         </div>
                       </div>
+                    </div>
 
-                      {/* Ações e Status */}
-                      <div className="flex items-center gap-2 shrink-0 self-end sm:self-center mt-3 sm:mt-0">
-                        {/* Controles de Administrador ou do Próprio Perfil */}
-                        {isAdmin ? (
-                          <div className="flex items-center gap-1.5">
+                    {/* STATUS E AÇÕES NO RODAPÉ DO CARD */}
+                    <div className="mt-4 pt-3 border-t border-zinc-800/80 flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        {isFulfilled ? (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-black uppercase bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 shadow-sm">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>Disponível no Acervo ✅</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-bold uppercase bg-amber-500/15 border border-amber-500/30 text-amber-400 shadow-sm">
+                            <Clock className="w-3.5 h-3.5 animate-pulse" />
+                            <span>Aguardando Fita</span>
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {/* Se o filme já estiver no catálogo, permite assistir direto */}
+                        {existingMovie && onSelectMovie && (
+                          <button
+                            type="button"
+                            onClick={() => onSelectMovie(existingMovie)}
+                            className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-mono font-bold uppercase flex items-center gap-1 cursor-pointer shadow-md transition-colors"
+                          >
+                            <Play className="w-3 h-3 fill-white" />
+                            <span>Assistir</span>
+                          </button>
+                        )}
+
+                        {/* Ações de Admin */}
+                        {isAdmin && (
+                          <>
+                            {!isFulfilled && (
+                              <button
+                                type="button"
+                                onClick={() => onFulfillRequest(req.id)}
+                                className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-mono font-bold uppercase flex items-center gap-1 cursor-pointer shadow-md transition-colors"
+                                title="Marcar como atendido"
+                              >
+                                <Check className="w-3.5 h-3.5 stroke-[3]" />
+                                <span>Atender</span>
+                              </button>
+                            )}
+
                             <button
-                              onClick={() => onFulfillRequest(req.id)}
-                              className="bg-emerald-600/20 hover:bg-emerald-600 border border-emerald-500/40 hover:border-emerald-400 text-emerald-400 hover:text-white px-3 py-2 rounded-xl text-[10px] font-mono font-black uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shadow-lg shadow-emerald-950/40 active:scale-95"
-                              title="Já adicionou esse filme? Clique para preencher o pedido, notificar o usuário e removê-lo."
-                            >
-                              <Check className="w-3.5 h-3.5 stroke-[3]" />
-                              <span>Atender fita</span>
-                            </button>
-                            <button
+                              type="button"
                               onClick={() => onDeleteRequest(req.id)}
-                              className="bg-zinc-950 hover:bg-red-600/20 border border-zinc-800 hover:border-red-600/50 text-zinc-400 hover:text-red-400 p-2.5 rounded-xl transition-all cursor-pointer active:scale-95"
-                              title="Excluir pedido da pilha"
+                              className="p-1.5 rounded-lg bg-zinc-950 hover:bg-red-600/20 text-zinc-400 hover:text-red-400 border border-zinc-800 transition-colors cursor-pointer"
+                              title="Excluir pedido"
                             >
                               <Trash className="w-3.5 h-3.5" />
                             </button>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-2">
-                            {req.profileName === activeProfile.name && (
-                              <button
-                                onClick={() => onDeleteRequest(req.id)}
-                                className="bg-zinc-950 hover:bg-red-600/20 border border-zinc-800 hover:border-red-600/40 text-zinc-400 hover:text-red-400 p-2.5 rounded-xl transition-all cursor-pointer active:scale-95"
-                                title="Excluir meu pedido"
-                              >
-                                <Trash className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                            <span className="flex items-center gap-1.5 bg-amber-500/15 text-amber-400 px-3 py-1.5 rounded-full text-[10px] font-mono font-black uppercase tracking-widest border border-amber-500/30 select-none shadow-sm">
-                              <Clock className="w-3.5 h-3.5 animate-pulse text-amber-400" />
-                              <span>Aguardando Fita</span>
-                            </span>
-                          </div>
+                          </>
+                        )}
+
+                        {/* Usuário excluindo seu próprio pedido */}
+                        {!isAdmin && req.profileName === activeProfile.name && (
+                          <button
+                            type="button"
+                            onClick={() => onDeleteRequest(req.id)}
+                            className="p-1.5 rounded-lg bg-zinc-950 hover:bg-red-600/20 text-zinc-400 hover:text-red-400 border border-zinc-800 transition-colors cursor-pointer"
+                            title="Excluir meu pedido"
+                          >
+                            <Trash className="w-3.5 h-3.5" />
+                          </button>
                         )}
                       </div>
                     </div>
                   </motion.div>
-                ))
-              )}
-            </AnimatePresence>
-          </div>
+                );
+              })}
+            </div>
+          )}
+
         </div>
-      </div>
+      )}
+
     </div>
   );
 }
