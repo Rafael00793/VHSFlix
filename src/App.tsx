@@ -233,23 +233,8 @@ export default function App() {
       return isBrokenImageUrl(url);
     };
 
-    // Remove qualquer duplicata histórica persistida no localStorage
-    const uniqueMovies: Movie[] = [];
-    const seen = new Set<string>();
-    for (const m of base) {
-      if (!m) continue;
-      const type = m.type || 'movie';
-      const yearStr = m.year ? `_${String(m.year).trim()}` : '';
-      const key = m.tmdbId 
-        ? `tmdb_${m.tmdbId}_${type}` 
-        : `title_${(m.title || '').trim().toLowerCase()}${yearStr}_${type}`;
-      if (!seen.has(key)) {
-        seen.add(key);
-        uniqueMovies.push(m);
-      }
-    }
-
-    const sanitized = uniqueMovies.map((m: Movie, idx: number) => {
+    // Preserva mídias cadastradas para permitir auditoria e exclusão de duplicatas na aba do painel
+    const sanitized = base.map((m: Movie, idx: number) => {
       const seed = (m.title?.length || 10) + idx * 7;
       const rating = m.rating || 7.5;
       const voteCount = m.tmdbVoteCount || (1200 + (seed * 37) % 3500);

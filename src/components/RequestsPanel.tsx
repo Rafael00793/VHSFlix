@@ -62,11 +62,40 @@ export default function RequestsPanel({
   // Normalização para checagem local
   const normalize = (str: string) => str.toLowerCase().trim().replace(/[\s\-\:\.\,]/g, '');
 
-  // Checa se o título já existe no acervo
-  const checkIfExists = (inputTitle: string): Movie | undefined => {
-    if (!inputTitle.trim()) return undefined;
+  // Checa se o título já existe no acervo considerando título, ano de lançamento, tipo de mídia e tmdbId
+  // Evita falsos positivos entre remakes, reboots e filmes com mesmo nome de anos diferentes (ex: Invencível 2014 vs 2026, Mortal Kombat 1995 vs 2021)
+  const checkIfExists = (
+    inputTitle: string, 
+    year?: number | string, 
+    type?: 'movie' | 'series', 
+    tmdbId?: number
+  ): Movie | undefined => {
+    if (!inputTitle.trim() && !tmdbId) return undefined;
     const normalizedInput = normalize(inputTitle);
-    return movies.find(m => normalize(m.title) === normalizedInput);
+    const parsedYear = year && year !== '----' && year !== '????' ? Number(year) : undefined;
+
+    return movies.find(m => {
+      // 1. Tipo de mídia deve ser igual se informado (Série !== Filme)
+      if (type && m.type && m.type !== type) return false;
+
+      // 2. TMDB ID exato
+      if (tmdbId && m.tmdbId && Number(m.tmdbId) === Number(tmdbId)) return true;
+      if (tmdbId && m.tmdbId && Number(m.tmdbId) !== Number(tmdbId)) return false;
+
+      // 3. Título normalizado idêntico
+      if (normalizedInput && normalize(m.title) === normalizedInput) {
+        const mYear = m.year ? Number(m.year) : undefined;
+        if (parsedYear && mYear) {
+          // Diferença de 2 anos ou mais = PRODUÇÃO DISTINTA (ex: Invencível 2014 vs 2026, Mortal Kombat 1995 vs 2021)
+          if (Math.abs(parsedYear - mYear) > 1) {
+            return false;
+          }
+          return true;
+        }
+        return true;
+      }
+      return false;
+    });
   };
 
   // Disparo manual ou debounced da busca
@@ -124,11 +153,6 @@ export default function RequestsPanel({
     if (selectedTmdb && selectedTmdb.title !== val) {
       setSelectedTmdb(null);
     }
-
-    const match = checkIfExists(val);
-    if (match) {
-      setError(`O título "${match.title}" já está disponível no acervo como ${match.type === 'movie' ? 'Filme' : 'Série'}.`);
-    }
   };
 
   // Busca detalhes ricos do item TMDB selecionado
@@ -143,9 +167,10 @@ export default function RequestsPanel({
         setTitle(details.title || '');
         setManualType(details.type === 'series' ? 'series' : 'movie');
 
-        const match = checkIfExists(details.title || '');
+        const itemYear = details.year || (details.releaseDate ? details.releaseDate.substring(0, 4) : undefined);
+        const match = checkIfExists(details.title || '', itemYear, details.type === 'series' ? 'series' : 'movie', details.tmdbId);
         if (match) {
-          setError(`O título "${match.title}" já existe no acervo como ${match.type === 'movie' ? 'Filme' : 'Série'}.`);
+          setError(`O título "${match.title}" (${match.year}) já existe no acervo como ${match.type === 'movie' ? 'Filme' : 'Série'}.`);
         }
       }
     } catch (err) {
@@ -174,9 +199,11 @@ export default function RequestsPanel({
       return;
     }
 
-    const match = checkIfExists(finalTitle);
+    const submitYear = selectedTmdb?.year || undefined;
+    const submitType = (selectedTmdb?.type === 'series' || manualType === 'series') ? 'series' : 'movie';
+    const match = checkIfExists(finalTitle, submitYear, submitType, selectedTmdb?.tmdbId);
     if (match) {
-      setError(`Esse título ("${match.title}") já está no acervo. Caso seja uma versão diferente, especifique o ano no título (ex: "${finalTitle} (1998)").`);
+      setError(`Esta versão de "${match.title}" (${match.year}) já está disponível no acervo. Caso esteja procurando um remake ou lançamento de outro ano, você pode solicitar selecionando na busca.`);
       return;
     }
 
@@ -603,7 +630,8 @@ export default function RequestsPanel({
                     const itemYear = (item.release_date || item.first_air_date || '----').substring(0, 4);
                     const isTv = item.media_type === 'tv';
                     const posterPic = getCleanPosterUrl(item.poster_path);
-                    const alreadyExists = checkIfExists(itemTitle);
+                    const itemMediaType: 'movie' | 'series' = isTv ? 'series' : 'movie';
+                    const alreadyExists = checkIfExists(itemTitle, itemYear !== '----' ? itemYear : undefined, itemMediaType, item.id);
 
                     return (
                       <motion.div
@@ -689,7 +717,8 @@ export default function RequestsPanel({
                     const itemYear = (item.release_date || item.first_air_date || '----').substring(0, 4);
                     const isTv = item.media_type === 'tv';
                     const posterPic = getCleanPosterUrl(item.poster_path);
-                    const alreadyExists = checkIfExists(itemTitle);
+                    const itemMediaType: 'movie' | 'series' = isTv ? 'series' : 'movie';
+                    const alreadyExists = checkIfExists(itemTitle, itemYear !== '----' ? itemYear : undefined, itemMediaType, item.id);
 
                     return (
                       <motion.div

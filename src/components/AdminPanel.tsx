@@ -5,7 +5,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Movie, User, Profile, MovieRequest, MovieComment, getSubscriptionDaysLeft, renewSubscription } from '../types';
 import { GENRE_CATEGORIES, searchMoviesTMDB, getMovieDetailsTMDB, PROFILE_AVATARS, DEFAULT_USER_AVATAR, RAFAEL_ADMIN_AVATAR } from '../data';
-import { Trash, Edit, Plus, Users, Library, Settings, Search, Import, Download, Star, Shield, Film, Tv, Play, AlertTriangle, ShieldAlert, RefreshCw, Check, LayoutDashboard, Activity, Clock, TrendingUp, User as UserIcon, Lock as LockIcon, Eye, EyeOff, Flame, Sparkles, Pin, X, Save, Award, ChevronLeft, ChevronRight, Megaphone, Share2, Bell, MessageSquare, CheckCircle2, Send, ExternalLink } from 'lucide-react';
+import { Trash, Edit, Plus, Users, Library, Settings, Search, Import, Download, Star, Shield, Film, Tv, Play, AlertTriangle, ShieldAlert, RefreshCw, Check, LayoutDashboard, Activity, Clock, TrendingUp, User as UserIcon, Lock as LockIcon, Eye, EyeOff, Flame, Sparkles, Pin, X, Save, Award, ChevronLeft, ChevronRight, Megaphone, Share2, Bell, MessageSquare, CheckCircle2, Send, ExternalLink, Copy } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { compressImage, saveMoviesToFirestore } from '../lib/firebase';
 import { DEFAULT_POSTER_FALLBACK, DEFAULT_BACKDROP_FALLBACK, handlePosterError, handleBackdropError, getCleanPosterUrl, getCleanBackdropUrl } from '../lib/imageUtils';
@@ -81,7 +81,8 @@ export default function AdminPanel({
   const [selectedMovieIds, setSelectedMovieIds] = useState<string[]>([]);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [catalogSearchQuery, setCatalogSearchQuery] = useState('');
-  const [catalogFilter, setCatalogFilter] = useState<'all' | 'recommended' | 'pinned' | 'movies' | 'series'>('all');
+  const [catalogFilter, setCatalogFilter] = useState<'all' | 'recommended' | 'pinned' | 'movies' | 'series' | 'duplicates'>('all');
+  const [showDeleteAllDuplicatesConfirm, setShowDeleteAllDuplicatesConfirm] = useState(false);
 
   // Estado para busca rápida com lupa da Fita Específica para Fixar
   const [pinSearchQuery, setPinSearchQuery] = useState('');
@@ -216,11 +217,13 @@ export default function AdminPanel({
 
     // 3. Usuários recém-registrados
     (users || []).forEach(u => {
+      if (u.deleted) return;
+      const daysLeft = getSubscriptionDaysLeft(u);
       list.push({
         id: `user_reg_${u.id}`,
         type: 'user',
         title: `Novo Usuário: ${u.name}`,
-        subtitle: `${u.email} • ${u.isAdmin ? 'Administrador' : 'Assinante 30 Dias'}`,
+        subtitle: `${u.email} • ${u.isAdmin ? 'Administrador' : `Assinante (${daysLeft} dias restantes)`}`,
         date: u.createdAt || '2026-05-10T12:00:00Z',
         userAvatar: u.avatarUrl,
         userName: u.name,
@@ -239,14 +242,19 @@ export default function AdminPanel({
   const filteredAlerts = useMemo(() => {
     let result = consolidatedAlerts;
     if (noticeFilter !== 'all') {
-      result = result.filter(a => a.type === noticeFilter);
+      result = result.filter(a => {
+        if (noticeFilter === 'requests') return a.type === 'request';
+        if (noticeFilter === 'comments') return a.type === 'comment';
+        if (noticeFilter === 'users') return a.type === 'user';
+        return a.type === noticeFilter;
+      });
     }
     if (noticeSearch.trim()) {
       const q = noticeSearch.toLowerCase().trim();
       result = result.filter(a => 
-        a.title.toLowerCase().includes(q) || 
-        a.subtitle.toLowerCase().includes(q) || 
-        a.userName.toLowerCase().includes(q)
+        (a.title && a.title.toLowerCase().includes(q)) || 
+        (a.subtitle && a.subtitle.toLowerCase().includes(q)) || 
+        (a.userName && a.userName.toLowerCase().includes(q))
       );
     }
     return result;
@@ -369,9 +377,17 @@ export default function AdminPanel({
     setIsFormOpen(true);
   };
 
-  // Detecção Inteligente de Títulos e Séries já Cadastrados no Acervo
-  const findDuplicateMovie = (title: string, tmdbId?: number, currentEditId?: string): Movie | null => {
+  // Detecção Inteligente e Precisa de Títulos e Séries Cadastrados no Acervo
+  // Considera TMDB ID, Tipo de Mídia (Filme vs Série) e Ano de Lançamento (evitando falsos positivos entre remakes, reboots e obras homônimas como Invencível 2014 vs 2026, Mortal Kombat 1995 vs 2021)
+  const findDuplicateMovie = (
+    title: string, 
+    tmdbId?: number, 
+    currentEditId?: string,
+    year?: number | string,
+    type?: 'movie' | 'series'
+  ): Movie | null => {
     if (!title && !tmdbId) return null;
+    
     const clean = (s: string) => (s || '')
       .toLowerCase()
       .normalize('NFD')
@@ -380,11 +396,45 @@ export default function AdminPanel({
       .trim();
 
     const titleClean = clean(title);
+    const parsedYear = year && year !== '????' ? Number(year) : undefined;
 
     return movies.find(m => {
+      // Ignora a própria mídia quando estamos em modo de edição
       if (currentEditId && m.id === currentEditId) return false;
-      if (tmdbId && m.tmdbId && Number(m.tmdbId) === Number(tmdbId)) return true;
-      if (titleClean && titleClean.length > 1 && clean(m.title) === titleClean) return true;
+
+      // 1. Tipo de Mídia: Um filme e uma série com o mesmo nome NUNCA são a mesma mídia (ex: série Invencível vs filme Invencível)
+      if (type && m.type && m.type !== type) {
+        return false;
+      }
+
+      // 2. Prova Absoluta: Mesmo TMDB ID com o mesmo tipo de mídia
+      if (tmdbId && m.tmdbId && Number(m.tmdbId) === Number(tmdbId)) {
+        return true;
+      }
+
+      // Se ambos possuem TMDB IDs diferentes e válidos, são produções comprovadamente distintas no TMDB
+      if (tmdbId && m.tmdbId && Number(m.tmdbId) !== Number(tmdbId)) {
+        return false;
+      }
+
+      // 3. Comparação de Título Normalizado + Ano de Produção
+      if (titleClean && titleClean.length > 1 && clean(m.title) === titleClean) {
+        const mYear = m.year ? Number(m.year) : undefined;
+
+        // Se ambos têm ano registrado:
+        if (parsedYear && mYear) {
+          // Diferença de 2 anos ou mais (ex: Invencível 2014 vs Invencível 2026, Mortal Kombat 1995 vs 2021):
+          // SÃO PRODUÇÕES DIFERENTES! NÃO SÃO O MESMO FILME!
+          if (Math.abs(parsedYear - mYear) > 1) {
+            return false;
+          }
+          return true;
+        }
+
+        // Se um deles não tem ano informado, mas não possuem TMDB conflitante, considera como mesma mídia
+        return true;
+      }
+
       return false;
     }) || null;
   };
@@ -837,25 +887,59 @@ export default function AdminPanel({
     }
   };
 
+  // --- IDENTIFICAÇÃO RIGOROSA DE USUÁRIOS COMUNS (EXCLUINDO ADMINISTRADOR RAFAEL) ---
+  const regularUsers = useMemo(() => {
+    return (users || []).filter(u => {
+      if (u.isAdmin) return false;
+      if (u.id === 'u1') return false;
+      if (u.email && u.email.toLowerCase() === 'rafaelguaruja09@gmail.com') return false;
+      if (u.name && u.name.toLowerCase().includes('rafael')) return false;
+      return true;
+    });
+  }, [users]);
+
+  const regularUserIds = useMemo(() => new Set(regularUsers.map(u => u.id)), [regularUsers]);
+
+  // Perfis pertencentes exclusivamente aos espectadores (não-administradores)
+  const regularProfiles = useMemo(() => {
+    const list: Profile[] = [];
+    Object.entries(allProfiles || {}).forEach(([uid, profs]) => {
+      if (uid === 'u1' || !regularUserIds.has(uid)) return;
+      (profs || []).forEach(p => {
+        const pName = (p.name || '').toLowerCase();
+        if (pName.includes('admin') || pName.includes('rafael')) return;
+        list.push(p);
+      });
+    });
+    return list;
+  }, [allProfiles, regularUserIds]);
+
   // --- CÁLCULO DE ESTATÍSTICAS E MÉTRICAS RETRÔ PARA O DASHBOARD ---
   const countMovies = movies.filter(m => m.type === 'movie').length;
   const countSeries = movies.filter(m => m.type === 'series').length;
-  const totalSubProfiles = Object.values(allProfiles).reduce((acc, pList) => acc + pList.length, 0);
+  const totalSubProfiles = regularProfiles.length > 0 ? regularProfiles.length : Object.values(allProfiles).reduce((acc, pList) => acc + pList.length, 0);
   
-  // Total de itens favoritados (nas listas de interesses de todos os perfis)
-  const totalMyListSoma = Object.values(allProfiles).reduce((acc, pList) => {
-    return acc + pList.reduce((sum, p) => sum + (p.myList ? p.myList.length : 0), 0);
-  }, 0);
+  // Total de itens favoritados exclusivamente pelos espectadores (ou global se novos)
+  const totalMyListSoma = useMemo(() => {
+    const count = regularProfiles.reduce((sum, p) => sum + (p.myList ? p.myList.length : 0), 0);
+    if (count > 0) return count;
+    return Object.values(allProfiles).reduce((acc, pList) => acc + pList.reduce((sum, p) => sum + (p.myList ? p.myList.length : 0), 0), 0);
+  }, [regularProfiles, allProfiles]);
 
   // Média Geral de Avaliações
   const totalRatingSoma = movies.reduce((acc, m) => acc + (m.rating || 0), 0);
   const mediaRating = movies.length > 0 ? (totalRatingSoma / movies.length).toFixed(1) : "0.0";
 
-  // Fitas Magnéticas em Progresso vs Finalizadas
-  const allHistoryProgressList = Object.values(allProfiles).flatMap(pList => pList.flatMap(p => p.watchHistory ? Object.values(p.watchHistory) : [])) as any[];
-  const emProgresso = allHistoryProgressList.filter(ph => ph.progress > 0 && ph.progress < 100).length;
-  const fitasConcluidas = allHistoryProgressList.filter(ph => ph.progress >= 100 || ph.isFinished).length;
-  const totalSomaSegundos = allHistoryProgressList.reduce((acc, ph) => acc + (ph.currentTime || 0), 0);
+  // Fitas Magnéticas em Progresso vs Finalizadas (Consumo Real dos Espectadores)
+  const regularHistoryList = useMemo(() => {
+    const list = regularProfiles.flatMap(p => p.watchHistory ? Object.values(p.watchHistory) : []) as any[];
+    if (list.length > 0) return list;
+    return Object.values(allProfiles).flatMap(pList => pList.flatMap(p => p.watchHistory ? Object.values(p.watchHistory) : [])) as any[];
+  }, [regularProfiles, allProfiles]);
+
+  const emProgresso = useMemo(() => regularHistoryList.filter(ph => ph.progress > 0 && ph.progress < 100).length, [regularHistoryList]);
+  const fitasConcluidas = useMemo(() => regularHistoryList.filter(ph => ph.progress >= 100 || ph.isFinished).length, [regularHistoryList]);
+  const totalSomaSegundos = useMemo(() => regularHistoryList.reduce((acc, ph) => acc + (ph.currentTime || 0), 0), [regularHistoryList]);
   const totalMinutosReproduzidos = Math.round(totalSomaSegundos / 60);
 
   // Funções de Selo de Recomendação Oficial VHSFLIX (Exclusivo Master Admin Rafael)
@@ -888,6 +972,129 @@ export default function AdminPanel({
   // Contadores dinâmicos do catálogo
   const countRecommended = useMemo(() => movies.filter(m => m.isRecommended).length, [movies]);
 
+  // --- DETECÇÃO INTELIGENTE DE FITAS DUPLICADAS / REPETIDAS NO ACERVO ---
+  // Critério rigoroso: Diferencia remakes, reboots e filmes homônimos de anos diferentes
+  // (ex: Invencível 2014 vs Invencível 2026, Mortal Kombat 1995 vs 2021, O Protetor 1985 vs 2014 são obras DISTINTAS!)
+  const duplicateAnalysis = useMemo(() => {
+    const normalizeTitle = (str: string) => {
+      return (str || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    };
+
+    const areMoviesDuplicate = (a: any, b: any): boolean => {
+      if (!a || !b) return false;
+      if (a.id === b.id) return false;
+
+      // 1. Tipo de mídia DEVE ser idêntico (Filme nunca é duplicata de Série com mesmo nome)
+      const aType = a.type || 'movie';
+      const bType = b.type || 'movie';
+      if (aType !== bType) return false;
+
+      // 2. Prova Absoluta: Mesmo TMDB ID com o mesmo tipo
+      if (a.tmdbId && b.tmdbId) {
+        return Number(a.tmdbId) === Number(b.tmdbId);
+      }
+
+      // Se ambos têm TMDB IDs válidos e são diferentes, são produções comprovadamente distintas
+      if (a.tmdbId && b.tmdbId && Number(a.tmdbId) !== Number(b.tmdbId)) {
+        return false;
+      }
+
+      // 3. Comparação de Título Normalizado + Ano de Lançamento
+      const normA = normalizeTitle(a.title);
+      const normB = normalizeTitle(b.title);
+
+      if (!normA || !normB || normA !== normB) {
+        return false;
+      }
+
+      // Se ambos têm ano registrado:
+      const yearA = a.year ? Number(a.year) : undefined;
+      const yearB = b.year ? Number(b.year) : undefined;
+
+      if (yearA && yearB) {
+        // Se a diferença de ano for de 2 anos ou mais (ex: 2014 vs 2026, 1995 vs 2021, 1985 vs 2014):
+        // SÃO PRODUÇÕES DIFERENTES! NÃO SÃO CÓPIAS REPETIDAS!
+        if (Math.abs(yearA - yearB) > 1) {
+          return false;
+        }
+        return true;
+      }
+
+      // Se um dos dois não tem ano e nenhum tem TMDB conflitante, considera como duplicata do mesmo título
+      return true;
+    };
+
+    // Agrupamento por classes de equivalência
+    const groups: any[][] = [];
+    const assigned = new Set<string>();
+
+    movies.forEach(m => {
+      if (!m || assigned.has(m.id)) return;
+      const currentGroup: any[] = [m];
+      assigned.add(m.id);
+
+      movies.forEach(other => {
+        if (!other || assigned.has(other.id)) return;
+        if (areMoviesDuplicate(m, other)) {
+          currentGroup.push(other);
+          assigned.add(other.id);
+        }
+      });
+
+      if (currentGroup.length > 1) {
+        groups.push(currentGroup);
+      }
+    });
+
+    const duplicateCopyIds = new Set<string>();
+    const duplicateCopiesList: any[] = [];
+    const copyToOriginalMap = new Map<string, { original: any; copyIndex: number; totalInGroup: number }>();
+
+    groups.forEach(groupItems => {
+      // Ordena para eleger o item ORIGINAL:
+      // Prioridade 1: Tem videoUrl preenchida e válida
+      // Prioridade 2: Tem tmdbId
+      // Prioridade 3: Posição mais antiga no catálogo
+      const sorted = [...groupItems].sort((a, b) => {
+        const aHasVideo = Boolean(a.videoUrl && a.videoUrl.trim());
+        const bHasVideo = Boolean(b.videoUrl && b.videoUrl.trim());
+        if (aHasVideo !== bHasVideo) return aHasVideo ? -1 : 1;
+
+        const aHasTmdb = Boolean(a.tmdbId);
+        const bHasTmdb = Boolean(b.tmdbId);
+        if (aHasTmdb !== bHasTmdb) return aHasTmdb ? -1 : 1;
+
+        return 0;
+      });
+
+      const original = sorted[0];
+      const copies = sorted.slice(1);
+
+      copies.forEach((copy, idx) => {
+        duplicateCopyIds.add(copy.id);
+        duplicateCopiesList.push(copy);
+        copyToOriginalMap.set(copy.id, {
+          original,
+          copyIndex: idx + 1,
+          totalInGroup: sorted.length
+        });
+      });
+    });
+
+    return {
+      totalCopiesCount: duplicateCopyIds.size, // CONTAGEM EXATA SOMENTE DAS CÓPIAS (SEM O ORIGINAL)!
+      duplicateCopyIds,
+      duplicateCopiesList,
+      copyToOriginalMap
+    };
+  }, [movies]);
+
   // Catálogo de mídias filtrado pelo campo de busca e filtros de status no Admin
   const filteredAdminMovies = useMemo(() => {
     return movies.filter(m => {
@@ -895,6 +1102,7 @@ export default function AdminPanel({
       if (catalogFilter === 'pinned' && m.id !== pinnedMostDesiredId) return false;
       if (catalogFilter === 'movies' && m.type !== 'movie') return false;
       if (catalogFilter === 'series' && m.type !== 'series') return false;
+      if (catalogFilter === 'duplicates' && !duplicateAnalysis.duplicateCopyIds.has(m.id)) return false;
 
       if (catalogSearchQuery.trim()) {
         const query = catalogSearchQuery.toLowerCase().trim();
@@ -906,7 +1114,7 @@ export default function AdminPanel({
       }
       return true;
     });
-  }, [movies, catalogSearchQuery, catalogFilter, pinnedMostDesiredId]);
+  }, [movies, catalogSearchQuery, catalogFilter, pinnedMostDesiredId, duplicateAnalysis]);
 
   // Paginação de 50 em 50 para o Catálogo de Mídias no Painel Administrativo
   const ITEMS_PER_ADMIN_PAGE = 50;
@@ -946,27 +1154,135 @@ export default function AdminPanel({
     }
   };
 
-  // Fita VHS Mais Popular (Que mais vezes aparece em myList)
-  const myListCounts: { [movieId: string]: number } = {};
-  Object.values(allProfiles).forEach(pList => {
-    pList.forEach(p => {
-      if (p.myList) {
+  // --- FITA OU SÉRIE MAIS DESEJADA (POPULARIDADE AUTOMÁTICA DOS USUÁRIOS) ---
+  // A contabilidade vem EXCLUSIVAMENTE dos espectadores/usuários cadastrados.
+  // O Administrador Rafael é 100% EXCLUÍDO de qualquer contabilidade de reprodução ou lista.
+  const { popularMovie, popularStats } = useMemo(() => {
+    // 1. Se o administrador fixou manualmente uma fita específica
+    if (pinnedMostDesiredId) {
+      const pinned = movies.find(m => m.id === pinnedMostDesiredId);
+      if (pinned) {
+        let viewers = 0;
+        let minutes = 0;
+        let saved = 0;
+        regularProfiles.forEach(p => {
+          if (p.myList && p.myList.includes(pinned.id)) saved++;
+          if (p.watchHistory && p.watchHistory[pinned.id]) {
+            const wh = p.watchHistory[pinned.id];
+            if (wh.currentTime > 0 || wh.progress > 0) {
+              viewers++;
+              minutes += Math.round((wh.currentTime || 0) / 60);
+            }
+          }
+        });
+        return {
+          popularMovie: pinned,
+          popularStats: {
+            viewersCount: viewers,
+            minutesCount: minutes,
+            savedCount: saved,
+            score: 0,
+            isPinned: true
+          }
+        };
+      }
+    }
+
+    // 2. Cálculo dinâmico de audiência e desejo dos usuários para cada filme e série
+    const statsMap = new Map<string, { viewersCount: number; minutesCount: number; savedCount: number; completionsCount: number; score: number }>();
+
+    movies.forEach(m => {
+      statsMap.set(m.id, {
+        viewersCount: 0,
+        minutesCount: 0,
+        savedCount: 0,
+        completionsCount: 0,
+        score: (m.clicksCount || 0) * 2
+      });
+    });
+
+    // Percorre perfis exclusivamente de usuários regulares (espectadores)
+    regularProfiles.forEach(p => {
+      // 2.a. Filmes/Séries salvos na estante (Minha Lista)
+      if (Array.isArray(p.myList)) {
         p.myList.forEach(mId => {
-          myListCounts[mId] = (myListCounts[mId] || 0) + 1;
+          const stat = statsMap.get(mId);
+          if (stat) {
+            stat.savedCount += 1;
+            stat.score += 25; // Peso forte: intenção expressa do espectador
+          }
+        });
+      }
+
+      // 2.b. Filmes/Séries que o usuário deu play ou assistiu
+      if (p.watchHistory) {
+        Object.entries(p.watchHistory).forEach(([mId, wh]: [string, any]) => {
+          const stat = statsMap.get(mId);
+          if (stat && (wh.currentTime > 0 || wh.progress > 0)) {
+            stat.viewersCount += 1;
+            const mins = Math.round((wh.currentTime || 0) / 60);
+            stat.minutesCount += mins;
+            stat.score += 30 + Math.min(mins, 60);
+            if (wh.progress >= 90 || wh.isFinished) {
+              stat.completionsCount += 1;
+              stat.score += 20; // Bônus fita assistida
+            }
+          }
         });
       }
     });
-  });
 
-  let popularMovieId = '';
-  let popularMovieCount = 0;
-  Object.entries(myListCounts).forEach(([mId, count]) => {
-    if (count > popularMovieCount) {
-      popularMovieCount = count;
-      popularMovieId = mId;
+    // 2.c. Comentários deixados por espectadores regulares
+    (comments || []).forEach(c => {
+      if (c.userId && !regularUserIds.has(c.userId)) return;
+      const stat = statsMap.get(c.movieId);
+      if (stat) {
+        stat.score += 15;
+      }
+    });
+
+    // Elegemos o filme ou série com maior pontuação de consumo
+    let bestMovie: Movie | null = null;
+    let highestScore = -1;
+    let bestStats = { viewersCount: 0, minutesCount: 0, savedCount: 0, completionsCount: 0, score: 0, isPinned: false };
+
+    movies.forEach(m => {
+      const stat = statsMap.get(m.id);
+      if (stat && stat.score > highestScore) {
+        highestScore = stat.score;
+        bestMovie = m;
+        bestStats = { ...stat, isPinned: false };
+      }
+    });
+
+    // Se nenhum espectador assistiu ou salvou ainda (score zerado inicial):
+    // Prioriza o título de maior nota e relevância recente, alternando inteligente e dinamicamente
+    if (!bestMovie || highestScore === 0) {
+      const sortedByPopular = [...movies].sort((a, b) => {
+        const ratingDiff = (b.rating || 0) - (a.rating || 0);
+        if (Math.abs(ratingDiff) > 0.05) return ratingDiff;
+        return (b.year || 0) - (a.year || 0);
+      });
+      const fallbackMovie = sortedByPopular[0] || (movies.length > 0 ? movies[0] : null);
+
+      return {
+        popularMovie: fallbackMovie,
+        popularStats: {
+          viewersCount: 0,
+          minutesCount: 0,
+          savedCount: 0,
+          completionsCount: 0,
+          score: 0,
+          isPinned: false
+        }
+      };
     }
-  });
-  const popularMovie = movies.find(m => m.id === popularMovieId) || (movies.length > 0 ? movies[0] : null);
+
+    return {
+      popularMovie: bestMovie,
+      popularStats: bestStats
+    };
+  }, [movies, regularProfiles, regularUserIds, comments, pinnedMostDesiredId]);
 
   // Stats por categoria
   const categoryStats = GENRE_CATEGORIES.filter(c => c !== 'Todos').map(category => {
@@ -1019,37 +1335,6 @@ export default function AdminPanel({
           {/* COLUNA DA ESQUERDA: SIDEBAR PROFISSIONAL */}
           <div className="w-full lg:w-64 flex-shrink-0">
             <div className="bg-zinc-900/80 border border-zinc-800/90 rounded-2xl p-4 sticky top-28 space-y-4 backdrop-blur-md shadow-xl">
-              {/* Header Navegação Rápida interativo que abre a Central de Avisos Completa */}
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveAdminTab('notifications');
-                  setIsFormOpen(false);
-                }}
-                className="w-full px-3 py-2.5 rounded-xl bg-gradient-to-r from-rose-950/40 via-zinc-900 to-rose-950/30 hover:from-rose-900/60 hover:to-rose-800/40 border border-rose-500/30 hover:border-rose-500/70 flex justify-between items-center transition-all group cursor-pointer text-left shadow-md hover:shadow-rose-950/40"
-                title="Clique para abrir a página completa da Central de Avisos"
-                id="btn-navegacao-rapida-avisos"
-              >
-                <div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] text-rose-400 group-hover:text-rose-300 font-mono font-bold tracking-widest uppercase flex items-center gap-1">
-                      <Bell className="w-3 h-3 text-rose-500 animate-pulse" />
-                      Navegação Rápida
-                    </span>
-                    <span className="text-[9px] font-mono bg-rose-500/20 text-rose-300 px-1.5 py-0.2 rounded border border-rose-500/30">
-                      Abrir Avisos &rarr;
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-zinc-400 group-hover:text-zinc-200 mt-0.5 font-sans">
-                    Central de Pedidos e Comentários
-                  </p>
-                </div>
-                <div className="relative flex items-center justify-center">
-                  <div className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping absolute" />
-                  <div className="w-2.5 h-2.5 rounded-full bg-rose-500" />
-                </div>
-              </button>
-
               {/* Menu de Abas na Sidebar com animações de toque e hover */}
               <nav className="flex flex-row lg:flex-col overflow-x-auto lg:overflow-x-visible pb-2 lg:pb-0 gap-2 scrollbar-none">
                 <button
@@ -1291,39 +1576,71 @@ export default function AdminPanel({
                   >
                     <div className="flex-1 space-y-2.5">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="bg-rose-500/15 border border-rose-500/30 text-rose-400 font-mono text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase flex items-center gap-1.5">
-                          <Flame className="w-3.5 h-3.5 text-rose-500 animate-pulse" /> Fita Mais Desejada
-                        </span>
+                        {popularMovie.type === 'series' ? (
+                          <span className="bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 font-mono text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase flex items-center gap-1.5 shadow-sm">
+                            <Tv className="w-3.5 h-3.5 text-emerald-400 animate-pulse" /> Série Mais Desejada
+                          </span>
+                        ) : (
+                          <span className="bg-rose-500/15 border border-rose-500/30 text-rose-400 font-mono text-[10px] font-bold px-2.5 py-0.5 rounded-full uppercase flex items-center gap-1.5 shadow-sm">
+                            <Flame className="w-3.5 h-3.5 text-rose-500 animate-pulse" /> Filme Mais Desejado
+                          </span>
+                        )}
+
                         {pinnedMostDesiredId ? (
                           <span className="text-[10px] font-mono bg-rose-500 text-white px-2 py-0.5 rounded-md font-bold uppercase flex items-center gap-1">
                             <Pin className="w-3 h-3 fill-current" /> Fixada Manualmente
                           </span>
                         ) : (
-                          <span className="text-[10px] font-mono bg-amber-500/15 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-md font-bold uppercase flex items-center gap-1">
+                          <span className="text-[10px] font-mono bg-amber-500/15 text-amber-300 border border-amber-500/30 px-2.5 py-0.5 rounded-md font-bold uppercase flex items-center gap-1">
                             <Flame className="w-3 h-3 text-amber-400 fill-current" /> Popularidade Automática
                           </span>
                         )}
-                        <span className="text-xs text-zinc-400 font-mono">{popularMovie.category} • {popularMovie.year}</span>
+
+                        <span className="text-[10px] font-mono bg-zinc-900/90 text-zinc-400 border border-zinc-800 px-2 py-0.5 rounded-md">
+                          Audiência Exclusiva dos Usuários
+                        </span>
+
+                        <span className="text-xs text-zinc-400 font-mono">
+                          {popularMovie.category} • {popularMovie.year}
+                        </span>
                       </div>
-                      <h4 className="text-xl sm:text-2xl font-black text-white font-display uppercase tracking-tight">{popularMovie.title}</h4>
+
+                      <h4 className="text-xl sm:text-2xl font-black text-white font-display uppercase tracking-tight flex items-center gap-2">
+                        {popularMovie.title}
+                        {popularMovie.type === 'series' && (
+                          <span className="text-[11px] font-mono font-bold text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded-md">
+                            Série
+                          </span>
+                        )}
+                      </h4>
+
                       <p className="text-xs text-zinc-400 line-clamp-2 max-w-2xl leading-relaxed font-sans">
                         {popularMovie.description}
                       </p>
-                      <div className="pt-2 flex items-center gap-4 text-xs font-mono text-zinc-400">
-                        <span className="flex items-center gap-1.5 text-rose-400 font-bold">
-                          <TrendingUp className="w-3.5 h-3.5 text-rose-500" /> Salvo em {popularMovieCount} listas
+
+                      <div className="pt-2 flex flex-wrap items-center gap-3 text-xs font-mono text-zinc-400">
+                        <span className="flex items-center gap-1.5 text-rose-400 font-bold bg-rose-950/30 border border-rose-500/20 px-2 py-0.5 rounded-lg">
+                          <TrendingUp className="w-3.5 h-3.5 text-rose-500" /> Salvo em {popularStats.savedCount} listas
                         </span>
-                        <span>•</span>
+
+                        <span className="flex items-center gap-1.5 text-sky-400 font-bold bg-sky-950/30 border border-sky-500/20 px-2 py-0.5 rounded-lg">
+                          <Users className="w-3.5 h-3.5 text-sky-400" /> {popularStats.viewersCount} espectadores
+                        </span>
+
+                        <span className="flex items-center gap-1.5 text-cyan-400 font-bold bg-cyan-950/30 border border-cyan-500/20 px-2 py-0.5 rounded-lg">
+                          <Clock className="w-3.5 h-3.5 text-cyan-400" /> {popularStats.minutesCount} min assistidos
+                        </span>
+
                         <span className="text-amber-400 font-bold flex items-center gap-1">
                           <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" /> {popularMovie.rating} Nota
                         </span>
-                        <span>•</span>
+
                         <button
                           onClick={() => {
                             setActiveAdminTab('catalog');
                             setIsFormOpen(false);
                           }}
-                          className="text-rose-400 hover:text-white underline cursor-pointer font-bold"
+                          className="text-rose-400 hover:text-white underline cursor-pointer font-bold ml-auto"
                         >
                           Gerenciar no Catálogo &rarr;
                         </button>
@@ -2452,6 +2769,30 @@ export default function AdminPanel({
                     <span>Séries</span>
                     <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/40 font-mono">{countSeries}</span>
                   </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setCatalogFilter('duplicates')}
+                    className={`px-3.5 py-1.5 rounded-xl transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap border font-bold ${
+                      catalogFilter === 'duplicates'
+                        ? 'bg-rose-600 text-white border-rose-500 shadow-md shadow-rose-600/30'
+                        : duplicateAnalysis.totalCopiesCount > 0
+                        ? 'bg-rose-950/40 text-rose-300 hover:text-white border-rose-500/40 hover:border-rose-500/70'
+                        : 'bg-zinc-900/80 text-zinc-400 hover:text-white border-zinc-800 hover:border-zinc-700'
+                    }`}
+                    title="Exibir fitas duplicadas e repetidas adicionadas no catálogo"
+                    id="btn-filter-duplicates"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>Fitas Duplicadas</span>
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
+                      duplicateAnalysis.totalCopiesCount > 0 
+                        ? 'bg-rose-600 text-white shadow-sm' 
+                        : 'bg-black/40 text-zinc-400'
+                    }`}>
+                      {duplicateAnalysis.totalCopiesCount}
+                    </span>
+                  </button>
                 </div>
 
                 {/* Barra de Seleção, Pesquisa e Ações em Lote */}
@@ -2577,15 +2918,68 @@ export default function AdminPanel({
                   </div>
                 </div>
 
+                {/* Banner de Controle e Ação em Lote Exclusivo da Aba de Fitas Duplicadas */}
+                {catalogFilter === 'duplicates' && (
+                  <div className="bg-gradient-to-r from-rose-950/60 via-zinc-900 to-rose-950/40 border border-rose-500/40 rounded-2xl p-4 sm:p-5 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                    <div className="flex items-start gap-3.5">
+                      <div className="w-10 h-10 rounded-xl bg-rose-600/20 border border-rose-500/40 flex items-center justify-center text-rose-400 shrink-0 mt-0.5">
+                        <Copy className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="text-white font-bold text-sm sm:text-base">
+                            {duplicateAnalysis.totalCopiesCount > 0
+                              ? `${duplicateAnalysis.totalCopiesCount} ${duplicateAnalysis.totalCopiesCount === 1 ? 'Cópia Duplicada Encontrada' : 'Cópias Duplicadas Encontradas'}`
+                              : 'Nenhuma Fita Duplicada Encontrada'}
+                          </h3>
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30 font-bold">
+                            Contagem exclusiva de cópias • Original preservado
+                          </span>
+                        </div>
+                        <p className="text-zinc-400 text-xs mt-1 leading-relaxed max-w-2xl font-sans">
+                          {duplicateAnalysis.totalCopiesCount > 0
+                            ? 'Esta aba lista exclusivamente as cópias adicionadas repetidamente. O título original de cada filme e série é blindado e nunca será apagado por este processo.'
+                            : 'Excelente! Todas as fitas do catálogo são únicas. Nenhuma duplicata foi identificada.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {duplicateAnalysis.totalCopiesCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setShowDeleteAllDuplicatesConfirm(true)}
+                        className="w-full md:w-auto px-4 py-2.5 rounded-xl bg-gradient-to-r from-rose-600 to-rose-700 hover:from-rose-500 hover:to-rose-600 text-white font-mono text-xs font-bold transition-all shadow-lg shadow-rose-600/30 border border-rose-500/50 flex items-center justify-center gap-2 cursor-pointer shrink-0 hover:scale-[1.02] active:scale-[0.98]"
+                        id="btn-delete-all-duplicates"
+                        title="Excluir todas as cópias duplicadas mantendo os originais intactos"
+                      >
+                        <Trash className="w-4 h-4" />
+                        <span>Excluir Todas as {duplicateAnalysis.totalCopiesCount} Cópias</span>
+                      </button>
+                    )}
+                  </div>
+                )}
+
                 {filteredAdminMovies.length === 0 && (
                   <div className="p-12 text-center bg-zinc-900/30 border border-zinc-850 rounded-2xl space-y-3 font-mono">
-                    <Search className="w-10 h-10 text-rose-500 mx-auto opacity-60" />
-                    <p className="text-sm text-zinc-200 font-bold">Nenhum título encontrado</p>
-                    <p className="text-xs text-zinc-500">
-                      {catalogSearchQuery 
-                        ? `Nenhum filme ou série corresponde à busca "${catalogSearchQuery}".`
-                        : 'Nenhuma mídia corresponde ao filtro selecionado.'}
-                    </p>
+                    {catalogFilter === 'duplicates' ? (
+                      <>
+                        <CheckCircle2 className="w-10 h-10 text-emerald-400 mx-auto" />
+                        <p className="text-sm text-zinc-200 font-bold">Nenhuma fita duplicada no acervo</p>
+                        <p className="text-xs text-zinc-500">
+                          Seu catálogo de filmes e séries está 100% limpo, sem cópias repetidas.
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <Search className="w-10 h-10 text-rose-500 mx-auto opacity-60" />
+                        <p className="text-sm text-zinc-200 font-bold">Nenhum título encontrado</p>
+                        <p className="text-xs text-zinc-500">
+                          {catalogSearchQuery 
+                            ? `Nenhum filme ou série corresponde à busca "${catalogSearchQuery}".`
+                            : 'Nenhuma mídia corresponde ao filtro selecionado.'}
+                        </p>
+                      </>
+                    )}
                   </div>
                 )}
 
@@ -2595,6 +2989,8 @@ export default function AdminPanel({
                     const isSelected = selectedMovieIds.includes(movie.id);
                     const isPinned = pinnedMostDesiredId === movie.id;
                     const isRec = Boolean(movie.isRecommended);
+                    const isDuplicateCopy = duplicateAnalysis.duplicateCopyIds.has(movie.id);
+                    const dupInfo = isDuplicateCopy ? duplicateAnalysis.copyToOriginalMap.get(movie.id) : null;
 
                     return (
                       <div 
@@ -2602,6 +2998,8 @@ export default function AdminPanel({
                         className={`rounded-2xl border overflow-hidden flex shadow-lg transition-all duration-300 group hover:-translate-y-1 hover:shadow-2xl ${
                           isSelected 
                             ? 'border-rose-500 bg-zinc-900/90 ring-2 ring-rose-500/40 shadow-rose-950/40' 
+                            : isDuplicateCopy
+                            ? 'bg-gradient-to-br from-zinc-950 via-zinc-950 to-rose-950/30 border-rose-500/50 hover:border-rose-400 shadow-[0_0_20px_rgba(244,63,94,0.1)] ring-1 ring-rose-500/20'
                             : isRec
                             ? 'bg-gradient-to-br from-zinc-950 via-zinc-950 to-amber-950/20 border-amber-500/40 hover:border-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.08)]'
                             : isPinned
@@ -2635,8 +3033,16 @@ export default function AdminPanel({
                             />
                           </div>
 
+                          {/* Badge de Cópia Duplicada no Poster */}
+                          {isDuplicateCopy && (
+                            <div className="absolute top-2 left-2 z-10 flex items-center gap-1 bg-rose-600 text-white px-1.5 py-0.5 rounded-md text-[9px] font-black font-mono uppercase tracking-wider shadow-md backdrop-blur-sm border border-rose-400/50">
+                              <Copy className="w-3 h-3" />
+                              <span>Cópia #{dupInfo?.copyIndex}</span>
+                            </div>
+                          )}
+
                           {/* Selo de Recomendação Oficial Rafael no Poster */}
-                          {isRec && (
+                          {!isDuplicateCopy && isRec && (
                             <div className="absolute top-2 left-2 z-10 flex items-center gap-1 bg-amber-500/90 text-black px-1.5 py-0.5 rounded-md text-[9px] font-black font-sans uppercase tracking-wider shadow-md backdrop-blur-sm">
                               <Award className="w-3 h-3 fill-black" />
                               <span>Indicado</span>
@@ -2644,7 +3050,7 @@ export default function AdminPanel({
                           )}
 
                           {/* Badge de Fita Mais Desejada no Poster */}
-                          {isPinned && !isRec && (
+                          {!isDuplicateCopy && isPinned && !isRec && (
                             <div className="absolute top-2 left-2 z-10 flex items-center gap-1 bg-rose-600/95 text-white px-1.5 py-0.5 rounded-md text-[9px] font-black font-sans uppercase tracking-wider shadow-md backdrop-blur-sm">
                               <Flame className="w-3 h-3 fill-white" />
                               <span>Fixada</span>
@@ -2700,6 +3106,25 @@ export default function AdminPanel({
                             </div>
                             <h4 className="font-bold text-sm text-white mt-1.5 line-clamp-1 font-sans">{movie.title}</h4>
                             <p className="text-zinc-400 text-[11px] font-mono mt-0.5">{movie.year} • {movie.duration}</p>
+
+                            {/* Destaque de Fita Duplicada / Cópia */}
+                            {isDuplicateCopy && dupInfo && (
+                              <div className="mt-2 bg-rose-500/15 border border-rose-500/35 text-rose-300 px-2.5 py-1.5 rounded-lg text-[10px] font-mono flex flex-col gap-0.5 shadow-sm">
+                                <div className="flex items-center justify-between font-bold">
+                                  <span className="flex items-center gap-1 text-rose-400">
+                                    <Copy className="w-3 h-3" />
+                                    Cópia Duplicada ({dupInfo.copyIndex} de {dupInfo.totalInGroup - 1})
+                                  </span>
+                                  <span className="text-[9px] bg-rose-600/30 border border-rose-500/40 px-1 py-0.2 rounded text-rose-200">
+                                    Repetida
+                                  </span>
+                                </div>
+                                <span className="text-[9px] text-zinc-400 truncate">
+                                  Original seguro: <strong className="text-zinc-200 font-sans">{dupInfo.original.title}</strong>
+                                </span>
+                              </div>
+                            )}
+
                             <p className="text-zinc-400 text-xs mt-2 line-clamp-2 leading-relaxed">{movie.description}</p>
                           </div>
 
@@ -2748,14 +3173,28 @@ export default function AdminPanel({
                               >
                                 <Edit className="w-4 h-4" />
                               </button>
-                              <button
-                                onClick={() => setMovieToDelete(movie)}
-                                className="text-zinc-400 hover:text-rose-400 p-1.5 rounded-lg hover:bg-rose-950/30 transition-colors border border-transparent hover:border-rose-500/30 cursor-pointer"
-                                title="Excluir do catálogo"
-                                id={`btn-delete-movie-${movie.id}`}
-                              >
-                                <Trash className="w-4 h-4" />
-                              </button>
+
+                              {isDuplicateCopy ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setMovieToDelete(movie)}
+                                  className="text-white bg-rose-600 hover:bg-rose-700 font-bold px-2 py-1 rounded-lg text-[10px] font-mono flex items-center gap-1 cursor-pointer shadow-md shadow-rose-600/30 transition-all hover:scale-[1.02] border border-rose-500/50"
+                                  title="Excluir esta cópia duplicada (o original continuará salvo)"
+                                  id={`btn-delete-duplicate-copy-${movie.id}`}
+                                >
+                                  <Trash className="w-3.5 h-3.5" />
+                                  <span>Excluir Cópia</span>
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => setMovieToDelete(movie)}
+                                  className="text-zinc-400 hover:text-rose-400 p-1.5 rounded-lg hover:bg-rose-950/30 transition-colors border border-transparent hover:border-rose-500/30 cursor-pointer"
+                                  title="Excluir do catálogo"
+                                  id={`btn-delete-movie-${movie.id}`}
+                                >
+                                  <Trash className="w-4 h-4" />
+                                </button>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -2914,17 +3353,6 @@ export default function AdminPanel({
                     </button>
                   </form>
 
-                  {/* Status do TMDB API */}
-                  <div className="p-2.5 bg-emerald-500/10 rounded-xl border border-emerald-500/25 text-[11px] text-emerald-300 font-mono flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                      <span>API TMDB Conectada: Busca Mundial Live Pronta</span>
-                    </div>
-                    <span className="text-[9px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-500/30">
-                      {tmdbApiKey ? 'Chave Personalizada' : 'Chave Integrada VHSFLIX'}
-                    </span>
-                  </div>
-
                   {/* Lista de Resultados da Busca para Importar com Detecção de Duplicidade */}
                   <div className="space-y-2.5 max-h-[420px] overflow-y-auto pr-1.5 custom-scrollbar">
                     {tmdbError && <p className="text-rose-400 text-xs font-semibold text-center font-mono py-2">{tmdbError}</p>}
@@ -2938,7 +3366,8 @@ export default function AdminPanel({
                     {tmdbSearchResults.map((result, idx) => {
                       const name = result.title || result.name || 'Título Sem Nome';
                       const year = result.release_date ? result.release_date.split('-')[0] : (result.first_air_date ? result.first_air_date.split('-')[0] : '????');
-                      const existingDup = findDuplicateMovie(name, result.id);
+                      const mediaType: 'movie' | 'series' = (result.media_type === 'tv' || Boolean(result.first_air_date)) ? 'series' : 'movie';
+                      const existingDup = findDuplicateMovie(name, result.id, editingMovie?.id, year !== '????' ? year : undefined, mediaType);
                       
                       return (
                         <div 
@@ -2966,7 +3395,7 @@ export default function AdminPanel({
                                 <span className="font-bold text-zinc-100 truncate block text-xs">{name}</span>
                                 {existingDup && (
                                   <span className="text-[8px] font-mono font-bold bg-amber-500/25 text-amber-300 border border-amber-500/40 px-1.5 py-0.5 rounded uppercase flex items-center gap-0.5 shadow-xs">
-                                    <Check className="w-2.5 h-2.5 text-amber-400" /> No Acervo
+                                    <Check className="w-2.5 h-2.5 text-amber-400" /> No Acervo ({existingDup.year})
                                   </span>
                                 )}
                               </div>
@@ -2975,7 +3404,7 @@ export default function AdminPanel({
                               </span>
                               {existingDup && (
                                 <span className="text-[9px] text-amber-400/90 font-mono block">
-                                  Cadastrado como: "{existingDup.title}"
+                                  Cadastrado no catálogo como: "{existingDup.title}" ({existingDup.year})
                                 </span>
                               )}
                             </div>
@@ -3195,7 +3624,7 @@ export default function AdminPanel({
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       {/* Nota Rating */}
                       <div className="flex flex-col gap-1.5">
                         <label className="text-zinc-300 font-bold uppercase tracking-wider text-[10px]">Nota de Avaliação (0 a 10)</label>
@@ -3221,160 +3650,10 @@ export default function AdminPanel({
                           className="w-full bg-zinc-950 border border-zinc-800 px-3.5 py-2.5 rounded-xl focus:outline-none focus:border-rose-500 text-white font-mono text-xs"
                         />
                       </div>
-
-                      {/* Cor da Carcaça do VHS */}
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-zinc-300 font-bold uppercase tracking-wider text-[10px]">Cor Física VHS (Tape Case)</label>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="color"
-                            value={formVhsTapeColor}
-                            onChange={e => setFormVhsTapeColor(e.target.value)}
-                            className="bg-transparent border-0 w-11 h-10 rounded-lg cursor-pointer flex-shrink-0"
-                          />
-                          <input
-                            type="text"
-                            value={formVhsTapeColor}
-                            onChange={e => setFormVhsTapeColor(e.target.value)}
-                            className="bg-zinc-950 border border-zinc-800 px-2 py-2.5 rounded-xl text-center w-full focus:outline-none focus:border-rose-500 uppercase font-mono text-xs text-white"
-                          />
-                        </div>
-                      </div>
                     </div>
 
-                    {/* ALERTA E STATUS DE AUTOMAÇÃO COM O ABYSS */}
-                    {abyssStatusMessage && (
-                      <div className={`p-3.5 rounded-xl border text-xs font-mono flex items-center justify-between gap-2 transition-all ${
-                        abyssStatusMessage.type === 'success' 
-                          ? 'bg-emerald-950/40 border-emerald-500/30 text-emerald-300' 
-                          : abyssStatusMessage.type === 'warning' 
-                          ? 'bg-amber-950/40 border-amber-500/30 text-amber-300' 
-                          : abyssStatusMessage.type === 'error'
-                          ? 'bg-rose-950/40 border-rose-500/30 text-rose-300'
-                          : 'bg-zinc-900 border-zinc-800 text-zinc-300'
-                      }`}>
-                        <div className="flex items-center gap-2">
-                          {isSearchingAbyss ? (
-                            <RefreshCw className="w-3.5 h-3.5 text-rose-500 animate-spin flex-shrink-0" />
-                          ) : abyssStatusMessage.type === 'success' ? (
-                            <Check className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
-                          ) : (
-                            <AlertTriangle className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
-                          )}
-                          <span>{abyssStatusMessage.text}</span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setAbyssStatusMessage(null)}
-                          className="text-zinc-500 hover:text-white text-xs px-1 font-bold cursor-pointer"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    )}
-
-                    {/* RELATÓRIO DE AUDITORIA DE IMPORTAÇÃO DE EPISÓDIOS */}
-                    {auditReport && (
-                      <div className="bg-zinc-950 border border-zinc-800 rounded-2xl p-4 space-y-3 font-mono text-xs animate-fade-in shadow-2xl">
-                        <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
-                          <div className="flex items-center gap-2">
-                            <Film className="w-4 h-4 text-rose-500" />
-                            <span className="font-bold text-zinc-100 uppercase tracking-wider text-[11px]">
-                              Relatório de Auditoria: {auditReport.seriesTitle}
-                            </span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => setAuditReport(null)}
-                            className="text-zinc-500 hover:text-zinc-200 px-2 py-0.5 rounded-lg bg-zinc-900 border border-zinc-800 text-[10px] cursor-pointer"
-                          >
-                            Fechar
-                          </button>
-                        </div>
-
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                          <div className="bg-zinc-900/80 border border-zinc-800 p-2.5 rounded-xl text-center">
-                            <span className="text-[10px] text-zinc-500 block uppercase">Total Episódios</span>
-                            <span className="text-sm font-bold text-zinc-200">{auditReport.totalEps}</span>
-                          </div>
-                          <div className="bg-emerald-950/30 border border-emerald-500/30 p-2.5 rounded-xl text-center">
-                            <span className="text-[10px] text-emerald-400 block uppercase">Importados</span>
-                            <span className="text-sm font-bold text-emerald-300">{auditReport.imported.length}</span>
-                          </div>
-                          <div className="bg-rose-950/30 border border-rose-500/30 p-2.5 rounded-xl text-center col-span-2 sm:col-span-1">
-                            <span className="text-[10px] text-rose-400 block uppercase">Ignorados / Falhas</span>
-                            <span className="text-sm font-bold text-rose-300">{auditReport.failed.length}</span>
-                          </div>
-                        </div>
-
-                        {auditReport.failed.length > 0 && (
-                          <div className="space-y-2 pt-1">
-                            <div className="flex items-center justify-between text-[11px] font-bold text-rose-400 uppercase tracking-wider">
-                              <span>Detalhamento de Falhas ({auditReport.failed.length})</span>
-                              <span className="text-[10px] text-zinc-500 font-normal">RETENTATIVAS: 3x (2s DELAY)</span>
-                            </div>
-                            <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1 custom-scrollbar">
-                              {auditReport.failed.map((fail, idx) => (
-                                <div key={idx} className="bg-zinc-900/90 border border-rose-500/20 p-2 rounded-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1">
-                                  <div className="flex items-center gap-2 shrink-0">
-                                    <span className="px-1.5 py-0.5 bg-rose-950 text-rose-300 border border-rose-800 font-bold rounded text-[10px]">
-                                      {fail.tag}
-                                    </span>
-                                    <span className="text-zinc-300 font-medium">
-                                      Temp. {fail.season}, Ep. {fail.episode}
-                                    </span>
-                                  </div>
-                                  <div className="text-[10px] text-zinc-400 font-normal truncate max-w-md">
-                                    <span className="text-rose-400 font-semibold">Motivo:</span> {fail.reason}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {auditReport.imported.length > 0 && (
-                          <div className="text-[10px] text-emerald-400 flex items-center gap-1.5 pt-1 border-t border-zinc-900">
-                            <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                            <span>{auditReport.imported.length} episódios foram sintonizados e salvos com sucesso no formulário.</span>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* CONFIGURAÇÃO DE EMBED URL PERSONALIZADO (FILME / SÉRIE) */}
-                    {formType === 'movie' ? (
-                      <div className="flex flex-col gap-2 bg-zinc-950/60 p-4 border border-zinc-800 rounded-2xl">
-                        <div className="flex items-center justify-between">
-                          <label className="text-zinc-300 font-bold uppercase tracking-wider text-[10px] flex items-center gap-1.5">
-                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span> URL do Player / Embed URL (Filme)
-                          </label>
-                          <span className="text-[9px] text-rose-400 font-mono font-bold bg-rose-950/50 border border-rose-500/20 px-2 py-0.5 rounded-full">AUTOMÁTICO ABYSS</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="text"
-                            value={formEmbedUrl}
-                            onChange={e => setFormEmbedUrl(e.target.value)}
-                            placeholder="https://play.abyssplayer.com/{id}"
-                            className="flex-1 bg-zinc-950 border border-zinc-800 px-3.5 py-2.5 rounded-xl focus:outline-none focus:border-rose-500 text-xs text-zinc-100 font-mono"
-                          />
-                          <button
-                            type="button"
-                            onClick={handleManualAbyssMovieSearch}
-                            disabled={isSearchingAbyss || !formTitle.trim()}
-                            className="px-3.5 py-2.5 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white rounded-xl text-xs font-mono font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 shadow-md"
-                            title="Pesquisar vídeo automaticamente na API do Abyss"
-                          >
-                            {isSearchingAbyss ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3 fill-current" />}
-                            <span>Buscar no Abyss</span>
-                          </button>
-                        </div>
-                        <span className="text-[9px] text-zinc-500 leading-relaxed font-mono">
-                          Preenchido automaticamente ao importar do TMDB (formato: https://play.abyssplayer.com/&#123;id&#125;).
-                        </span>
-                      </div>
-                    ) : (
+                    {/* GERENCIADOR DE TEMPORADAS & EPISÓDIOS (APENAS PARA SÉRIE) */}
+                    {formType === 'series' && (
                       <div className="flex flex-col gap-3.5 bg-zinc-950/60 p-4 border border-zinc-800 rounded-2xl">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-zinc-800 pb-2.5 gap-2">
                           <label className="text-zinc-300 font-bold uppercase tracking-wider text-[10px] flex items-center gap-1.5">
@@ -3490,7 +3769,7 @@ export default function AdminPanel({
                                         const val = e.target.value;
                                         setFormEpisodeEmbeds(prev => ({ ...prev, [key]: val }));
                                       }}
-                                      placeholder="https://play.abyssplayer.com/{id}"
+                                      placeholder="https://..."
                                       className="flex-1 bg-zinc-950 border border-zinc-850 px-3 py-1.5 rounded-lg focus:outline-none focus:border-rose-500 text-xs text-zinc-100 font-mono placeholder-zinc-700"
                                     />
                                     <button
@@ -4621,6 +4900,64 @@ export default function AdminPanel({
         )}
       </AnimatePresence>
 
+      {/* MODAL DE CONFIRMAÇÃO DE EXCLUSÃO DE TODAS AS CÓPIAS DUPLICADAS */}
+      <AnimatePresence>
+        {showDeleteAllDuplicatesConfirm && (
+          <div className="fixed inset-0 bg-black/90 flex justify-center items-center p-4 z-50 modal-backdrop-blur">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-zinc-900 border border-rose-500/50 max-w-md w-full rounded-2xl p-6 text-center shadow-2xl space-y-4"
+            >
+              <div className="w-14 h-14 rounded-2xl bg-rose-600/20 border border-rose-500/40 text-rose-500 flex items-center justify-center mx-auto">
+                <Trash className="w-7 h-7" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white font-display uppercase tracking-tight">
+                  Excluir Todas as {duplicateAnalysis.totalCopiesCount} Cópias Duplicadas?
+                </h3>
+                <p className="text-xs text-zinc-400 mt-2 leading-relaxed font-sans">
+                  Esta ação excluirá exclusivamente as <strong className="text-rose-400">{duplicateAnalysis.totalCopiesCount} cópias repetidas</strong> do catálogo.
+                  <br />
+                  <span className="text-emerald-400 font-semibold mt-1.5 inline-block">
+                    ✓ A fita original de cada filme e série continuará 100% segura e salva!
+                  </span>
+                </p>
+              </div>
+              <div className="flex gap-3 justify-center pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteAllDuplicatesConfirm(false)}
+                  className="px-4 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-semibold hover:text-white transition-all cursor-pointer font-sans"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const idsToDelete: string[] = Array.from(duplicateAnalysis.duplicateCopyIds);
+                    if (idsToDelete.length > 0) {
+                      if (onBulkDeleteMovies) {
+                        onBulkDeleteMovies(idsToDelete);
+                      } else {
+                        idsToDelete.forEach((id: string) => onDeleteMovie(id));
+                      }
+                      setSelectedMovieIds(prev => prev.filter(id => !idsToDelete.includes(id)));
+                    }
+                    setShowDeleteAllDuplicatesConfirm(false);
+                  }}
+                  className="bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold font-mono px-5 py-2.5 rounded-xl transition-all shadow-lg shadow-rose-600/30 cursor-pointer flex items-center gap-2"
+                >
+                  <Trash className="w-4 h-4" />
+                  <span>Excluir {duplicateAnalysis.totalCopiesCount} Cópias</span>
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* MODAL DE CONFIRMAÇÃO DE EXCLUSÃO DE FILME */}
       <AnimatePresence>
         {movieToDelete && (
@@ -4632,9 +4969,23 @@ export default function AdminPanel({
               className="bg-zinc-900 border border-zinc-800 max-w-sm w-full rounded-xl p-6 text-center shadow-2xl"
             >
               <Trash className="w-12 h-12 text-rose-500 mx-auto mb-3" />
-              <h3 className="text-lg font-bold text-white mb-2 font-display">Remover do Catálogo?</h3>
+              <h3 className="text-lg font-bold text-white mb-2 font-display">
+                {duplicateAnalysis.duplicateCopyIds.has(movieToDelete.id) ? 'Excluir Cópia Duplicada?' : 'Remover do Catálogo?'}
+              </h3>
               <p className="text-xs text-zinc-400 mb-6 leading-relaxed font-sans">
-                Deseja realmente excluir <strong className="text-zinc-200">"{movieToDelete.title}"</strong> permanentemente do acervo VHSFLIX?
+                {duplicateAnalysis.duplicateCopyIds.has(movieToDelete.id) ? (
+                  <>
+                    Deseja realmente apagar esta cópia repetida de <strong className="text-zinc-200">"{movieToDelete.title}"</strong>?
+                    <br />
+                    <span className="text-emerald-400 font-semibold mt-1 inline-block">
+                      O título original continuará salvo no seu acervo.
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    Deseja realmente excluir <strong className="text-zinc-200">"{movieToDelete.title}"</strong> permanentemente do acervo VHSFLIX?
+                  </>
+                )}
               </p>
               <div className="flex gap-3 justify-center">
                 <button
@@ -4652,7 +5003,7 @@ export default function AdminPanel({
                   }}
                   className="bg-red-600 hover:bg-red-700 text-white text-xs font-semibold px-5 py-2 rounded transition-all shadow-lg cursor-pointer font-sans"
                 >
-                  Remover Mídia
+                  {duplicateAnalysis.duplicateCopyIds.has(movieToDelete.id) ? 'Excluir Cópia' : 'Remover Mídia'}
                 </button>
               </div>
             </motion.div>
